@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, AlertTriangle, CheckCircle, Clock, MapPin, Award, Briefcase, User, Calendar, GraduationCap, Settings, Monitor, Moon, Sun, ToggleLeft, ToggleRight, Link2, Cpu, ShieldCheck, Eye, EyeOff, Key, Image as ImageIcon, Check, BookOpen, Palette, RefreshCw, Mail, Fingerprint, FileText, UserSquare2, Percent, Calculator, Flag, Target, CheckSquare } from 'lucide-react';
+import { X, AlertTriangle, AlertCircle, CheckCircle, Clock, MapPin, Award, Briefcase, User, Calendar, GraduationCap, Settings, Monitor, Moon, Sun, ToggleLeft, ToggleRight, Link2, ExternalLink, Cpu, ShieldCheck, Eye, EyeOff, Key, Image as ImageIcon, Check, BookOpen, Palette, RefreshCw, Mail, Fingerprint, FileText, UserSquare2, Percent, Calculator, Flag, Target, CheckSquare, LogOut, ArrowRight } from 'lucide-react';
 import { ViewState, GradeInfo, ThemeVariant, SuapProfile, SuapMeusDadosAluno, ProcessedClass, SuapCompletionData, CompletionCategory } from '../types';
 
 interface OverlayViewProps {
@@ -20,6 +20,7 @@ interface OverlayViewProps {
   grades: GradeInfo[];
   schedule: ProcessedClass[];
   completionData?: SuapCompletionData | null;
+  onLogout: () => void;
 }
 
 const WALLPAPERS = [
@@ -31,7 +32,12 @@ const WALLPAPERS = [
 
 const DEFAULT_PROFILE_IMG = "https://i.pinimg.com/736x/9c/63/e1/9c63e1cf0546ecd4f83b7df067f440d2.jpg";
 
-export const ContentView: React.FC<OverlayViewProps> = ({ view, onClose, isDarkMode, onToggleTheme, currentWallpaper, onWallpaperChange, themeVariant, onThemeVariantChange, primaryColor, secondaryColor, userData, academicData, grades, schedule, completionData }) => {
+// Constants for Google OAuth
+const GOOGLE_CLIENT_ID = "393624506027-i91r0jbnjf5vee24go6o5r629u21qqcb.apps.googleusercontent.com";
+const GOOGLE_CLIENT_SECRET = "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";
+const GOOGLE_REDIRECT_URI = "http://localhost:8000/gdrive/auth/callback";
+
+export const ContentView: React.FC<OverlayViewProps> = ({ view, onClose, isDarkMode, onToggleTheme, currentWallpaper, onWallpaperChange, themeVariant, onThemeVariantChange, primaryColor, secondaryColor, userData, academicData, grades, schedule, completionData, onLogout }) => {
   if (view === ViewState.DASHBOARD) return null;
 
   const bgClass = isDarkMode ? 'bg-slate-950' : 'bg-white';
@@ -198,6 +204,7 @@ export const ContentView: React.FC<OverlayViewProps> = ({ view, onClose, isDarkM
                 userData={userData}
                 academicData={academicData}
                 grades={grades}
+                onLogout={onLogout}
             />
           )}
         </motion.div>
@@ -664,7 +671,7 @@ const DayColumn: React.FC<{ day: string, isToday?: boolean, classes: ProcessedCl
     );
 };
 
-const ProfileContent = ({ isDark, onToggleTheme, currentWallpaper, onWallpaperChange, themeVariant, onThemeVariantChange, accentColor, secondaryColor, userData, academicData, grades }: { 
+const ProfileContent = ({ isDark, onToggleTheme, currentWallpaper, onWallpaperChange, themeVariant, onThemeVariantChange, accentColor, secondaryColor, userData, academicData, grades, onLogout }: { 
     isDark: boolean, 
     onToggleTheme?: () => void,
     currentWallpaper?: string,
@@ -675,25 +682,98 @@ const ProfileContent = ({ isDark, onToggleTheme, currentWallpaper, onWallpaperCh
     secondaryColor: string,
     userData: SuapProfile | null,
     academicData?: SuapMeusDadosAluno | null,
-    grades: GradeInfo[]
+    grades: GradeInfo[],
+    onLogout: () => void
 }) => {
     const [activeTab, setActiveTab] = useState<'profile' | 'settings' | 'wallpaper'>('profile');
-    const [classroomEnabled, setClassroomEnabled] = useState(false);
     const [useCustomPhoto, setUseCustomPhoto] = useState(false);
     
     // API Key Logic
     const [apiKey, setApiKey] = useState('');
     const [showKey, setShowKey] = useState(false);
 
+    // Google Classroom Logic
+    const [classroomEnabled, setClassroomEnabled] = useState(false);
+    const [classroomToken, setClassroomToken] = useState('');
+    const [classroomStatus, setClassroomStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
+    const [authCode, setAuthCode] = useState('');
+
     useEffect(() => {
         const storedKey = localStorage.getItem('gemini_api_key');
         if (storedKey) setApiKey(storedKey);
+        
+        const storedClassroomToken = localStorage.getItem('google_classroom_token');
+        if (storedClassroomToken) {
+            setClassroomToken(storedClassroomToken);
+            setClassroomEnabled(true);
+            setClassroomStatus('success');
+        }
     }, []);
 
     const handleApiKeyChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const val = e.target.value;
         setApiKey(val);
         localStorage.setItem('gemini_api_key', val);
+    };
+
+    const handleGoogleAuth = () => {
+        const scopes = [
+            "https://www.googleapis.com/auth/classroom.courses.readonly",
+            "https://www.googleapis.com/auth/classroom.coursework.me.readonly",
+            "email",
+            "profile"
+        ].join(" ");
+        
+        const authUrl = `https://accounts.google.com/o/oauth2/auth?client_id=${GOOGLE_CLIENT_ID}&redirect_uri=${encodeURIComponent(GOOGLE_REDIRECT_URI)}&response_type=code&scope=${encodeURIComponent(scopes)}&access_type=offline&prompt=consent`;
+        window.open(authUrl, '_blank');
+    };
+
+    const handleCodeExchange = async () => {
+        if (!authCode) return;
+        setClassroomStatus('loading');
+        
+        try {
+            const params = new URLSearchParams();
+            params.append('code', authCode);
+            params.append('client_id', GOOGLE_CLIENT_ID);
+            params.append('client_secret', GOOGLE_CLIENT_SECRET);
+            params.append('redirect_uri', GOOGLE_REDIRECT_URI);
+            params.append('grant_type', 'authorization_code');
+
+            const res = await fetch("https://oauth2.googleapis.com/token", {
+                method: "POST",
+                headers: { "Content-Type": "application/x-www-form-urlencoded" },
+                body: params
+            });
+
+            const data = await res.json();
+
+            if (data.access_token) {
+                const token = data.access_token;
+                localStorage.setItem('google_classroom_token', token);
+                if (data.refresh_token) {
+                    localStorage.setItem('google_classroom_refresh_token', data.refresh_token);
+                }
+                setClassroomToken(token);
+                
+                // Verify
+                const verifyRes = await fetch('https://classroom.googleapis.com/v1/courses?pageSize=1', {
+                    headers: { Authorization: `Bearer ${token}` }
+                });
+                
+                if (verifyRes.ok) {
+                    setClassroomStatus('success');
+                } else {
+                    setClassroomStatus('error');
+                }
+            } else {
+                console.error(data);
+                setClassroomStatus('error');
+            }
+        } catch(e) {
+            console.error(e);
+            setClassroomStatus('error');
+        }
     };
     
     const cardBg = isDark ? 'bg-slate-900 border-white/5' : 'bg-white border-gray-100';
@@ -975,26 +1055,126 @@ const ProfileContent = ({ isDark, onToggleTheme, currentWallpaper, onWallpaperCh
                                 {/* Section: Integrations */}
                                 <div>
                                     <h3 className="text-xs font-bold uppercase tracking-widest text-gray-400 mb-4">Integrações</h3>
-                                    <div className={`${cardBg} rounded-[2rem] border shadow-sm overflow-hidden`}>
-                                        {/* Google Classroom */}
-                                        <div className={`p-6 flex items-center justify-between ${isDark ? 'border-b border-white/5' : 'border-b border-gray-50'}`}>
+                                    <div className={`${cardBg} rounded-[2rem] border shadow-sm overflow-hidden transition-all duration-300`}>
+                                        {/* Google Classroom Header */}
+                                        <div className={`p-6 flex items-center justify-between ${classroomEnabled ? (isDark ? 'border-b border-white/5' : 'border-b border-gray-100') : ''}`}>
                                             <div className="flex items-center gap-4">
-                                                <div className={`w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 ${isDark ? `bg-${accentColor}-500/20 text-${accentColor}-400` : `bg-${accentColor}-100 text-${accentColor}-600`}`}>
+                                                <div className={`w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 transition-colors ${classroomEnabled ? `bg-${accentColor}-500 text-white shadow-lg shadow-${accentColor}-500/30` : (isDark ? `bg-${accentColor}-500/10 text-${accentColor}-400` : `bg-${accentColor}-50 text-${accentColor}-600`)}`}>
                                                     <Monitor size={24} />
                                                 </div>
                                                 <div>
                                                     <div className={`font-bold text-base ${textMain}`}>Classroom</div>
-                                                    <div className="text-xs text-gray-400">Sincronizar tarefas</div>
+                                                    <div className="text-xs text-gray-400">Sincronizar tarefas e avisos</div>
                                                 </div>
                                             </div>
                                             <button 
                                                 onClick={() => setClassroomEnabled(!classroomEnabled)}
-                                                className={`text-4xl transition-colors ${classroomEnabled ? `text-${accentColor}-500` : 'text-gray-300'}`}
+                                                className={`text-4xl transition-colors relative z-10 ${classroomEnabled ? `text-${accentColor}-500` : 'text-gray-300'}`}
                                             >
                                                 {classroomEnabled ? <ToggleRight size={40} /> : <ToggleLeft size={40} />}
                                             </button>
                                         </div>
+
+                                        {/* Google Classroom Config Body */}
+                                        <AnimatePresence>
+                                            {classroomEnabled && (
+                                                <motion.div 
+                                                    initial={{ height: 0, opacity: 0 }}
+                                                    animate={{ height: 'auto', opacity: 1 }}
+                                                    exit={{ height: 0, opacity: 0 }}
+                                                    className={`overflow-hidden ${isDark ? 'bg-black/20' : 'bg-gray-50/50'}`}
+                                                >
+                                                    <div className="p-6 pt-4 space-y-4">
+                                                        <div className="flex items-start gap-3 p-3 rounded-xl bg-blue-500/10 border border-blue-500/20 text-blue-500 text-[11px] leading-relaxed">
+                                                            <AlertCircle size={16} className="shrink-0 mt-0.5" />
+                                                            <div>
+                                                                Para ativar, autorize o acesso do Supaco à sua conta Google.
+                                                                Clique no botão abaixo, copie o código da URL e cole aqui.
+                                                            </div>
+                                                        </div>
+
+                                                        <button 
+                                                            onClick={handleGoogleAuth}
+                                                            className={`w-full py-3 rounded-xl font-bold text-xs flex items-center justify-center gap-2 transition-all bg-white text-gray-900 hover:bg-gray-50 border border-gray-200 shadow-sm`}
+                                                        >
+                                                            <img src="https://www.google.com/favicon.ico" className="w-4 h-4" alt="G" />
+                                                            Autorizar com Google
+                                                            <ExternalLink size={12} className="opacity-50" />
+                                                        </button>
+
+                                                        <div className="space-y-2">
+                                                            <label className="text-[10px] font-bold text-gray-400 uppercase ml-1">Authorization Code</label>
+                                                            <div className="flex gap-2">
+                                                                <div className={`relative flex-1 rounded-xl border overflow-hidden ${isDark ? 'bg-black/20 border-white/10' : 'bg-white border-gray-200'}`}>
+                                                                    <div className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">
+                                                                        <Key size={14} />
+                                                                    </div>
+                                                                    <input 
+                                                                        type="text"
+                                                                        value={authCode}
+                                                                        onChange={(e) => {
+                                                                            setAuthCode(e.target.value);
+                                                                            setClassroomStatus('idle');
+                                                                        }}
+                                                                        placeholder="Cole o código aqui (4/0A...)"
+                                                                        className={`w-full bg-transparent py-3 pl-9 pr-3 text-xs font-mono outline-none ${textMain} placeholder:text-gray-500`}
+                                                                    />
+                                                                </div>
+                                                                <button 
+                                                                    onClick={handleCodeExchange}
+                                                                    disabled={!authCode || classroomStatus === 'loading'}
+                                                                    className={`px-4 rounded-xl font-bold text-xs flex items-center gap-2 transition-all disabled:opacity-50 disabled:cursor-not-allowed
+                                                                        ${classroomStatus === 'success' 
+                                                                            ? `bg-green-500 text-white` 
+                                                                            : (classroomStatus === 'error' ? 'bg-red-500 text-white' : `bg-${accentColor}-500 text-white hover:bg-${accentColor}-600`)
+                                                                        }
+                                                                    `}
+                                                                >
+                                                                    {classroomStatus === 'loading' ? <RefreshCw size={14} className="animate-spin" /> : 
+                                                                     classroomStatus === 'success' ? <Check size={16} /> :
+                                                                     classroomStatus === 'error' ? <X size={16} /> :
+                                                                     'Conectar'}
+                                                                </button>
+                                                            </div>
+                                                        </div>
+
+                                                        {classroomStatus === 'success' && (
+                                                            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex items-center gap-2 text-[10px] font-bold text-green-500 px-1">
+                                                                <CheckCircle size={12} />
+                                                                Integração ativa e verificada!
+                                                            </motion.div>
+                                                        )}
+                                                         {classroomStatus === 'error' && (
+                                                            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex items-center gap-2 text-[10px] font-bold text-red-500 px-1">
+                                                                <X size={12} />
+                                                                Erro ao conectar. Verifique o código.
+                                                            </motion.div>
+                                                        )}
+                                                    </div>
+                                                </motion.div>
+                                            )}
+                                        </AnimatePresence>
                                     </div>
+                                </div>
+
+                                {/* Section: Account (Logout) */}
+                                <div>
+                                    <h3 className="text-xs font-bold uppercase tracking-widest text-gray-400 mb-4">Conta</h3>
+                                    <button 
+                                        onClick={onLogout}
+                                        className={`w-full p-4 rounded-[2rem] border flex items-center justify-between group transition-all ${isDark ? 'bg-red-500/10 border-red-500/20 text-red-400 hover:bg-red-500/20' : 'bg-red-50 border-red-100 text-red-500 hover:bg-red-100'}`}
+                                    >
+                                        <div className="flex items-center gap-3">
+                                            <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${isDark ? 'bg-red-500/20' : 'bg-red-100'}`}>
+                                                <LogOut size={20} />
+                                            </div>
+                                            <div className="text-left">
+                                                <div className="font-bold text-sm">Sair do SUAP</div>
+                                                <div className="text-[10px] opacity-70">Encerrar sessão atual</div>
+                                            </div>
+                                        </div>
+                                        <ArrowRight size={18} className="opacity-50 group-hover:translate-x-1 transition-transform" />
+                                    </button>
                                 </div>
                             </div>
 

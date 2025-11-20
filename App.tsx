@@ -7,6 +7,21 @@ import { AnimatePresence } from 'framer-motion';
 
 const DEFAULT_WALLPAPER = "https://images2.alphacoders.com/134/thumb-1920-1345658.png";
 
+// Cache Keys
+const CACHE_KEYS = {
+    PROFILE: 'suap_cache_profile',
+    ACADEMIC: 'suap_cache_academic',
+    COMPLETION: 'suap_cache_completion',
+    PERIODS: 'suap_cache_periods',
+    CURRENT_PERIOD: 'suap_cache_current_period',
+    GRADES: 'suap_cache_grades',
+    SCHEDULE: 'suap_cache_schedule',
+    HOLIDAYS: 'suap_cache_holidays',
+    WALLPAPER: 'suap_saved_wallpaper',
+    THEME_VARIANT: 'suap_saved_theme_variant',
+    THEME_MODE: 'suap_saved_theme_mode'
+};
+
 // Define palette structure
 interface Palette {
     primary: string;   // Replaces 'Green' (Success, Status, Progress)
@@ -27,24 +42,73 @@ const WALLPAPER_THEMES: Record<string, Palette> = {
 
 const App: React.FC = () => {
   const [currentView, setCurrentView] = useState<ViewState>(ViewState.DASHBOARD);
-  const [isDarkMode, setIsDarkMode] = useState(false);
-  const [themeVariant, setThemeVariant] = useState<ThemeVariant>('dynamic'); 
-  const [currentWallpaper, setCurrentWallpaper] = useState(DEFAULT_WALLPAPER);
+  
+  // Settings State (Initialize from cache if available)
+  const [isDarkMode, setIsDarkMode] = useState(() => {
+      return localStorage.getItem(CACHE_KEYS.THEME_MODE) === 'dark';
+  });
+  const [themeVariant, setThemeVariant] = useState<ThemeVariant>(() => {
+      return (localStorage.getItem(CACHE_KEYS.THEME_VARIANT) as ThemeVariant) || 'dynamic';
+  });
+  const [currentWallpaper, setCurrentWallpaper] = useState(() => {
+      return localStorage.getItem(CACHE_KEYS.WALLPAPER) || DEFAULT_WALLPAPER;
+  });
   
   // Auth State
   const [isLoggedIn, setIsLoggedIn] = useState(false);
+  
+  // Data State (Will be populated by cache first, then API)
   const [userData, setUserData] = useState<SuapProfile | null>(null);
   const [academicData, setAcademicData] = useState<SuapMeusDadosAluno | null>(null);
-  
-  // SUAP Data State
   const [currentPeriod, setCurrentPeriod] = useState<SuapPeriod | null>(null);
-  const [boletimData, setBoletimData] = useState<SuapBoletim[]>([]);
   const [processedSchedule, setProcessedSchedule] = useState<ProcessedClass[]>([]);
   const [processedGrades, setProcessedGrades] = useState<GradeInfo[]>([]);
   const [completionData, setCompletionData] = useState<SuapCompletionData | null>(null);
-  
-  // Public Data
   const [holidays, setHolidays] = useState<Holiday[]>([]);
+
+  // --- PERSISTENCE HELPERS ---
+
+  // Save settings when they change
+  useEffect(() => {
+      localStorage.setItem(CACHE_KEYS.THEME_MODE, isDarkMode ? 'dark' : 'light');
+  }, [isDarkMode]);
+
+  useEffect(() => {
+      localStorage.setItem(CACHE_KEYS.THEME_VARIANT, themeVariant);
+  }, [themeVariant]);
+
+  useEffect(() => {
+      localStorage.setItem(CACHE_KEYS.WALLPAPER, currentWallpaper);
+  }, [currentWallpaper]);
+
+  // Load cached data into state
+  const loadCache = () => {
+      try {
+          const cachedProfile = localStorage.getItem(CACHE_KEYS.PROFILE);
+          if (cachedProfile) setUserData(JSON.parse(cachedProfile));
+
+          const cachedAcademic = localStorage.getItem(CACHE_KEYS.ACADEMIC);
+          if (cachedAcademic) setAcademicData(JSON.parse(cachedAcademic));
+
+          const cachedCompletion = localStorage.getItem(CACHE_KEYS.COMPLETION);
+          if (cachedCompletion) setCompletionData(JSON.parse(cachedCompletion));
+
+          const cachedPeriod = localStorage.getItem(CACHE_KEYS.CURRENT_PERIOD);
+          if (cachedPeriod) setCurrentPeriod(JSON.parse(cachedPeriod));
+
+          const cachedGrades = localStorage.getItem(CACHE_KEYS.GRADES);
+          if (cachedGrades) setProcessedGrades(JSON.parse(cachedGrades));
+
+          const cachedSchedule = localStorage.getItem(CACHE_KEYS.SCHEDULE);
+          if (cachedSchedule) setProcessedSchedule(JSON.parse(cachedSchedule));
+          
+          const cachedHolidays = localStorage.getItem(CACHE_KEYS.HOLIDAYS);
+          if (cachedHolidays) setHolidays(JSON.parse(cachedHolidays));
+
+      } catch (e) {
+          console.error("Error loading cache:", e);
+      }
+  };
 
   // --- API FETCHING ---
 
@@ -52,33 +116,41 @@ const App: React.FC = () => {
     const token = localStorage.getItem('suap_access_token');
     if (!token) return null;
 
-    const response = await fetch(url, {
-        headers: {
-            'Authorization': `Bearer ${token}`,
-            'Accept': 'application/json'
-        }
-    });
+    try {
+        const response = await fetch(url, {
+            headers: {
+                'Authorization': `Bearer ${token}`,
+                'Accept': 'application/json'
+            }
+        });
 
-    if (response.status === 401) {
-        localStorage.removeItem('suap_access_token');
-        localStorage.removeItem('suap_refresh_token');
-        setIsLoggedIn(false);
+        if (response.status === 401) {
+            localStorage.removeItem('suap_access_token');
+            localStorage.removeItem('suap_refresh_token');
+            setIsLoggedIn(false);
+            return null;
+        }
+
+        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+        return await response.json();
+    } catch (error) {
+        console.warn(`Fetch failed for ${url} (likely offline)`, error);
         return null;
     }
-
-    return response.ok ? await response.json() : null;
   };
 
   const fetchHolidays = async () => {
+      // Load from cache first (handled in mount), then update
       const year = new Date().getFullYear();
       try {
           const response = await fetch(`https://brasilapi.com.br/api/feriados/v1/${year}`);
           if (response.ok) {
               const data = await response.json();
               setHolidays(data);
+              localStorage.setItem(CACHE_KEYS.HOLIDAYS, JSON.stringify(data));
           }
       } catch (error) {
-          console.error("Failed to fetch holidays", error);
+          console.warn("Failed to update holidays (offline)", error);
       }
   };
 
@@ -86,23 +158,36 @@ const App: React.FC = () => {
     try {
         // 1. User Profile
         const profile = await fetchWithAuth('https://suap.ifrn.edu.br/api/v2/minhas-informacoes/meus-dados/');
-        if (profile) setUserData(profile);
+        if (profile) {
+            setUserData(profile);
+            localStorage.setItem(CACHE_KEYS.PROFILE, JSON.stringify(profile));
+        }
 
         // 2. Detailed Academic Data (IRA, Matrix, Entry etc)
         const academic = await fetchWithAuth('https://suap.ifrn.edu.br/api/ensino/meus-dados-aluno/');
-        if (academic) setAcademicData(academic);
+        if (academic) {
+            setAcademicData(academic);
+            localStorage.setItem(CACHE_KEYS.ACADEMIC, JSON.stringify(academic));
+        }
 
         // 3. Completion Requirements
         const completion = await fetchWithAuth('https://suap.ifrn.edu.br/api/ensino/requisitos-conclusao/');
-        if (completion) setCompletionData(completion);
+        if (completion) {
+            setCompletionData(completion);
+            localStorage.setItem(CACHE_KEYS.COMPLETION, JSON.stringify(completion));
+        }
 
         // 4. Periods (New Endpoint)
         const periods: SuapPeriod[] = await fetchWithAuth('https://suap.ifrn.edu.br/api/ensino/periodos/');
         if (periods && periods.length > 0) {
+            localStorage.setItem(CACHE_KEYS.PERIODS, JSON.stringify(periods));
+
             // Sort descending by string (e.g. "2025.1" > "2024.2")
             const sortedPeriods = periods.sort((a, b) => b.semestre.localeCompare(a.semestre));
             const activePeriod = sortedPeriods[0]; // Get most recent
+            
             setCurrentPeriod(activePeriod);
+            localStorage.setItem(CACHE_KEYS.CURRENT_PERIOD, JSON.stringify(activePeriod));
             
             // 5. Fetch Active Data using active semester slug
             if (activePeriod) {
@@ -116,24 +201,17 @@ const App: React.FC = () => {
   };
 
   const fetchAcademicData = async (semestre: string) => {
-      // Split semester for Boletim (which still might use year/period path if old endpoint, 
-      // but prompt says: GET /api/v2/minhas-informacoes/boletim/{ano_letivo}/{periodo_letivo}/ 
-      // Let's assume we can parse "2025.1" -> 2025, 1
       const [ano, periodo] = semestre.split('.');
       
       // Boletim
       const boletim = await fetchWithAuth(`https://suap.ifrn.edu.br/api/v2/minhas-informacoes/boletim/${ano}/${periodo}/`);
       if (boletim) {
-          setBoletimData(boletim);
           processGrades(boletim);
       }
 
       // Diarios (New Schedule Endpoint)
       const diariosResponse: SuapDiarioResponse = await fetchWithAuth(`https://suap.ifrn.edu.br/api/ensino/diarios/${semestre}/`);
       
-      // The response is an object { results: [], ... } or sometimes array directly depending on API version
-      // Based on user prompt example: { "results": [ ... ] }
-      // But user also showed Schema as Array `[...]`. Let's handle both.
       let diariosList = [];
       if (Array.isArray(diariosResponse)) {
           diariosList = diariosResponse;
@@ -164,13 +242,14 @@ const App: React.FC = () => {
           totalHours: b.carga_horaria,
           limit: Math.floor(b.carga_horaria * 0.25) // 25% Rule
       }));
+      
       setProcessedGrades(processed);
+      localStorage.setItem(CACHE_KEYS.GRADES, JSON.stringify(processed));
   };
 
   const processSchedule = (diarios: any[]) => {
       const parsedClasses: ProcessedClass[] = [];
       
-      // Mapping for sorting
       const dayOrder: Record<string, number> = { 
           'Segunda': 2, 'Terça': 3, 'Quarta': 4, 
           'Quinta': 5, 'Sexta': 6, 'Sábado': 7, 'Domingo': 1 
@@ -178,36 +257,26 @@ const App: React.FC = () => {
 
       diarios.forEach(diario => {
           if (!diario.horarios || diario.horarios.length === 0) return;
-
-          // Group overlapping times? Or just list them all.
-          // API returns objects like: { dia: "Quarta", horario: "16:30 - 17:15" }
           
           diario.horarios.forEach((h: any) => {
-              // Parse "16:30 - 17:15"
               const times = h.horario.split(' - ');
               const startTime = times[0] || "00:00";
               const endTime = times[1] || "00:00";
               
-              // Get Subject Name
               const fullName = diario.disciplina?.descricao || "Disciplina";
               const shortName = diario.disciplina?.sigla || "---";
               
-              // Get Room
               const fullRoom = diario.local?.sala || "Sem local definido";
-              // Try to extract short room name (e.g. "Sala 06")
               let shortRoom = "Local ?";
               if (fullRoom.includes(" - ")) {
                  const parts = fullRoom.split(" - ");
-                 // Usually the second part has "Sala de Aula X" or "Lab X"
                  shortRoom = parts[1] || parts[0]; 
               } else {
                  shortRoom = fullRoom;
               }
               
-              // Limit short room length
               if (shortRoom.length > 15) shortRoom = shortRoom.substring(0, 15) + '...';
 
-              // Get Professors
               const professors = diario.professores?.map((p: any) => p.nome) || [];
 
               parsedClasses.push({
@@ -226,16 +295,23 @@ const App: React.FC = () => {
           });
       });
 
-      // Sort by Day then Time
-      setProcessedSchedule(parsedClasses.sort((a, b) => {
+      const sortedSchedule = parsedClasses.sort((a, b) => {
           if (a.dayInt !== b.dayInt) return a.dayInt - b.dayInt;
           return a.startTime.localeCompare(b.startTime);
-      }));
+      });
+
+      setProcessedSchedule(sortedSchedule);
+      localStorage.setItem(CACHE_KEYS.SCHEDULE, JSON.stringify(sortedSchedule));
   };
 
-  // Check for existing session on mount
+  // --- INITIALIZATION ---
+  
   useEffect(() => {
-    fetchHolidays(); // Fetch always on load
+    // 1. Immediately load whatever we have in cache to show UI
+    loadCache();
+    fetchHolidays(); 
+
+    // 2. Check authentication and fetch fresh data in background
     const token = localStorage.getItem('suap_access_token');
     if (token) {
       setIsLoggedIn(true);
@@ -258,6 +334,33 @@ const App: React.FC = () => {
   const handleLogin = () => {
       setIsLoggedIn(true);
       fetchUserData();
+  };
+
+  const handleLogout = () => {
+      // Clear Authentication
+      localStorage.removeItem('suap_access_token');
+      localStorage.removeItem('suap_refresh_token');
+      localStorage.removeItem('suap_username');
+      
+      // Clear User Data Cache (But keep settings like wallpaper/api key)
+      localStorage.removeItem(CACHE_KEYS.PROFILE);
+      localStorage.removeItem(CACHE_KEYS.ACADEMIC);
+      localStorage.removeItem(CACHE_KEYS.COMPLETION);
+      localStorage.removeItem(CACHE_KEYS.GRADES);
+      localStorage.removeItem(CACHE_KEYS.SCHEDULE);
+      localStorage.removeItem(CACHE_KEYS.CURRENT_PERIOD);
+      localStorage.removeItem(CACHE_KEYS.PERIODS);
+
+      // Reset State
+      setUserData(null);
+      setAcademicData(null);
+      setProcessedSchedule([]);
+      setProcessedGrades([]);
+      setCompletionData(null);
+      setCurrentPeriod(null);
+      
+      setIsLoggedIn(false);
+      setCurrentView(ViewState.DASHBOARD);
   };
 
   // Calculate Active Palette based on Variant & Wallpaper
@@ -315,6 +418,7 @@ const App: React.FC = () => {
             grades={processedGrades}
             schedule={processedSchedule}
             completionData={completionData}
+            onLogout={handleLogout}
           />
         )}
       </AnimatePresence>
