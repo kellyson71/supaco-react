@@ -1,0 +1,5 @@
+{
+  "name": "supaco",
+  "description": "A fluid, organic UI dashboard for tracking school grades, absences, and schedules using masking and glassmorphism effects.",
+  "requestFramePermissions": []
+}
