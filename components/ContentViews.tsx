@@ -38,7 +38,6 @@ const DEFAULT_PROFILE_IMG = "https://i.pinimg.com/736x/9c/63/e1/9c63e1cf0546ecd4
 
 // Constants for Google OAuth
 const GOOGLE_CLIENT_ID = "493737247808-0rv9jbldtskqdg78l122foess6h1t7ll.apps.googleusercontent.com";
-const GOOGLE_REDIRECT_URI = "http://localhost:8000"; // Must match Console exactly
 
 export const ContentView: React.FC<OverlayViewProps> = ({ view, onClose, onChangeView, isDarkMode, onToggleTheme, currentWallpaper, onWallpaperChange, themeVariant, onThemeVariantChange, primaryColor, secondaryColor, userData, academicData, grades, schedule, completionData, onLogout, autoExpandClassroom, onAutoExpandClassroom, initialProfileTab }) => {
   if (view === ViewState.DASHBOARD) return null;
@@ -1070,9 +1069,10 @@ const ProfileContent = ({ isDark, onToggleTheme, currentWallpaper, onWallpaperCh
 
     // Construct auth URL
     const getAuthUrl = () => {
+        const redirectUri = window.location.origin;
         const params = new URLSearchParams({
             client_id: GOOGLE_CLIENT_ID,
-            redirect_uri: GOOGLE_REDIRECT_URI,
+            redirect_uri: redirectUri,
             response_type: 'token',
             scope: 'https://www.googleapis.com/auth/classroom.courses.readonly https://www.googleapis.com/auth/classroom.coursework.me.readonly email profile',
             include_granted_scopes: 'true',
@@ -1422,17 +1422,6 @@ const ProfileContent = ({ isDark, onToggleTheme, currentWallpaper, onWallpaperCh
                                                         
                                                         {classroomStatus !== 'success' && (
                                                             <>
-                                                                {/* ERROR HELP BOX */}
-                                                                <div className="bg-yellow-500/10 border border-yellow-500/20 rounded-xl p-4 text-yellow-500 text-[10px] leading-relaxed">
-                                                                    <div className="flex items-center gap-2 font-bold mb-1">
-                                                                        <AlertTriangle size={12} />
-                                                                        Atenção: Erro "Access Denied"
-                                                                    </div>
-                                                                    Se você ver uma tela de erro do Google dizendo "The developer hasn't given you access", é porque seu app está em modo de <b>Teste</b>.
-                                                                    <br/><br/>
-                                                                    Vá no <b>Google Cloud Console {'>'} OAuth Consent Screen {'>'} Test Users</b> e adicione seu email: <b>kellyson.medeiros.pdf@gmail.com</b>
-                                                                </div>
-
                                                                 {/* Instructions Step 1 */}
                                                                 <div className="space-y-2">
                                                                     <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-gray-400">
