@@ -4,6 +4,7 @@ export enum ViewState {
   GRADES = 'GRADES',
   ABSENCES = 'ABSENCES',
   SCHEDULE = 'SCHEDULE',
+  CLASSROOM = 'CLASSROOM',
   PROFILE = 'PROFILE',
   CONCLUSION = 'CONCLUSION'
 }
@@ -192,6 +193,7 @@ export interface ClassroomCourse {
   name: string;
   section?: string;
   alternateLink: string;
+  courseState?: string;
 }
 
 export interface ClassroomDate {
@@ -220,5 +222,5 @@ export interface ClassroomWork {
   workType: string;
   // Augmented fields for UI
   courseName?: string;
-  status?: 'assigned' | 'missing' | 'turned_in';
+  jsDate?: Date;
 }

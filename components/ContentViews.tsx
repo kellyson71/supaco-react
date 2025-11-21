@@ -1,12 +1,13 @@
 
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, AlertTriangle, AlertCircle, CheckCircle, Clock, MapPin, Award, Briefcase, User, Calendar, GraduationCap, Settings, Monitor, Moon, Sun, ToggleLeft, ToggleRight, Link2, ExternalLink, Cpu, ShieldCheck, Eye, EyeOff, Key, Image as ImageIcon, Check, BookOpen, Palette, RefreshCw, Mail, Fingerprint, FileText, UserSquare2, Percent, Calculator, Flag, Target, CheckSquare, LogOut, ArrowRight } from 'lucide-react';
-import { ViewState, GradeInfo, ThemeVariant, SuapProfile, SuapMeusDadosAluno, ProcessedClass, SuapCompletionData, CompletionCategory } from '../types';
+import { X, AlertTriangle, AlertCircle, CheckCircle, Clock, MapPin, Award, Briefcase, User, Calendar, GraduationCap, Settings, Monitor, Moon, Sun, ToggleLeft, ToggleRight, Link2, ExternalLink, Cpu, ShieldCheck, Eye, EyeOff, Key, Image as ImageIcon, Check, BookOpen, Palette, RefreshCw, Mail, Fingerprint, FileText, UserSquare2, Percent, Calculator, Flag, Target, CheckSquare, LogOut, ArrowRight, Copy, Clipboard, HelpCircle, Book, CalendarClock, ChevronRight, MoreHorizontal } from 'lucide-react';
+import { ViewState, GradeInfo, ThemeVariant, SuapProfile, SuapMeusDadosAluno, ProcessedClass, SuapCompletionData, CompletionCategory, ClassroomCourse, ClassroomWork } from '../types';
 
 interface OverlayViewProps {
   view: ViewState;
   onClose: () => void;
+  onChangeView: (view: ViewState) => void;
   isDarkMode: boolean;
   onToggleTheme?: () => void;
   currentWallpaper?: string;
@@ -21,6 +22,9 @@ interface OverlayViewProps {
   schedule: ProcessedClass[];
   completionData?: SuapCompletionData | null;
   onLogout: () => void;
+  autoExpandClassroom: boolean;
+  onAutoExpandClassroom: (v: boolean) => void;
+  initialProfileTab?: 'profile' | 'settings' | 'wallpaper';
 }
 
 const WALLPAPERS = [
@@ -33,11 +37,10 @@ const WALLPAPERS = [
 const DEFAULT_PROFILE_IMG = "https://i.pinimg.com/736x/9c/63/e1/9c63e1cf0546ecd4f83b7df067f440d2.jpg";
 
 // Constants for Google OAuth
-const GOOGLE_CLIENT_ID = "393624506027-i91r0jbnjf5vee24go6o5r629u21qqcb.apps.googleusercontent.com";
-const GOOGLE_CLIENT_SECRET = "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";
-const GOOGLE_REDIRECT_URI = "http://localhost:8000/gdrive/auth/callback";
+const GOOGLE_CLIENT_ID = "493737247808-0rv9jbldtskqdg78l122foess6h1t7ll.apps.googleusercontent.com";
+const GOOGLE_REDIRECT_URI = "http://localhost:8000"; // Must match Console exactly
 
-export const ContentView: React.FC<OverlayViewProps> = ({ view, onClose, isDarkMode, onToggleTheme, currentWallpaper, onWallpaperChange, themeVariant, onThemeVariantChange, primaryColor, secondaryColor, userData, academicData, grades, schedule, completionData, onLogout }) => {
+export const ContentView: React.FC<OverlayViewProps> = ({ view, onClose, onChangeView, isDarkMode, onToggleTheme, currentWallpaper, onWallpaperChange, themeVariant, onThemeVariantChange, primaryColor, secondaryColor, userData, academicData, grades, schedule, completionData, onLogout, autoExpandClassroom, onAutoExpandClassroom, initialProfileTab }) => {
   if (view === ViewState.DASHBOARD) return null;
 
   const bgClass = isDarkMode ? 'bg-slate-950' : 'bg-white';
@@ -53,7 +56,8 @@ export const ContentView: React.FC<OverlayViewProps> = ({ view, onClose, isDarkM
           case ViewState.GRADES: return '28%';    // ~Top part of nav
           case ViewState.ABSENCES: return '38%';  // Below Grades
           case ViewState.SCHEDULE: return '48%';  // Below Absences
-          case ViewState.CONCLUSION: return '58%'; // Below Schedule
+          case ViewState.CLASSROOM: return '58%'; // Below Schedule
+          case ViewState.CONCLUSION: return '68%'; // Below Classroom
           case ViewState.PROFILE: return '88%';   // Bottom of sidebar
           default: return '50%';
       }
@@ -64,6 +68,7 @@ export const ContentView: React.FC<OverlayViewProps> = ({ view, onClose, isDarkM
           case ViewState.GRADES: return <BookOpen size={24} className={iconColorClass} />;
           case ViewState.ABSENCES: return <AlertTriangle size={24} className={iconColorClass} />;
           case ViewState.SCHEDULE: return <Calendar size={24} className={iconColorClass} />;
+          case ViewState.CLASSROOM: return <Monitor size={24} className={iconColorClass} />;
           case ViewState.CONCLUSION: return <Flag size={24} className={iconColorClass} />;
           case ViewState.PROFILE: return <User size={24} className={iconColorClass} />;
           default: return <Settings size={24} />;
@@ -161,6 +166,7 @@ export const ContentView: React.FC<OverlayViewProps> = ({ view, onClose, isDarkM
                 {view === ViewState.GRADES ? 'Boletim Acadêmico' : 
                 view === ViewState.ABSENCES ? 'Controle de Faltas' : 
                 view === ViewState.SCHEDULE ? 'Horários da Semana' :
+                view === ViewState.CLASSROOM ? 'Google Classroom' :
                 view === ViewState.CONCLUSION ? 'Requisitos de Conclusão' :
                 'Área do Aluno'}
               </h2>
@@ -190,6 +196,17 @@ export const ContentView: React.FC<OverlayViewProps> = ({ view, onClose, isDarkM
           {view === ViewState.GRADES && <GradesContent isDark={isDarkMode} primaryColor={primaryColor} secondaryColor={secondaryColor} grades={grades} />}
           {view === ViewState.ABSENCES && <AbsencesContent isDark={isDarkMode} primaryColor={primaryColor} secondaryColor={secondaryColor} grades={grades} />}
           {view === ViewState.SCHEDULE && <ScheduleContent isDark={isDarkMode} accentColor={primaryColor} secondaryColor={secondaryColor} schedule={schedule} />}
+          {view === ViewState.CLASSROOM && (
+              <ClassroomContent 
+                isDark={isDarkMode} 
+                accentColor={primaryColor} 
+                secondaryColor={secondaryColor} 
+                onRequestSettings={() => {
+                    onAutoExpandClassroom(true);
+                    onChangeView(ViewState.PROFILE);
+                }}
+              />
+          )}
           {view === ViewState.CONCLUSION && <ConclusionContent isDark={isDarkMode} accentColor={primaryColor} secondaryColor={secondaryColor} data={completionData} />}
           {view === ViewState.PROFILE && (
             <ProfileContent 
@@ -205,12 +222,326 @@ export const ContentView: React.FC<OverlayViewProps> = ({ view, onClose, isDarkM
                 academicData={academicData}
                 grades={grades}
                 onLogout={onLogout}
+                autoExpandClassroom={autoExpandClassroom}
+                onResetAutoExpand={() => onAutoExpandClassroom(false)}
+                initialTab={initialProfileTab}
             />
           )}
         </motion.div>
       </motion.div>
     </div>
   );
+};
+
+// Sub-component for individual tasks with complex animation
+interface TaskCardProps {
+    work: ClassroomWork;
+    index: number;
+    isDark: boolean;
+    accentColor: string;
+    secondaryColor: string;
+}
+
+const TaskCard: React.FC<TaskCardProps> = ({ work, index, isDark, accentColor, secondaryColor }) => {
+    const now = new Date();
+    const isLate = work.jsDate && work.jsDate < now;
+    const isDueSoon = work.jsDate && !isLate && (work.jsDate.getTime() - now.getTime()) < (1000 * 60 * 60 * 24 * 2); // 2 days
+
+    const getRelativeTime = (date?: Date) => {
+        if (!date) return 'Sem data';
+        const diff = date.getTime() - now.getTime();
+        const days = Math.ceil(diff / (1000 * 60 * 60 * 24));
+        
+        if (days < 0) return 'Atrasada';
+        if (days === 0) return 'Hoje';
+        if (days === 1) return 'Amanhã';
+        if (days < 7) return `${days} dias`;
+        return date.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' });
+    };
+
+    const cardBase = isDark ? 'bg-white/5 border-white/10 hover:bg-white/10' : 'bg-white border-gray-200 hover:border-gray-300 hover:shadow-xl hover:shadow-gray-200/50';
+    const textMain = isDark ? 'text-white' : 'text-gray-900';
+
+    return (
+        <motion.div
+            layout
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.95 }}
+            transition={{ duration: 0.3 }}
+            className={`group relative p-5 rounded-[1.5rem] border w-full transition-all duration-300 ${cardBase}`}
+        >
+            <div className="flex items-start gap-5">
+                {/* Icon Column */}
+                <div className={`w-14 h-14 rounded-2xl flex items-center justify-center shrink-0 text-xl font-black transition-colors duration-300
+                    ${isLate 
+                        ? (isDark ? `bg-${secondaryColor}-500/10 text-${secondaryColor}-500` : `bg-${secondaryColor}-50 text-${secondaryColor}-600`)
+                        : (isDark ? `bg-${accentColor}-500/10 text-${accentColor}-400` : `bg-${accentColor}-50 text-${accentColor}-600`)
+                    }`}
+                >
+                   {isLate ? <AlertCircle size={24} /> : <Book size={24} />}
+                </div>
+
+                {/* Content Column */}
+                <div className="flex-1 min-w-0 pt-1">
+                    {/* Header Row: Course & Status */}
+                    <div className="flex items-center justify-between mb-1">
+                        <div className="flex items-center gap-2">
+                            <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md truncate max-w-[200px]
+                                ${isDark ? 'bg-white/10 text-gray-400' : 'bg-gray-100 text-gray-500'}`}>
+                                {work.courseName}
+                            </span>
+                            {isDueSoon && (
+                                <span className="text-[9px] font-bold uppercase px-2 py-0.5 rounded-md bg-amber-500/10 text-amber-500 flex items-center gap-1">
+                                    <Clock size={10} /> Entrega Próxima
+                                </span>
+                            )}
+                        </div>
+                        <span className={`text-xs font-bold ${isLate ? `text-${secondaryColor}-500` : 'text-gray-400'} flex items-center gap-1.5`}>
+                            {work.jsDate ? getRelativeTime(work.jsDate) : 'Sem prazo'}
+                            {work.jsDate && <span className="opacity-40">|</span>}
+                            {work.jsDate && <span className="font-mono opacity-80">{work.jsDate.toLocaleTimeString('pt-BR', {hour:'2-digit', minute:'2-digit'})}</span>}
+                        </span>
+                    </div>
+
+                    {/* Main Title */}
+                    <h3 className={`text-lg font-bold leading-snug ${textMain} group-hover:text-${accentColor}-500 transition-colors mb-1`}>
+                        {work.title}
+                    </h3>
+
+                    {/* Hover Expandable Content */}
+                    <motion.div 
+                        className="overflow-hidden"
+                        initial={false}
+                        animate={{ height: "auto" }} 
+                    >
+                        {/* Default view metadata */}
+                        <div className="flex items-center gap-4 text-xs text-gray-400 mt-1 mb-1 group-hover:opacity-50 transition-opacity">
+                             {work.maxPoints && <span>Nota máx: {work.maxPoints}</span>}
+                             <span>Criada em: {new Date(work.creationTime).toLocaleDateString('pt-BR')}</span>
+                        </div>
+
+                        {/* Action Button (Reveals on Hover) */}
+                        <div className="grid grid-rows-[0fr] group-hover:grid-rows-[1fr] transition-[grid-template-rows] duration-300 ease-out">
+                             <div className="overflow-hidden">
+                                 <div className="pt-4 flex items-center justify-between">
+                                     <div className="text-[11px] text-gray-500 line-clamp-1 max-w-md italic">
+                                         {work.alternateLink}
+                                     </div>
+                                     <a 
+                                        href={work.alternateLink}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className={`px-5 py-2.5 rounded-xl font-bold text-xs flex items-center gap-2 text-white shadow-lg transition-transform active:scale-95
+                                            bg-gradient-to-r from-${accentColor}-500 to-${accentColor}-400 shadow-${accentColor}-500/25 hover:shadow-${accentColor}-500/40`}
+                                     >
+                                         Abrir Atividade <ArrowRight size={14} />
+                                     </a>
+                                 </div>
+                             </div>
+                        </div>
+                    </motion.div>
+                </div>
+            </div>
+        </motion.div>
+    );
+};
+
+const ClassroomContent = ({ isDark, accentColor, secondaryColor, onRequestSettings }: { isDark: boolean, accentColor: string, secondaryColor: string, onRequestSettings: () => void }) => {
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState('');
+    const [courses, setCourses] = useState<ClassroomCourse[]>([]);
+    const [workList, setWorkList] = useState<ClassroomWork[]>([]);
+    const [filter, setFilter] = useState<'all' | 'active'>('active');
+
+    const token = localStorage.getItem('google_classroom_token');
+    const textMain = isDark ? 'text-white' : 'text-gray-900';
+
+    useEffect(() => {
+        if (!token) {
+            setLoading(false);
+            setError('Integração não configurada.');
+            return;
+        }
+
+        const fetchData = async () => {
+            try {
+                // 1. Fetch Courses
+                const coursesRes = await fetch('https://classroom.googleapis.com/v1/courses?courseStates=ACTIVE', {
+                    headers: { Authorization: `Bearer ${token}` }
+                });
+                
+                if (!coursesRes.ok) throw new Error('Token expirado ou inválido.');
+                
+                const coursesData = await coursesRes.json();
+                const courses: ClassroomCourse[] = coursesData.courses || [];
+                setCourses(courses);
+
+                // 2. Fetch CourseWork for all courses
+                const workPromises = courses.map(async (course) => {
+                    const workRes = await fetch(`https://classroom.googleapis.com/v1/courses/${course.id}/courseWork?orderBy=dueDate desc`, {
+                        headers: { Authorization: `Bearer ${token}` }
+                    });
+                    if (!workRes.ok) return [];
+                    const workData = await workRes.json();
+                    return (workData.courseWork || []).map((w: ClassroomWork) => ({
+                        ...w,
+                        courseName: course.name,
+                        jsDate: w.dueDate ? new Date(w.dueDate.year, w.dueDate.month - 1, w.dueDate.day, w.dueTime?.hours || 23, w.dueTime?.minutes || 59) : undefined
+                    }));
+                });
+
+                const allWork = (await Promise.all(workPromises)).flat();
+                
+                // Sort by due date (nearest first)
+                allWork.sort((a, b) => {
+                    if (!a.jsDate) return 1;
+                    if (!b.jsDate) return -1;
+                    return a.jsDate.getTime() - b.jsDate.getTime();
+                });
+
+                setWorkList(allWork);
+                setLoading(false);
+            } catch (err) {
+                console.error(err);
+                setError('Sessão expirada.');
+                setLoading(false);
+            }
+        };
+
+        fetchData();
+    }, [token]);
+
+    if (loading) {
+        return (
+            <div className="flex flex-col items-center justify-center h-64 gap-4">
+                <div className={`w-10 h-10 border-4 border-t-${accentColor}-500 rounded-full animate-spin ${isDark ? 'border-white/10' : 'border-gray-200'}`} />
+                <span className="text-xs font-bold uppercase text-gray-500">Sincronizando Classroom...</span>
+            </div>
+        );
+    }
+
+    if (error) {
+        return (
+            <div className="flex flex-col items-center justify-center h-full gap-6 text-center py-20">
+                <div className={`w-20 h-20 rounded-[2rem] bg-${secondaryColor}-500/10 text-${secondaryColor}-500 flex items-center justify-center`}>
+                    <AlertTriangle size={40} />
+                </div>
+                <div>
+                    <h3 className={`text-xl font-black ${textMain} mb-2`}>Integração Pausada</h3>
+                    <p className={`text-sm font-medium text-gray-500 max-w-xs mx-auto`}>
+                        {error === 'Integração não configurada.' 
+                            ? 'Conecte sua conta do Google para ver suas tarefas aqui.' 
+                            : 'Seu token de acesso expirou. Por favor, reconecte na aba de configurações.'}
+                    </p>
+                </div>
+                <button 
+                    onClick={onRequestSettings}
+                    className={`px-6 py-3 rounded-xl font-bold text-xs bg-${accentColor}-500 text-white shadow-lg shadow-${accentColor}-500/20 hover:scale-105 transition-transform`}
+                >
+                    Ir para Configurações
+                </button>
+            </div>
+        );
+    }
+
+    const now = new Date();
+    const displayedWork = filter === 'active' 
+        ? workList.filter(w => w.jsDate && w.jsDate >= now) // Future only
+        : workList;
+
+    const StatCard = ({ label, value, icon: Icon, color }: any) => (
+        <div className={`p-6 rounded-[2rem] border backdrop-blur-md flex items-center gap-4 relative overflow-hidden group
+            ${isDark ? 'bg-white/5 border-white/5 hover:bg-white/10' : 'bg-white border-gray-100 hover:shadow-lg'} transition-all duration-300`}
+        >
+            <div className={`w-12 h-12 rounded-2xl flex items-center justify-center text-${color}-500 relative z-10
+                ${isDark ? `bg-${color}-500/10` : `bg-${color}-50`}`}
+            >
+                <Icon size={24} />
+            </div>
+            <div className="relative z-10">
+                <div className="text-[10px] font-bold text-gray-400 uppercase mb-0.5">{label}</div>
+                <div className={`text-3xl font-black ${textMain}`}>{value}</div>
+            </div>
+            <div className={`absolute -right-4 -bottom-4 w-24 h-24 rounded-full bg-${color}-500/5 blur-2xl group-hover:bg-${color}-500/10 transition-colors`} />
+        </div>
+    );
+
+    return (
+        <div className="space-y-8 pb-12 max-w-5xl mx-auto">
+            {/* Header Stats */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <StatCard label="Cursos Ativos" value={courses.length} icon={BookOpen} color={accentColor} />
+                <StatCard label="Pendentes" value={workList.filter(w => w.jsDate && w.jsDate >= now).length} icon={Clock} color={secondaryColor} />
+                <StatCard label="Total de Tarefas" value={workList.length} icon={CheckCircle} color="gray" />
+            </div>
+
+            {/* Filter Tabs - Animated Pill */}
+            <div className="flex justify-center">
+                <div className={`p-1 rounded-full flex items-center relative ${isDark ? 'bg-black/20' : 'bg-gray-100'}`}>
+                     {/* Sliding Background */}
+                     <motion.div 
+                        className={`absolute top-1 bottom-1 rounded-full bg-${accentColor}-500 shadow-md`}
+                        initial={false}
+                        animate={{ 
+                            left: filter === 'active' ? 4 : '50%', 
+                            width: filter === 'active' ? 'calc(50% - 4px)' : 'calc(50% - 4px)',
+                            x: filter === 'active' ? 0 : 0
+                        }}
+                        transition={{ type: "spring", stiffness: 300, damping: 30 }}
+                     />
+                     
+                    <button 
+                        onClick={() => setFilter('active')}
+                        className={`relative z-10 px-8 py-2 rounded-full text-xs font-bold transition-colors duration-300 ${filter === 'active' ? 'text-white' : 'text-gray-500 hover:text-gray-700'}`}
+                    >
+                        Próximas Entregas
+                    </button>
+                    <button 
+                        onClick={() => setFilter('all')}
+                        className={`relative z-10 px-8 py-2 rounded-full text-xs font-bold transition-colors duration-300 ${filter === 'all' ? 'text-white' : 'text-gray-500 hover:text-gray-700'}`}
+                    >
+                        Todas as Atividades
+                    </button>
+                </div>
+            </div>
+
+            {/* Task List */}
+            <div className="space-y-3">
+                <AnimatePresence mode="wait">
+                    <motion.div
+                         key={filter}
+                         initial={{ opacity: 0, y: 10 }}
+                         animate={{ opacity: 1, y: 0 }}
+                         exit={{ opacity: 0, y: -10 }}
+                         transition={{ duration: 0.2 }}
+                         className="space-y-3"
+                    >
+                        {displayedWork.length > 0 ? (
+                            displayedWork.map((work, i) => (
+                            <TaskCard 
+                                key={work.id} 
+                                work={work} 
+                                index={i} 
+                                isDark={isDark} 
+                                accentColor={accentColor} 
+                                secondaryColor={secondaryColor} 
+                            />
+                            ))
+                        ) : (
+                            <div className="text-center py-20 opacity-50">
+                                <div className={`w-24 h-24 mx-auto mb-4 rounded-full flex items-center justify-center ${isDark ? 'bg-white/5' : 'bg-gray-100'}`}>
+                                    <CheckCircle size={40} className={`text-${accentColor}-500`} />
+                                </div>
+                                <h3 className={`text-lg font-bold ${textMain}`}>Tudo limpo por aqui!</h3>
+                                <p className="text-sm text-gray-400 mt-1">Nenhuma atividade encontrada com este filtro.</p>
+                            </div>
+                        )}
+                    </motion.div>
+                </AnimatePresence>
+            </div>
+        </div>
+    );
 };
 
 const ConclusionContent = ({ isDark, accentColor, secondaryColor, data }: { isDark: boolean, accentColor: string, secondaryColor: string, data?: SuapCompletionData | null }) => {
@@ -671,7 +1002,7 @@ const DayColumn: React.FC<{ day: string, isToday?: boolean, classes: ProcessedCl
     );
 };
 
-const ProfileContent = ({ isDark, onToggleTheme, currentWallpaper, onWallpaperChange, themeVariant, onThemeVariantChange, accentColor, secondaryColor, userData, academicData, grades, onLogout }: { 
+const ProfileContent = ({ isDark, onToggleTheme, currentWallpaper, onWallpaperChange, themeVariant, onThemeVariantChange, accentColor, secondaryColor, userData, academicData, grades, onLogout, autoExpandClassroom, onResetAutoExpand, initialTab }: { 
     isDark: boolean, 
     onToggleTheme?: () => void,
     currentWallpaper?: string,
@@ -683,11 +1014,19 @@ const ProfileContent = ({ isDark, onToggleTheme, currentWallpaper, onWallpaperCh
     userData: SuapProfile | null,
     academicData?: SuapMeusDadosAluno | null,
     grades: GradeInfo[],
-    onLogout: () => void
+    onLogout: () => void,
+    autoExpandClassroom: boolean,
+    onResetAutoExpand: () => void,
+    initialTab?: 'profile' | 'settings' | 'wallpaper'
 }) => {
     const [activeTab, setActiveTab] = useState<'profile' | 'settings' | 'wallpaper'>('profile');
     const [useCustomPhoto, setUseCustomPhoto] = useState(false);
     
+    // Update active tab if prop changes (e.g. via shortcut)
+    useEffect(() => {
+        if (initialTab) setActiveTab(initialTab);
+    }, [initialTab]);
+
     // API Key Logic
     const [apiKey, setApiKey] = useState('');
     const [showKey, setShowKey] = useState(false);
@@ -696,7 +1035,7 @@ const ProfileContent = ({ isDark, onToggleTheme, currentWallpaper, onWallpaperCh
     const [classroomEnabled, setClassroomEnabled] = useState(false);
     const [classroomToken, setClassroomToken] = useState('');
     const [classroomStatus, setClassroomStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
-    const [authCode, setAuthCode] = useState('');
+    const [manualTokenInput, setManualTokenInput] = useState('');
 
     useEffect(() => {
         const storedKey = localStorage.getItem('gemini_api_key');
@@ -710,68 +1049,63 @@ const ProfileContent = ({ isDark, onToggleTheme, currentWallpaper, onWallpaperCh
         }
     }, []);
 
+    // Handle Auto Expansion from Redirect
+    useEffect(() => {
+        if (autoExpandClassroom) {
+            setActiveTab('settings');
+            setClassroomEnabled(true); // Force open the accordion
+            
+            // Reset flag after a small delay to allow animation to start
+            setTimeout(() => {
+                onResetAutoExpand();
+            }, 500);
+        }
+    }, [autoExpandClassroom, onResetAutoExpand]);
+
     const handleApiKeyChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const val = e.target.value;
         setApiKey(val);
         localStorage.setItem('gemini_api_key', val);
     };
 
-    const handleGoogleAuth = () => {
-        const scopes = [
-            "https://www.googleapis.com/auth/classroom.courses.readonly",
-            "https://www.googleapis.com/auth/classroom.coursework.me.readonly",
-            "email",
-            "profile"
-        ].join(" ");
-        
-        const authUrl = `https://accounts.google.com/o/oauth2/auth?client_id=${GOOGLE_CLIENT_ID}&redirect_uri=${encodeURIComponent(GOOGLE_REDIRECT_URI)}&response_type=code&scope=${encodeURIComponent(scopes)}&access_type=offline&prompt=consent`;
-        window.open(authUrl, '_blank');
+    // Construct auth URL
+    const getAuthUrl = () => {
+        const params = new URLSearchParams({
+            client_id: GOOGLE_CLIENT_ID,
+            redirect_uri: GOOGLE_REDIRECT_URI,
+            response_type: 'token',
+            scope: 'https://www.googleapis.com/auth/classroom.courses.readonly https://www.googleapis.com/auth/classroom.coursework.me.readonly email profile',
+            include_granted_scopes: 'true',
+            enable_serial_consent: 'true'
+        });
+        return `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`;
     };
 
-    const handleCodeExchange = async () => {
-        if (!authCode) return;
-        setClassroomStatus('loading');
+    const handleSaveManualToken = async () => {
+        if (!manualTokenInput.trim()) return;
         
+        // Simple extraction if user pastes full URL
+        let tokenToSave = manualTokenInput.trim();
+        if (tokenToSave.includes('access_token=')) {
+            const match = tokenToSave.match(/access_token=([^&]+)/);
+            if (match && match[1]) tokenToSave = match[1];
+        }
+
+        setClassroomStatus('loading');
         try {
-            const params = new URLSearchParams();
-            params.append('code', authCode);
-            params.append('client_id', GOOGLE_CLIENT_ID);
-            params.append('client_secret', GOOGLE_CLIENT_SECRET);
-            params.append('redirect_uri', GOOGLE_REDIRECT_URI);
-            params.append('grant_type', 'authorization_code');
-
-            const res = await fetch("https://oauth2.googleapis.com/token", {
-                method: "POST",
-                headers: { "Content-Type": "application/x-www-form-urlencoded" },
-                body: params
+            const verifyRes = await fetch('https://classroom.googleapis.com/v1/courses?pageSize=1', {
+                headers: { Authorization: `Bearer ${tokenToSave}` }
             });
-
-            const data = await res.json();
-
-            if (data.access_token) {
-                const token = data.access_token;
-                localStorage.setItem('google_classroom_token', token);
-                if (data.refresh_token) {
-                    localStorage.setItem('google_classroom_refresh_token', data.refresh_token);
-                }
-                setClassroomToken(token);
-                
-                // Verify
-                const verifyRes = await fetch('https://classroom.googleapis.com/v1/courses?pageSize=1', {
-                    headers: { Authorization: `Bearer ${token}` }
-                });
-                
-                if (verifyRes.ok) {
-                    setClassroomStatus('success');
-                } else {
-                    setClassroomStatus('error');
-                }
+            
+            if (verifyRes.ok) {
+                localStorage.setItem('google_classroom_token', tokenToSave);
+                setClassroomToken(tokenToSave);
+                setClassroomStatus('success');
+                setManualTokenInput(''); // Clear input on success
             } else {
-                console.error(data);
                 setClassroomStatus('error');
             }
-        } catch(e) {
-            console.error(e);
+        } catch (e) {
             setClassroomStatus('error');
         }
     };
@@ -1084,70 +1418,105 @@ const ProfileContent = ({ isDark, onToggleTheme, currentWallpaper, onWallpaperCh
                                                     exit={{ height: 0, opacity: 0 }}
                                                     className={`overflow-hidden ${isDark ? 'bg-black/20' : 'bg-gray-50/50'}`}
                                                 >
-                                                    <div className="p-6 pt-4 space-y-4">
-                                                        <div className="flex items-start gap-3 p-3 rounded-xl bg-blue-500/10 border border-blue-500/20 text-blue-500 text-[11px] leading-relaxed">
-                                                            <AlertCircle size={16} className="shrink-0 mt-0.5" />
-                                                            <div>
-                                                                Para ativar, autorize o acesso do Supaco à sua conta Google.
-                                                                Clique no botão abaixo, copie o código da URL e cole aqui.
-                                                            </div>
-                                                        </div>
-
-                                                        <button 
-                                                            onClick={handleGoogleAuth}
-                                                            className={`w-full py-3 rounded-xl font-bold text-xs flex items-center justify-center gap-2 transition-all bg-white text-gray-900 hover:bg-gray-50 border border-gray-200 shadow-sm`}
-                                                        >
-                                                            <img src="https://www.google.com/favicon.ico" className="w-4 h-4" alt="G" />
-                                                            Autorizar com Google
-                                                            <ExternalLink size={12} className="opacity-50" />
-                                                        </button>
-
-                                                        <div className="space-y-2">
-                                                            <label className="text-[10px] font-bold text-gray-400 uppercase ml-1">Authorization Code</label>
-                                                            <div className="flex gap-2">
-                                                                <div className={`relative flex-1 rounded-xl border overflow-hidden ${isDark ? 'bg-black/20 border-white/10' : 'bg-white border-gray-200'}`}>
-                                                                    <div className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">
-                                                                        <Key size={14} />
+                                                    <div className="p-6 pt-4 space-y-6">
+                                                        
+                                                        {classroomStatus !== 'success' && (
+                                                            <>
+                                                                {/* ERROR HELP BOX */}
+                                                                <div className="bg-yellow-500/10 border border-yellow-500/20 rounded-xl p-4 text-yellow-500 text-[10px] leading-relaxed">
+                                                                    <div className="flex items-center gap-2 font-bold mb-1">
+                                                                        <AlertTriangle size={12} />
+                                                                        Atenção: Erro "Access Denied"
                                                                     </div>
-                                                                    <input 
-                                                                        type="text"
-                                                                        value={authCode}
-                                                                        onChange={(e) => {
-                                                                            setAuthCode(e.target.value);
-                                                                            setClassroomStatus('idle');
-                                                                        }}
-                                                                        placeholder="Cole o código aqui (4/0A...)"
-                                                                        className={`w-full bg-transparent py-3 pl-9 pr-3 text-xs font-mono outline-none ${textMain} placeholder:text-gray-500`}
-                                                                    />
+                                                                    Se você ver uma tela de erro do Google dizendo "The developer hasn't given you access", é porque seu app está em modo de <b>Teste</b>.
+                                                                    <br/><br/>
+                                                                    Vá no <b>Google Cloud Console {'>'} OAuth Consent Screen {'>'} Test Users</b> e adicione seu email: <b>kellyson.medeiros.pdf@gmail.com</b>
                                                                 </div>
-                                                                <button 
-                                                                    onClick={handleCodeExchange}
-                                                                    disabled={!authCode || classroomStatus === 'loading'}
-                                                                    className={`px-4 rounded-xl font-bold text-xs flex items-center gap-2 transition-all disabled:opacity-50 disabled:cursor-not-allowed
-                                                                        ${classroomStatus === 'success' 
-                                                                            ? `bg-green-500 text-white` 
-                                                                            : (classroomStatus === 'error' ? 'bg-red-500 text-white' : `bg-${accentColor}-500 text-white hover:bg-${accentColor}-600`)
-                                                                        }
-                                                                    `}
-                                                                >
-                                                                    {classroomStatus === 'loading' ? <RefreshCw size={14} className="animate-spin" /> : 
-                                                                     classroomStatus === 'success' ? <Check size={16} /> :
-                                                                     classroomStatus === 'error' ? <X size={16} /> :
-                                                                     'Conectar'}
-                                                                </button>
-                                                            </div>
-                                                        </div>
+
+                                                                {/* Instructions Step 1 */}
+                                                                <div className="space-y-2">
+                                                                    <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-gray-400">
+                                                                        <span className={`w-5 h-5 rounded-full bg-${accentColor}-500/20 text-${accentColor}-500 flex items-center justify-center text-[10px]`}>1</span>
+                                                                        Obter Token de Acesso
+                                                                    </div>
+                                                                    <p className="text-[11px] opacity-70 leading-relaxed">
+                                                                        Clique no botão abaixo. Após autorizar, você será redirecionado. Copie a URL inteira da barra de endereços (mesmo se der erro de página).
+                                                                    </p>
+                                                                    
+                                                                    <a 
+                                                                        href={getAuthUrl()}
+                                                                        target="_blank"
+                                                                        rel="noopener noreferrer"
+                                                                        className={`w-full py-3 rounded-xl font-bold text-xs flex items-center justify-center gap-2 transition-all bg-white text-gray-900 hover:bg-gray-50 border border-gray-200 shadow-sm decoration-none`}
+                                                                    >
+                                                                        <img src="https://www.google.com/favicon.ico" className="w-4 h-4" alt="G" />
+                                                                        Gerar Link de Acesso
+                                                                        <ExternalLink size={12} className="opacity-50" />
+                                                                    </a>
+                                                                </div>
+
+                                                                <div className={`h-[1px] w-full ${isDark ? 'bg-white/5' : 'bg-gray-200'}`} />
+
+                                                                {/* Instructions Step 2 */}
+                                                                <div className="space-y-2">
+                                                                    <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-gray-400">
+                                                                        <span className={`w-5 h-5 rounded-full bg-${accentColor}-500/20 text-${accentColor}-500 flex items-center justify-center text-[10px]`}>2</span>
+                                                                        Colar Token
+                                                                    </div>
+                                                                    <div className="relative">
+                                                                        <input 
+                                                                            type="text"
+                                                                            value={manualTokenInput}
+                                                                            onChange={(e) => setManualTokenInput(e.target.value)}
+                                                                            placeholder="Cole a URL inteira aqui..."
+                                                                            className={`w-full pl-9 pr-4 py-3 rounded-xl text-xs font-mono outline-none border transition-colors ${isDark ? `bg-black/30 border-white/10 focus:border-${accentColor}-500 text-white` : `bg-white border-gray-200 focus:border-${accentColor}-500 text-gray-800`}`}
+                                                                        />
+                                                                        <Key size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
+                                                                    </div>
+                                                                    <button 
+                                                                        onClick={handleSaveManualToken}
+                                                                        disabled={!manualTokenInput.trim() || classroomStatus === 'loading'}
+                                                                        className={`w-full py-3 rounded-xl font-bold text-xs flex items-center justify-center gap-2 transition-all mt-2
+                                                                            ${!manualTokenInput.trim() ? 'opacity-50 cursor-not-allowed bg-gray-500 text-white' : `bg-${accentColor}-500 text-white hover:shadow-lg hover:shadow-${accentColor}-500/20`}
+                                                                        `}
+                                                                    >
+                                                                        {classroomStatus === 'loading' ? (
+                                                                            <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                                                                        ) : (
+                                                                            <>Salvar e Testar <Check size={14} /></>
+                                                                        )}
+                                                                    </button>
+                                                                </div>
+                                                            </>
+                                                        )}
 
                                                         {classroomStatus === 'success' && (
-                                                            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex items-center gap-2 text-[10px] font-bold text-green-500 px-1">
-                                                                <CheckCircle size={12} />
-                                                                Integração ativa e verificada!
+                                                            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-4">
+                                                                <div className="flex flex-col items-center justify-center py-4 text-center">
+                                                                    <div className="w-12 h-12 bg-green-500/10 text-green-500 rounded-full flex items-center justify-center mb-2">
+                                                                        <CheckCircle size={24} />
+                                                                    </div>
+                                                                    <div className="font-bold text-sm text-green-500">Integração Ativa</div>
+                                                                    <p className="text-[10px] text-gray-400 mt-1 max-w-[200px]">
+                                                                        O token foi validado e salvo. Suas tarefas serão sincronizadas.
+                                                                    </p>
+                                                                </div>
+                                                                <button 
+                                                                    onClick={() => {
+                                                                        localStorage.removeItem('google_classroom_token');
+                                                                        setClassroomToken('');
+                                                                        setClassroomStatus('idle');
+                                                                    }}
+                                                                    className="w-full py-2 rounded-lg border border-red-500/20 text-red-500 hover:bg-red-500/10 text-xs font-bold transition-colors"
+                                                                >
+                                                                    Desconectar Conta
+                                                                </button>
                                                             </motion.div>
                                                         )}
                                                          {classroomStatus === 'error' && (
-                                                            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex items-center gap-2 text-[10px] font-bold text-red-500 px-1">
-                                                                <X size={12} />
-                                                                Erro ao conectar. Verifique o código.
+                                                            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex items-center gap-2 text-[10px] font-bold text-red-500 px-1 bg-red-500/10 p-3 rounded-lg">
+                                                                <AlertTriangle size={14} />
+                                                                Token inválido ou erro de conexão. Verifique se colou a URL correta.
                                                             </motion.div>
                                                         )}
                                                     </div>
