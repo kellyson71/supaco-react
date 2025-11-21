@@ -1035,6 +1035,9 @@ const ProfileContent = ({ isDark, onToggleTheme, currentWallpaper, onWallpaperCh
     const [classroomToken, setClassroomToken] = useState('');
     const [classroomStatus, setClassroomStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
     const [manualTokenInput, setManualTokenInput] = useState('');
+    
+    // Detect Current Redirect URI
+    const redirectUri = window.location.origin;
 
     useEffect(() => {
         const storedKey = localStorage.getItem('gemini_api_key');
@@ -1067,9 +1070,8 @@ const ProfileContent = ({ isDark, onToggleTheme, currentWallpaper, onWallpaperCh
         localStorage.setItem('gemini_api_key', val);
     };
 
-    // Construct auth URL
+    // Construct auth URL with Detected URI
     const getAuthUrl = () => {
-        const redirectUri = window.location.origin;
         const params = new URLSearchParams({
             client_id: GOOGLE_CLIENT_ID,
             redirect_uri: redirectUri,
@@ -1429,8 +1431,21 @@ const ProfileContent = ({ isDark, onToggleTheme, currentWallpaper, onWallpaperCh
                                                                         Obter Token de Acesso
                                                                     </div>
                                                                     <p className="text-[11px] opacity-70 leading-relaxed">
-                                                                        Clique no botão abaixo. Após autorizar, você será redirecionado. Copie a URL inteira da barra de endereços (mesmo se der erro de página).
+                                                                        Clique no botão abaixo para iniciar o login.
+                                                                        Se estiver no Electron, o redirecionamento automático pode não funcionar; nesse caso, copie a URL da página de erro e cole abaixo.
                                                                     </p>
+
+                                                                    {/* Detected URI Info Box */}
+                                                                    <div className={`p-3 rounded-xl border ${isDark ? 'bg-white/5 border-white/10' : 'bg-white border-gray-200'}`}>
+                                                                        <div className="text-[9px] font-bold text-gray-500 uppercase mb-1">Configuração do Google Cloud</div>
+                                                                        <p className="text-[10px] opacity-70 mb-2">Adicione esta URI exata em "Authorized redirect URIs":</p>
+                                                                        <div className="flex items-center gap-2 bg-black/10 dark:bg-white/10 p-2 rounded-lg">
+                                                                            <code className="text-[10px] font-mono break-all select-all flex-1">{redirectUri}</code>
+                                                                            <button onClick={() => navigator.clipboard.writeText(redirectUri)} className="p-1 hover:bg-white/20 rounded transition-colors" title="Copiar">
+                                                                                <Copy size={12} />
+                                                                            </button>
+                                                                        </div>
+                                                                    </div>
                                                                     
                                                                     <a 
                                                                         href={getAuthUrl()}
