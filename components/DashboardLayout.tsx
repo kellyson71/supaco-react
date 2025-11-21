@@ -123,8 +123,16 @@ export const DashboardLayout: React.FC<DashboardProps> = ({
   // Task List Hover State
   const [hoveredTaskId, setHoveredTaskId] = useState<string | null>(null);
 
-  // Carousel State for Bottom Left Card
-  const [activeCardIndex, setActiveCardIndex] = useState(0);
+  // Card Tabs State
+  const [activeCardTab, setActiveCardTab] = useState<'STATUS' | 'HOLIDAY' | 'TASKS'>(() => {
+      const saved = localStorage.getItem('supaco_card_tab');
+      return (saved === 'STATUS' || saved === 'HOLIDAY' || saved === 'TASKS') ? saved : 'STATUS';
+  });
+
+  const handleCardTabChange = (tab: 'STATUS' | 'HOLIDAY' | 'TASKS') => {
+      setActiveCardTab(tab);
+      localStorage.setItem('supaco_card_tab', tab);
+  };
 
   useEffect(() => {
     setActiveNav(currentView);
@@ -182,32 +190,6 @@ export const DashboardLayout: React.FC<DashboardProps> = ({
 
   const isTodayHoliday = upcomingHoliday?.diffDays === 0;
 
-  // Carousel Logic
-  const availableCards = useMemo(() => {
-      const cards = [];
-      // 1. Priority: Holiday
-      if (isTodayHoliday) cards.push('HOLIDAY');
-      
-      // 2. Absence/Grade Status (Always available if logged in)
-      if (isLoggedIn) cards.push('STATUS');
-      
-      // 3. Tasks (If available)
-      if (isLoggedIn && classroomWork.length > 0) cards.push('TASKS');
-      
-      return cards;
-  }, [isTodayHoliday, isLoggedIn, classroomWork.length]);
-
-  useEffect(() => {
-      if (availableCards.length <= 1) return;
-      
-      const interval = setInterval(() => {
-          setActiveCardIndex(prev => (prev + 1) % availableCards.length);
-      }, 8000); // Rotate every 8 seconds
-
-      return () => clearInterval(interval);
-  }, [availableCards.length]);
-
-  const currentCardType = availableCards[activeCardIndex] || 'STATUS';
   const nextTask = classroomWork[0]; // Nearest task
 
   const handleNavClick = (view: ViewState) => {
@@ -518,7 +500,7 @@ export const DashboardLayout: React.FC<DashboardProps> = ({
                 </motion.div>
            </div>
 
-           {/* INTEGRATED CARD BLOCK (Bottom Left) - Rotating Carousel */}
+           {/* INTEGRATED CARD BLOCK (Bottom Left) - Tabbed Interface */}
            <motion.div 
               initial={{ x: -350, opacity: 0 }}
               animate={{ x: isLoggedIn ? 0 : -350, opacity: isLoggedIn ? 1 : 0 }}
@@ -531,63 +513,85 @@ export const DashboardLayout: React.FC<DashboardProps> = ({
 
                <div className={`w-[322px] h-[260px] rounded-tr-[40px] p-6 pb-10 relative transition-colors duration-500 ${frameBg}`}>
                    
-                   {/* --- CAROUSEL CONTAINER --- */}
+                   {/* --- CARD CONTAINER --- */}
                    <div className={`rounded-[2rem] p-6 border h-full flex flex-col justify-between group hover:shadow-lg transition-all duration-300 relative overflow-hidden
-                      ${currentCardType === 'HOLIDAY'
+                      ${activeCardTab === 'HOLIDAY'
                          ? (isDarkMode ? `bg-indigo-950/30 border-indigo-900/50` : `bg-indigo-50 border-indigo-100`)
-                         : currentCardType === 'TASKS'
+                         : activeCardTab === 'TASKS'
                              ? (isDarkMode ? `bg-${primaryColor}-900/10 border-${primaryColor}-500/20` : `bg-white border-gray-200`)
                              : (isDarkMode ? `bg-${primaryColor}-950/30 border-${primaryColor}-900/50` : `bg-${primaryColor}-50 border-${primaryColor}-100`)
                       }
                    `}>
+                      {/* TABS HEADER */}
+                      <div className="absolute top-4 right-4 flex gap-1 z-20">
+                          <button 
+                             onClick={() => handleCardTabChange('STATUS')}
+                             className={`w-6 h-6 rounded-full flex items-center justify-center transition-all ${activeCardTab === 'STATUS' ? `bg-${primaryColor}-500 text-white scale-110` : 'bg-black/5 text-black/40 dark:bg-white/5 dark:text-white/40 hover:bg-black/10'}`}
+                          >
+                              <CheckCircle size={12} />
+                          </button>
+                          <button 
+                             onClick={() => handleCardTabChange('HOLIDAY')}
+                             className={`w-6 h-6 rounded-full flex items-center justify-center transition-all ${activeCardTab === 'HOLIDAY' ? 'bg-indigo-500 text-white scale-110' : 'bg-black/5 text-black/40 dark:bg-white/5 dark:text-white/40 hover:bg-black/10'}`}
+                          >
+                              <Coffee size={12} />
+                          </button>
+                          <button 
+                             onClick={() => handleCardTabChange('TASKS')}
+                             className={`w-6 h-6 rounded-full flex items-center justify-center transition-all ${activeCardTab === 'TASKS' ? `bg-${primaryColor}-400 text-white scale-110` : 'bg-black/5 text-black/40 dark:bg-white/5 dark:text-white/40 hover:bg-black/10'}`}
+                          >
+                              <Book size={12} />
+                          </button>
+                      </div>
+
                       <AnimatePresence mode="wait">
-                          {currentCardType === 'HOLIDAY' && (
+                          {activeCardTab === 'HOLIDAY' && (
                              <motion.div
                                 key="holiday"
                                 className="h-full flex flex-col justify-between"
-                                initial={{ opacity: 0, x: 50 }}
+                                initial={{ opacity: 0, x: 20 }}
                                 animate={{ opacity: 1, x: 0 }}
-                                exit={{ opacity: 0, x: -50 }}
+                                exit={{ opacity: 0, x: -20 }}
                                 transition={{ type: 'spring', stiffness: 300, damping: 30 }}
                              >
                                  <div className={`absolute -right-4 -top-4 w-24 h-24 rounded-full blur-xl ${isDarkMode ? 'bg-indigo-500/20' : 'bg-indigo-200/50'}`} />
+                                 
                                  <div className="flex justify-between items-start relative z-10">
                                     <span className={`text-[10px] font-black uppercase tracking-wide px-2 py-1 rounded-md ${isDarkMode ? 'bg-indigo-900 text-indigo-300' : 'bg-indigo-200 text-indigo-800'}`}>
                                         Status
                                     </span>
-                                    <div className={`w-8 h-8 rounded-full flex items-center justify-center shadow-sm ${isDarkMode ? 'bg-white/10' : 'bg-white'}`}>
-                                        <Coffee size={16} className={`text-indigo-600`} />
-                                    </div>
                                 </div>
+                                
                                 <div className="relative z-10 mt-2">
                                     <div className={`text-3xl font-black mb-1 leading-tight ${isDarkMode ? 'text-indigo-400' : 'text-indigo-700'}`}>
                                         RELAXA! <br/> É FERIADO.
                                     </div>
                                     <div className={`text-xs font-medium mt-2 leading-snug ${isDarkMode ? 'text-indigo-300/70' : 'text-indigo-600'}`}>
-                                        Aproveite o dia de folga: <b>{upcomingHoliday?.name}</b>.
+                                        {upcomingHoliday 
+                                            ? `Aproveite o dia de folga: ${upcomingHoliday.name}.`
+                                            : "Sem feriados próximos, mas tire um tempo para você!"}
                                     </div>
                                 </div>
                              </motion.div>
                           )}
 
-                          {currentCardType === 'STATUS' && (
+                          {activeCardTab === 'STATUS' && (
                             <motion.div
                                 key="status"
                                 className="h-full flex flex-col justify-between"
-                                initial={{ opacity: 0, x: 50 }}
+                                initial={{ opacity: 0, x: 20 }}
                                 animate={{ opacity: 1, x: 0 }}
-                                exit={{ opacity: 0, x: -50 }}
+                                exit={{ opacity: 0, x: -20 }}
                                 transition={{ type: 'spring', stiffness: 300, damping: 30 }}
                              >
                                 <div className={`absolute -right-4 -top-4 w-24 h-24 rounded-full blur-xl ${isDarkMode ? `bg-${primaryColor}-500/20` : `bg-${primaryColor}-200/50`}`} />
+                                
                                 <div className="flex justify-between items-start relative z-10">
                                     <span className={`text-[10px] font-black uppercase tracking-wide px-2 py-1 rounded-md ${isDarkMode ? `bg-${primaryColor}-900 text-${primaryColor}-300` : `bg-${primaryColor}-200 text-${primaryColor}-800`}`}>
                                         Status
                                     </span>
-                                    <div className={`w-8 h-8 rounded-full flex items-center justify-center shadow-sm ${isDarkMode ? 'bg-white/10' : 'bg-white'}`}>
-                                        <CheckCircle size={16} className={`text-${primaryColor}-600`} />
-                                    </div>
                                 </div>
+
                                 <div className="relative z-10 mt-2">
                                     {bestSubjectToSkip ? (
                                         <>
@@ -608,21 +612,20 @@ export const DashboardLayout: React.FC<DashboardProps> = ({
                                         </>
                                     ) : (
                                          <div className="flex flex-col items-center justify-center h-32 text-center opacity-50">
-                                           <div className="w-5 h-5 border-2 border-current border-t-transparent rounded-full animate-spin mb-2" />
-                                           <p className="text-xs font-bold">Analisando...</p>
+                                           <p className="text-xs font-bold">Analisando faltas...</p>
                                          </div>
                                     )}
                                 </div>
                              </motion.div>
                           )}
 
-                          {currentCardType === 'TASKS' && nextTask && (
+                          {activeCardTab === 'TASKS' && (
                              <motion.div
                                 key="tasks"
                                 className="h-full flex flex-col justify-between"
-                                initial={{ opacity: 0, x: 50 }}
+                                initial={{ opacity: 0, x: 20 }}
                                 animate={{ opacity: 1, x: 0 }}
-                                exit={{ opacity: 0, x: -50 }}
+                                exit={{ opacity: 0, x: -20 }}
                                 transition={{ type: 'spring', stiffness: 300, damping: 30 }}
                              >
                                  <div className={`absolute -right-4 -top-4 w-24 h-24 rounded-full blur-xl ${isDarkMode ? `bg-${primaryColor}-500/10` : `bg-${primaryColor}-200/30`}`} />
@@ -631,46 +634,40 @@ export const DashboardLayout: React.FC<DashboardProps> = ({
                                     <span className={`text-[10px] font-black uppercase tracking-wide px-2 py-1 rounded-md ${isDarkMode ? `bg-${primaryColor}-900/50 text-${primaryColor}-400` : `bg-${primaryColor}-100 text-${primaryColor}-700`}`}>
                                         Classroom
                                     </span>
-                                    <div className={`w-8 h-8 rounded-full flex items-center justify-center shadow-sm ${isDarkMode ? 'bg-white/10' : 'bg-white'}`}>
-                                        <Book size={16} className={`text-${primaryColor}-500`} />
-                                    </div>
                                 </div>
 
-                                <div className="relative z-10 mt-auto mb-auto">
-                                    <div className={`text-[10px] font-bold uppercase mb-1 ${isDarkMode ? `text-${primaryColor}-500/80` : `text-${primaryColor}-600`}`}>
-                                        Próxima Entrega
-                                    </div>
-                                    <div className={`text-xl font-black leading-tight mb-2 line-clamp-3 ${isDarkMode ? `text-${primaryColor}-50` : 'text-gray-800'}`}>
-                                        {nextTask.title}
-                                    </div>
-                                    <div className={`text-[10px] font-bold px-2 py-1 rounded-lg inline-block ${isDarkMode ? 'bg-white/10 text-gray-300' : 'bg-gray-100 text-gray-600'}`}>
-                                        {nextTask.courseName}
-                                    </div>
-                                </div>
+                                {nextTask ? (
+                                    <>
+                                        <div className="relative z-10 mt-auto mb-auto">
+                                            <div className={`text-[10px] font-bold uppercase mb-1 ${isDarkMode ? `text-${primaryColor}-500/80` : `text-${primaryColor}-600`}`}>
+                                                Próxima Entrega
+                                            </div>
+                                            <div className={`text-xl font-black leading-tight mb-2 line-clamp-3 ${isDarkMode ? `text-${primaryColor}-50` : 'text-gray-800'}`}>
+                                                {nextTask.title}
+                                            </div>
+                                            <div className={`text-[10px] font-bold px-2 py-1 rounded-lg inline-block ${isDarkMode ? 'bg-white/10 text-gray-300' : 'bg-gray-100 text-gray-600'}`}>
+                                                {nextTask.courseName}
+                                            </div>
+                                        </div>
 
-                                <div className="relative z-10 mt-2 pt-3 border-t border-dashed border-gray-500/20 flex justify-between items-center">
-                                     <div className={`text-xs font-bold ${isDarkMode ? `text-${primaryColor}-400` : `text-${primaryColor}-600`}`}>
-                                         {nextTask.jsDate?.toLocaleDateString('pt-BR', { weekday: 'short', day: '2-digit', month: 'short' })}
-                                     </div>
-                                     <div className={`text-xs font-bold opacity-70 ${isDarkMode ? 'text-white' : 'text-black'}`}>
-                                         {nextTask.jsDate?.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
-                                     </div>
-                                </div>
+                                        <div className="relative z-10 mt-2 pt-3 border-t border-dashed border-gray-500/20 flex justify-between items-center">
+                                            <div className={`text-xs font-bold ${isDarkMode ? `text-${primaryColor}-400` : `text-${primaryColor}-600`}`}>
+                                                {nextTask.jsDate?.toLocaleDateString('pt-BR', { weekday: 'short', day: '2-digit', month: 'short' })}
+                                            </div>
+                                            <div className={`text-xs font-bold opacity-70 ${isDarkMode ? 'text-white' : 'text-black'}`}>
+                                                {nextTask.jsDate?.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+                                            </div>
+                                        </div>
+                                    </>
+                                ) : (
+                                    <div className="relative z-10 mt-auto mb-auto text-center opacity-50">
+                                        <Book size={24} className="mx-auto mb-2" />
+                                        <p className="text-xs font-bold">Nenhuma tarefa pendente.</p>
+                                    </div>
+                                )}
                              </motion.div>
                           )}
                       </AnimatePresence>
-                      
-                      {/* Carousel Indicators */}
-                      {availableCards.length > 1 && (
-                          <div className="absolute bottom-4 right-6 flex gap-1.5 z-20">
-                              {availableCards.map((_, idx) => (
-                                  <div 
-                                    key={idx} 
-                                    className={`w-1.5 h-1.5 rounded-full transition-all duration-300 ${idx === activeCardIndex ? `w-3 bg-${primaryColor}-500` : 'bg-gray-400/30'}`}
-                                  />
-                              ))}
-                          </div>
-                      )}
 
                    </div>
                </div>

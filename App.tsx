@@ -1,3 +1,4 @@
+
 import React, { useState, useMemo, useEffect } from 'react';
 import { DashboardLayout } from './components/DashboardLayout';
 import { ContentView } from './components/ContentViews';
@@ -218,14 +219,37 @@ const App: React.FC = () => {
       }
   };
 
-  // --- API FETCHING ---
+  // --- API FETCHING & REFRESH ---
+
+  const refreshSuapToken = async () => {
+      const refresh = localStorage.getItem('suap_refresh_token');
+      if (!refresh) return false;
+
+      try {
+          const response = await fetch('https://suap.ifrn.edu.br/api/token/refresh/', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ refresh })
+          });
+
+          if (response.ok) {
+              const data = await response.json();
+              localStorage.setItem('suap_access_token', data.access);
+              if (data.refresh) localStorage.setItem('suap_refresh_token', data.refresh);
+              return true;
+          }
+      } catch (e) {
+          console.error("Refresh token failed", e);
+      }
+      return false;
+  };
 
   const fetchWithAuth = async (url: string) => {
-    const token = localStorage.getItem('suap_access_token');
+    let token = localStorage.getItem('suap_access_token');
     if (!token) return null;
 
     try {
-        const response = await fetch(url, {
+        let response = await fetch(url, {
             headers: {
                 'Authorization': `Bearer ${token}`,
                 'Accept': 'application/json'
@@ -233,10 +257,23 @@ const App: React.FC = () => {
         });
 
         if (response.status === 401) {
-            localStorage.removeItem('suap_access_token');
-            localStorage.removeItem('suap_refresh_token');
-            setIsLoggedIn(false);
-            return null;
+            console.log("Access Token Expired. Attempting Refresh...");
+            const refreshed = await refreshSuapToken();
+            
+            if (refreshed) {
+                // Retry with new token
+                token = localStorage.getItem('suap_access_token');
+                response = await fetch(url, {
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Accept': 'application/json'
+                    }
+                });
+            } else {
+                // Refresh failed, logout
+                handleLogout();
+                return null;
+            }
         }
 
         if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
