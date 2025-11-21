@@ -1036,7 +1036,7 @@ const ProfileContent = ({ isDark, onToggleTheme, currentWallpaper, onWallpaperCh
     const [classroomStatus, setClassroomStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
     const [manualTokenInput, setManualTokenInput] = useState('');
     
-    // Detect Current Redirect URI
+    // Detect Current Redirect URI (Dynamic)
     const redirectUri = window.location.origin;
 
     useEffect(() => {
@@ -1432,29 +1432,17 @@ const ProfileContent = ({ isDark, onToggleTheme, currentWallpaper, onWallpaperCh
                                                                     </div>
                                                                     <p className="text-[11px] opacity-70 leading-relaxed">
                                                                         Clique no botão abaixo para iniciar o login.
-                                                                        Se estiver no Electron, o redirecionamento automático pode não funcionar; nesse caso, copie a URL da página de erro e cole abaixo.
+                                                                        O Google irá redirecionar de volta para este app automaticamente.
                                                                     </p>
-
-                                                                    {/* Detected URI Info Box */}
-                                                                    <div className={`p-3 rounded-xl border ${isDark ? 'bg-white/5 border-white/10' : 'bg-white border-gray-200'}`}>
-                                                                        <div className="text-[9px] font-bold text-gray-500 uppercase mb-1">Configuração do Google Cloud</div>
-                                                                        <p className="text-[10px] opacity-70 mb-2">Adicione esta URI exata em "Authorized redirect URIs":</p>
-                                                                        <div className="flex items-center gap-2 bg-black/10 dark:bg-white/10 p-2 rounded-lg">
-                                                                            <code className="text-[10px] font-mono break-all select-all flex-1">{redirectUri}</code>
-                                                                            <button onClick={() => navigator.clipboard.writeText(redirectUri)} className="p-1 hover:bg-white/20 rounded transition-colors" title="Copiar">
-                                                                                <Copy size={12} />
-                                                                            </button>
-                                                                        </div>
-                                                                    </div>
                                                                     
                                                                     <a 
                                                                         href={getAuthUrl()}
-                                                                        target="_blank"
+                                                                        target="_self"
                                                                         rel="noopener noreferrer"
                                                                         className={`w-full py-3 rounded-xl font-bold text-xs flex items-center justify-center gap-2 transition-all bg-white text-gray-900 hover:bg-gray-50 border border-gray-200 shadow-sm decoration-none`}
                                                                     >
                                                                         <img src="https://www.google.com/favicon.ico" className="w-4 h-4" alt="G" />
-                                                                        Gerar Link de Acesso
+                                                                        Conectar com Google
                                                                         <ExternalLink size={12} className="opacity-50" />
                                                                     </a>
                                                                 </div>
@@ -1465,14 +1453,15 @@ const ProfileContent = ({ isDark, onToggleTheme, currentWallpaper, onWallpaperCh
                                                                 <div className="space-y-2">
                                                                     <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-gray-400">
                                                                         <span className={`w-5 h-5 rounded-full bg-${accentColor}-500/20 text-${accentColor}-500 flex items-center justify-center text-[10px]`}>2</span>
-                                                                        Colar Token
+                                                                        Colar Token Manualmente (Opcional)
                                                                     </div>
+                                                                    <p className="text-[10px] opacity-60 mb-1">Se o redirecionamento falhar, cole a URL da página de erro aqui:</p>
                                                                     <div className="relative">
                                                                         <input 
                                                                             type="text"
                                                                             value={manualTokenInput}
                                                                             onChange={(e) => setManualTokenInput(e.target.value)}
-                                                                            placeholder="Cole a URL inteira aqui..."
+                                                                            placeholder="https://supaco.vercel.app/#access_token=..."
                                                                             className={`w-full pl-9 pr-4 py-3 rounded-xl text-xs font-mono outline-none border transition-colors ${isDark ? `bg-black/30 border-white/10 focus:border-${accentColor}-500 text-white` : `bg-white border-gray-200 focus:border-${accentColor}-500 text-gray-800`}`}
                                                                         />
                                                                         <Key size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />

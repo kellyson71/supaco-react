@@ -88,6 +88,34 @@ const App: React.FC = () => {
       localStorage.setItem(CACHE_KEYS.WALLPAPER, currentWallpaper);
   }, [currentWallpaper]);
 
+  // --- OAUTH CALLBACK HANDLER ---
+  useEffect(() => {
+      const hash = window.location.hash;
+      // Look for access_token in the URL hash (Google Implicit Flow)
+      if (hash && hash.includes('access_token')) {
+          const params = new URLSearchParams(hash.substring(1)); // remove #
+          const accessToken = params.get('access_token');
+          
+          if (accessToken) {
+              console.log("Google Access Token detected via URL Hash");
+              
+              // Save token to localStorage
+              localStorage.setItem('google_classroom_token', accessToken);
+              
+              // Clear the hash from URL to prevent issues and clean up
+              window.history.replaceState(null, '', window.location.pathname);
+              
+              // Automatically open the Settings > Integrations > Classroom panel
+              // We use a small timeout to ensure the app is fully mounted/ready if needed
+              setTimeout(() => {
+                  setCurrentView(ViewState.PROFILE);
+                  setProfileInitialTab('settings');
+                  setAutoExpandClassroom(true);
+              }, 100);
+          }
+      }
+  }, []);
+
   // --- KEYBOARD SHORTCUTS ---
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
