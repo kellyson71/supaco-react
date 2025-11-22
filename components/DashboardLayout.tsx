@@ -37,7 +37,8 @@ import {
   ChevronRight as ChevronRightIcon,
   CalendarRange,
   Monitor,
-  Book
+  Book,
+  Menu
 } from 'lucide-react';
 import { InvertedCorner } from './InvertedCorner';
 import { ViewState, ClassroomWork, SuapProfile, SuapPeriod, GradeInfo, ProcessedClass, SuapCompletionData, Holiday } from '../types';
@@ -71,6 +72,7 @@ interface DashboardProps {
   classroomWork?: ClassroomWork[];
   rightTab: 'overview' | 'tasks' | 'holidays';
   onRightTabChange: (tab: 'overview' | 'tasks' | 'holidays') => void;
+  onOpenSettings: () => void;
 }
 
 interface TodoItem {
@@ -101,7 +103,8 @@ export const DashboardLayout: React.FC<DashboardProps> = ({
   holidays = [],
   classroomWork = [],
   rightTab,
-  onRightTabChange
+  onRightTabChange,
+  onOpenSettings
 }) => {
   const [activeNav, setActiveNav] = useState<ViewState>(ViewState.DASHBOARD);
   
@@ -219,10 +222,6 @@ export const DashboardLayout: React.FC<DashboardProps> = ({
       setTodos(todos.map(t => t.id === id ? { ...t, completed: !t.completed } : t));
   };
 
-  const handleDeleteTodo = (id: string) => {
-      setTodos(todos.filter(t => t.id !== id));
-  };
-
   const handleKeyDownTodo = (e: React.KeyboardEvent) => {
       if (e.key === 'Enter') handleAddTodo();
   };
@@ -286,7 +285,7 @@ export const DashboardLayout: React.FC<DashboardProps> = ({
       : DEFAULT_PROFILE_IMG;
 
   return (
-    <div className={`relative w-full h-screen overflow-hidden flex font-sans transition-colors duration-500 ${isDarkMode ? 'bg-black' : 'bg-gray-900'}`}>
+    <div className={`relative w-full h-[100dvh] md:h-screen overflow-hidden flex flex-col md:flex-row font-sans transition-colors duration-500 ${isDarkMode ? 'bg-black' : 'bg-gray-900'}`}>
       
       {/* --- LOGIN OVERLAY --- */}
       <AnimatePresence>
@@ -309,12 +308,12 @@ export const DashboardLayout: React.FC<DashboardProps> = ({
         }}
       />
 
-      {/* --- FRAME ELEMENTS --- */}
-      <div className={`absolute top-0 inset-x-0 h-4 z-50 transition-colors duration-500 ${frameBg}`} />
-      <div className={`absolute bottom-0 inset-x-0 h-4 z-40 transition-colors duration-500 ${frameBg}`} />
+      {/* --- FRAME ELEMENTS (Desktop Only) --- */}
+      <div className={`hidden md:block absolute top-0 inset-x-0 h-4 z-50 transition-colors duration-500 ${frameBg}`} />
+      <div className={`hidden md:block absolute bottom-0 inset-x-0 h-4 z-40 transition-colors duration-500 ${frameBg}`} />
 
-      {/* 1. LEFT SIDEBAR */}
-      <div className={`relative z-50 h-[calc(100vh-2rem)] my-4 w-24 flex flex-col items-center py-8 transition-colors duration-500 ${frameBg}`}>
+      {/* 1. LEFT SIDEBAR (Desktop Only) */}
+      <div className={`hidden md:flex relative z-50 h-[calc(100vh-2rem)] my-4 w-24 flex-col items-center py-8 transition-colors duration-500 ${frameBg}`}>
         <div className="text-xs font-black tracking-widest mb-1 text-gray-400">ELECTRON</div>
         <div className={`text-xl font-black italic mb-10 transition-colors duration-500 ${frameText}`}>SUPACO</div>
         
@@ -356,337 +355,379 @@ export const DashboardLayout: React.FC<DashboardProps> = ({
       </div>
 
       {/* 2. CENTER CONTENT AREA */}
-      <div className="flex-1 h-full flex flex-col relative">
+      <div className="flex-1 h-full flex flex-col relative overflow-hidden md:overflow-visible">
         
-        {/* --- FLOATING HOLIDAY NOTIFICATION (Top Left - Subtle) --- */}
-        <AnimatePresence>
-            {isLoggedIn && upcomingHoliday && upcomingHoliday.diffDays <= 3 && (
-                <motion.div
-                    initial={{ y: -20, opacity: 0 }}
-                    animate={{ y: 0, opacity: 1 }}
-                    exit={{ y: -20, opacity: 0 }}
-                    className={`absolute top-28 left-8 z-[70] pr-6 pl-2 py-2 rounded-2xl backdrop-blur-md border shadow-sm flex items-center gap-4 overflow-hidden group cursor-default transition-colors
-                        ${isTodayHoliday
-                            ? `bg-${primaryColor}-500/80 border-${primaryColor}-400 text-white shadow-${primaryColor}-500/20`
-                            : (isDarkMode ? `bg-slate-900/60 border-white/10 text-white` : `bg-white/60 border-white/40 text-gray-900`)
-                        }
+        {/* Main Content Scrollable Container for Mobile */}
+        <div className="flex-1 overflow-y-auto overflow-x-hidden md:overflow-visible pb-24 md:pb-0 w-full">
+
+            {/* --- FLOATING HOLIDAY NOTIFICATION (Top Left - Subtle) --- */}
+            <AnimatePresence>
+                {isLoggedIn && upcomingHoliday && upcomingHoliday.diffDays <= 3 && (
+                    <motion.div
+                        initial={{ y: -20, opacity: 0 }}
+                        animate={{ y: 0, opacity: 1 }}
+                        exit={{ y: -20, opacity: 0 }}
+                        className={`absolute top-24 left-4 md:top-28 md:left-8 z-[70] pr-6 pl-2 py-2 rounded-2xl backdrop-blur-md border shadow-sm flex items-center gap-4 overflow-hidden group cursor-default transition-colors
+                            ${isTodayHoliday
+                                ? `bg-${primaryColor}-500/80 border-${primaryColor}-400 text-white shadow-${primaryColor}-500/20`
+                                : (isDarkMode ? `bg-slate-900/60 border-white/10 text-white` : `bg-white/60 border-white/40 text-gray-900`)
+                            }
+                        `}
+                    >
+                        <div className={`w-10 h-10 rounded-xl flex items-center justify-center shadow-sm relative
+                            ${isTodayHoliday 
+                                ? 'bg-white text-black' 
+                                : (isDarkMode ? `bg-${primaryColor}-500/20 text-${primaryColor}-400` : `bg-${primaryColor}-100 text-${primaryColor}-600`)
+                            }`}
+                        >
+                            {isTodayHoliday ? <PartyPopper size={18} /> : <Palmtree size={18} />}
+                        </div>
+                        
+                        <div className="flex flex-col">
+                            <div className={`text-[9px] font-black uppercase tracking-widest mb-0.5 ${isTodayHoliday ? 'text-white/80' : 'text-gray-500 dark:text-gray-400'}`}>
+                                {isTodayHoliday ? 'É hoje!' : `Em ${upcomingHoliday.diffDays} ${upcomingHoliday.diffDays === 1 ? 'dia' : 'dias'}`}
+                            </div>
+                            <div className="text-sm font-black leading-none">
+                                {upcomingHoliday.name}
+                            </div>
+                        </div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
+
+            {/* Top Navigation Notch */}
+            <div className="relative w-full flex justify-center z-[60]">
+                <motion.div 
+                    initial={{ y: -150 }}
+                    animate={{ y: isLoggedIn ? 0 : -150 }}
+                    transition={{ type: 'spring', stiffness: 60, damping: 15, delay: isLoggedIn ? 0.2 : 0 }}
+                    className={`mt-4 md:mt-8 backdrop-blur-xl h-12 md:h-14 pl-2 pr-4 md:pr-6 rounded-full flex items-center gap-3 md:gap-4 shadow-lg border transition-colors duration-500
+                        ${isDarkMode ? 'bg-slate-950/80 border-white/10' : 'bg-white/90 border-white/40'}
                     `}
                 >
-                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center shadow-sm relative
-                         ${isTodayHoliday 
-                            ? 'bg-white text-black' 
-                            : (isDarkMode ? `bg-${primaryColor}-500/20 text-${primaryColor}-400` : `bg-${primaryColor}-100 text-${primaryColor}-600`)
-                         }`}
+                    <button 
+                        onClick={() => handleNavClick(ViewState.DASHBOARD)}
+                        className={`w-8 h-8 md:w-10 md:h-10 rounded-full transition-colors flex items-center justify-center group ${isDarkMode ? 'bg-white/10 text-white hover:bg-white hover:text-black' : 'bg-gray-100 hover:bg-black hover:text-white'}`}
                     >
-                        {isTodayHoliday ? <PartyPopper size={18} /> : <Palmtree size={18} />}
-                    </div>
+                        <ArrowLeft size={14} className="group-hover:-translate-x-0.5 transition-transform" />
+                    </button>
                     
-                    <div className="flex flex-col">
-                         <div className={`text-[9px] font-black uppercase tracking-widest mb-0.5 ${isTodayHoliday ? 'text-white/80' : 'text-gray-500 dark:text-gray-400'}`}>
-                            {isTodayHoliday ? 'É hoje!' : `Em ${upcomingHoliday.diffDays} ${upcomingHoliday.diffDays === 1 ? 'dia' : 'dias'}`}
-                         </div>
-                         <div className="text-sm font-black leading-none">
-                            {upcomingHoliday.name}
-                         </div>
+                    <div className={`h-4 w-[1px] ${isDarkMode ? 'bg-white/20' : 'bg-gray-300'}`} />
+                    
+                    <TopBarItem 
+                        icon={<GraduationCap size={14} />}
+                        label={currentPeriod?.semestre || '2025.1'} 
+                        indicator
+                        indicatorColor={primaryColor}
+                        isDark={isDarkMode}
+                    />
+
+                    <div className={`hidden md:block h-4 w-[1px] ${isDarkMode ? 'bg-white/20' : 'bg-gray-300'}`} />
+                    
+                    <div className="hidden md:block">
+                         <TopBarItem 
+                            icon={<Flag size={14} />}
+                            label={completionData ? `${completionData.percentual_cumprida}%` : '--%'}
+                            isDark={isDarkMode}
+                        />
+                    </div>
+
+                    <div className={`h-4 w-[1px] ${isDarkMode ? 'bg-white/20' : 'bg-gray-300'}`} />
+
+                    <TopBarItem 
+                        label={nextClass ? `PRÓX: ${nextClass.name.split(' ').slice(0,2).join(' ')}` : "Livre"}
+                        rightIcon={<ChevronRight size={14} />}
+                        isDark={isDarkMode}
+                    />
+
+                    {/* Mobile Profile Trigger */}
+                    <div className="md:hidden ml-2">
+                        <button onClick={() => handleNavClick(ViewState.PROFILE)} className="w-8 h-8 rounded-full overflow-hidden border border-white/20">
+                            <img src={userPhoto} className="w-full h-full object-cover" alt="Profile" />
+                        </button>
                     </div>
                 </motion.div>
-            )}
-        </AnimatePresence>
+            </div>
 
-        {/* Top Navigation Notch */}
-        <div className="flex-1 relative">
-           <motion.div 
-             initial={{ y: -150 }}
-             animate={{ y: isLoggedIn ? 0 : -150 }}
-             transition={{ type: 'spring', stiffness: 60, damping: 15, delay: isLoggedIn ? 0.2 : 0 }}
-             className={`absolute top-0 left-1/2 -translate-x-1/2 mt-8 backdrop-blur-xl h-14 pl-2 pr-6 rounded-full flex items-center gap-4 shadow-lg z-[60] border transition-colors duration-500
-                ${isDarkMode ? 'bg-slate-950/80 border-white/10' : 'bg-white/90 border-white/40'}
-             `}
-           >
-              <button 
-                onClick={() => handleNavClick(ViewState.DASHBOARD)}
-                className={`w-10 h-10 rounded-full transition-colors flex items-center justify-center group ${isDarkMode ? 'bg-white/10 text-white hover:bg-white hover:text-black' : 'bg-gray-100 hover:bg-black hover:text-white'}`}
-              >
-                <ArrowLeft size={16} className="group-hover:-translate-x-0.5 transition-transform" />
-              </button>
-              
-              <div className={`h-4 w-[1px] ${isDarkMode ? 'bg-white/20' : 'bg-gray-300'}`} />
-              
-              <TopBarItem 
-                icon={<GraduationCap size={14} />}
-                label={currentPeriod?.semestre || '2025.1'} 
-                indicator
-                indicatorColor={primaryColor}
-                isDark={isDarkMode}
-              />
+            {/* Main Content Body */}
+            <div className="flex flex-col md:block min-h-[80vh] w-full px-4 md:px-0 mt-6 md:mt-0">
+                
+                {/* Main Student ID Card */}
+                <div className="relative md:absolute md:bottom-[300px] md:left-0 md:pl-6 z-20 w-full md:w-auto flex justify-center md:justify-start">
+                        <motion.div 
+                            initial={{ opacity: 0, x: -50 }}
+                            animate={{ opacity: isLoggedIn ? 1 : 0, x: isLoggedIn ? 0 : -50 }}
+                            transition={{ type: 'spring', stiffness: 50, damping: 15, delay: isLoggedIn ? 0.4 : 0 }}
+                            className="relative inline-block p-6 pr-6 rounded-[2rem] overflow-hidden w-full max-w-[320px] md:w-[298px]"
+                        >
+                            <div className="absolute inset-0 bg-white/10 backdrop-blur-md border border-white/20 rounded-[2rem]" />
+                            <div className="relative z-10">
+                                <div className="mb-4">
+                                    <span className="text-xs font-bold text-white/80 uppercase tracking-widest mb-1 block">
+                                        {userData?.nome_usual || "Estudante"}
+                                    </span>
+                                    <h1 className="text-2xl font-black text-white tracking-tighter leading-[1] mb-1 drop-shadow-lg uppercase">
+                                        {userData?.vinculo?.curso?.split(' ').slice(0, 3).join(' ') || "CURSO"}
+                                    </h1>
+                                    <div className="flex items-center gap-1.5 text-white/60 text-xs font-medium mt-1">
+                                        <MapPin size={12} />
+                                        <span>{userData?.campus || "Campus"}</span>
+                                    </div>
+                                </div>
 
-              <div className={`h-4 w-[1px] ${isDarkMode ? 'bg-white/20' : 'bg-gray-300'}`} />
-              
-              <TopBarItem 
-                icon={<Flag size={14} />}
-                label={completionData ? `${completionData.percentual_cumprida}%` : '--%'}
-                isDark={isDarkMode}
-              />
+                                <div className="flex items-center gap-3 mb-6">
+                                    <div className={`px-2.5 py-1.5 bg-${primaryColor}-500/20 border border-${primaryColor}-400/30 rounded-full flex items-center gap-2`}>
+                                        <span className="relative flex h-2 w-2">
+                                        <span className={`animate-ping absolute inline-flex h-full w-full rounded-full bg-${primaryColor}-400 opacity-75`}></span>
+                                        <span className={`relative inline-flex rounded-full h-2 w-2 bg-${primaryColor}-500`}></span>
+                                        </span>
+                                        <span className={`text-[9px] font-bold text-${primaryColor}-100 uppercase tracking-wide`}>Matriculado</span>
+                                    </div>
 
-              <div className={`h-4 w-[1px] ${isDarkMode ? 'bg-white/20' : 'bg-gray-300'}`} />
+                                    <button 
+                                        onClick={handleCopyMatricula}
+                                        className="flex items-center gap-2 group hover:bg-white/5 px-2 py-1 rounded-lg transition-colors cursor-pointer"
+                                    >
+                                        <span className="text-[9px] font-bold text-white/40 uppercase">Mat.</span>
+                                        <span className="font-mono text-xs font-bold text-white/90 tracking-wider border-b border-white/10 group-hover:border-white/50 transition-colors">
+                                            {userData?.matricula || "---"}
+                                        </span>
+                                        <Copy size={12} className="text-white/40 group-hover:text-white transition-colors" />
+                                    </button>
+                                </div>
 
-              <TopBarItem 
-                label={nextClass ? `PRÓX: ${nextClass.name.split(' ').slice(0,2).join(' ')}` : "Sem mais aulas"}
-                rightIcon={<ChevronRight size={14} />}
-                isDark={isDarkMode}
-              />
-           </motion.div>
+                                <div className="flex items-center gap-3 border-t border-white/10 pt-4">
+                                    <div className="px-2">
+                                        <span className="text-[9px] text-white/60 uppercase font-bold block mb-0.5">Média Geral</span>
+                                        <span className="text-lg font-black text-white">
+                                            {userData?.vinculo?.matricula ? "7.5" : "-"}
+                                        </span>
+                                    </div>
+                                    <div className="w-[1px] h-8 bg-white/10"></div>
+                                    <div className="px-2">
+                                        <span className="text-[9px] text-white/60 uppercase font-bold block mb-0.5">Frequência</span>
+                                        <span className={`text-lg font-black text-${primaryColor}-400`}>
+                                            90%
+                                        </span>
+                                    </div>
+                                </div>
+                            </div>
+                        </motion.div>
+                </div>
 
-           {/* Main Student ID Card */}
-           <div className="absolute bottom-[300px] left-0 pl-6 z-20">
+                {/* INTEGRATED CARD BLOCK (Tabbed Interface) */}
                 <motion.div 
-                    initial={{ opacity: 0, x: -320 }}
-                    animate={{ opacity: isLoggedIn ? 1 : 0, x: isLoggedIn ? 0 : -320 }}
-                    transition={{ type: 'spring', stiffness: 50, damping: 15, delay: isLoggedIn ? 0.4 : 0 }}
-                    className="relative inline-block p-6 pr-6 rounded-[2rem] overflow-hidden w-[298px]"
+                    initial={{ x: -50, opacity: 0 }}
+                    animate={{ x: isLoggedIn ? 0 : -50, opacity: isLoggedIn ? 1 : 0 }}
+                    transition={{ type: 'spring', stiffness: 60, damping: 15, delay: isLoggedIn ? 0.6 : 0 }}
+                    className="relative md:absolute md:bottom-4 md:left-0 z-[60] w-full md:w-auto mt-4 md:mt-0 flex justify-center md:justify-start"
                 >
-                    <div className="absolute inset-0 bg-white/10 backdrop-blur-md border border-white/20 rounded-[2rem]" />
-                    <div className="relative z-10">
-                        <div className="mb-4">
-                            <span className="text-xs font-bold text-white/80 uppercase tracking-widest mb-1 block">
-                                {userData?.nome_usual || "Estudante"}
-                            </span>
-                            <h1 className="text-2xl font-black text-white tracking-tighter leading-[1] mb-1 drop-shadow-lg uppercase">
-                                {userData?.vinculo?.curso?.split(' ').slice(0, 3).join(' ') || "CURSO"}
-                            </h1>
-                            <div className="flex items-center gap-1.5 text-white/60 text-xs font-medium mt-1">
-                                <MapPin size={12} />
-                                <span>{userData?.campus || "Campus"}</span>
-                            </div>
-                        </div>
-
-                        <div className="flex items-center gap-3 mb-6">
-                            <div className={`px-2.5 py-1.5 bg-${primaryColor}-500/20 border border-${primaryColor}-400/30 rounded-full flex items-center gap-2`}>
-                                <span className="relative flex h-2 w-2">
-                                  <span className={`animate-ping absolute inline-flex h-full w-full rounded-full bg-${primaryColor}-400 opacity-75`}></span>
-                                  <span className={`relative inline-flex rounded-full h-2 w-2 bg-${primaryColor}-500`}></span>
-                                </span>
-                                <span className={`text-[9px] font-bold text-${primaryColor}-100 uppercase tracking-wide`}>Matriculado</span>
-                            </div>
-
-                            <button 
-                                onClick={handleCopyMatricula}
-                                className="flex items-center gap-2 group hover:bg-white/5 px-2 py-1 rounded-lg transition-colors cursor-pointer"
-                            >
-                                <span className="text-[9px] font-bold text-white/40 uppercase">Mat.</span>
-                                <span className="font-mono text-xs font-bold text-white/90 tracking-wider border-b border-white/10 group-hover:border-white/50 transition-colors">
-                                    {userData?.matricula || "---"}
-                                </span>
-                                <Copy size={12} className="text-white/40 group-hover:text-white transition-colors" />
-                            </button>
-                        </div>
-
-                        <div className="flex items-center gap-3 border-t border-white/10 pt-4">
-                            <div className="px-2">
-                                <span className="text-[9px] text-white/60 uppercase font-bold block mb-0.5">Média Geral</span>
-                                <span className="text-lg font-black text-white">
-                                    {userData?.vinculo?.matricula ? "7.5" : "-"}
-                                </span>
-                            </div>
-                            <div className="w-[1px] h-8 bg-white/10"></div>
-                            <div className="px-2">
-                                <span className="text-[9px] text-white/60 uppercase font-bold block mb-0.5">Frequência</span>
-                                <span className={`text-lg font-black text-${primaryColor}-400`}>
-                                    90%
-                                </span>
-                            </div>
-                        </div>
+                    {/* Desktop Inverted Corner */}
+                    <div className="hidden md:block absolute -top-[40px] left-0 w-[40px] h-[40px]">
+                        <InvertedCorner position="bottom-left" size={40} fill={cornerColor} />
                     </div>
-                </motion.div>
-           </div>
 
-           {/* INTEGRATED CARD BLOCK (Bottom Left) - Tabbed Interface */}
-           <motion.div 
-              initial={{ x: -350, opacity: 0 }}
-              animate={{ x: isLoggedIn ? 0 : -350, opacity: isLoggedIn ? 1 : 0 }}
-              transition={{ type: 'spring', stiffness: 60, damping: 15, delay: isLoggedIn ? 0.6 : 0 }}
-              className="absolute bottom-4 left-0 z-[60]"
-           >
-               <div className="absolute -top-[40px] left-0 w-[40px] h-[40px]">
-                   <InvertedCorner position="bottom-left" size={40} fill={cornerColor} />
-               </div>
+                    <div className={`w-full max-w-[320px] md:w-[322px] h-[260px] rounded-[2rem] md:rounded-none md:rounded-tr-[40px] p-0 md:p-6 md:pb-10 relative transition-colors duration-500 bg-transparent md:${frameBg}`}>
+                        
+                        {/* --- CARD CONTAINER --- */}
+                        <div className={`rounded-[2rem] p-6 border h-full flex flex-col justify-between group hover:shadow-lg transition-all duration-300 relative overflow-hidden
+                            ${activeCardTab === 'HOLIDAY'
+                                ? (isDarkMode ? `bg-indigo-950/90 border-indigo-900/50 backdrop-blur-xl` : `bg-indigo-50/95 border-indigo-100 backdrop-blur-xl`)
+                                : activeCardTab === 'TASKS'
+                                    ? (isDarkMode ? `bg-${primaryColor}-900/80 border-${primaryColor}-500/20 backdrop-blur-xl` : `bg-white/95 border-gray-200 backdrop-blur-xl`)
+                                    : (isDarkMode ? `bg-slate-900/90 border-${primaryColor}-900/50 backdrop-blur-xl` : `bg-${primaryColor}-50/95 border-${primaryColor}-100 backdrop-blur-xl`)
+                            }
+                        `}>
+                             {/* Background for mobile legibility */}
+                             <div className="md:hidden absolute inset-0 -z-10 bg-white/5 backdrop-blur-sm"></div>
 
-               <div className={`w-[322px] h-[260px] rounded-tr-[40px] p-6 pb-10 relative transition-colors duration-500 ${frameBg}`}>
-                   
-                   {/* --- CARD CONTAINER --- */}
-                   <div className={`rounded-[2rem] p-6 border h-full flex flex-col justify-between group hover:shadow-lg transition-all duration-300 relative overflow-hidden
-                      ${activeCardTab === 'HOLIDAY'
-                         ? (isDarkMode ? `bg-indigo-950/30 border-indigo-900/50` : `bg-indigo-50 border-indigo-100`)
-                         : activeCardTab === 'TASKS'
-                             ? (isDarkMode ? `bg-${primaryColor}-900/10 border-${primaryColor}-500/20` : `bg-white border-gray-200`)
-                             : (isDarkMode ? `bg-${primaryColor}-950/30 border-${primaryColor}-900/50` : `bg-${primaryColor}-50 border-${primaryColor}-100`)
-                      }
-                   `}>
-                      {/* TABS HEADER */}
-                      <div className="absolute top-4 right-4 flex gap-1 z-20">
-                          <button 
-                             onClick={() => handleCardTabChange('STATUS')}
-                             className={`w-6 h-6 rounded-full flex items-center justify-center transition-all ${activeCardTab === 'STATUS' ? `bg-${primaryColor}-500 text-white scale-110` : 'bg-black/5 text-black/40 dark:bg-white/5 dark:text-white/40 hover:bg-black/10'}`}
-                          >
-                              <CheckCircle size={12} />
-                          </button>
-                          <button 
-                             onClick={() => handleCardTabChange('HOLIDAY')}
-                             className={`w-6 h-6 rounded-full flex items-center justify-center transition-all ${activeCardTab === 'HOLIDAY' ? 'bg-indigo-500 text-white scale-110' : 'bg-black/5 text-black/40 dark:bg-white/5 dark:text-white/40 hover:bg-black/10'}`}
-                          >
-                              <Coffee size={12} />
-                          </button>
-                          <button 
-                             onClick={() => handleCardTabChange('TASKS')}
-                             className={`w-6 h-6 rounded-full flex items-center justify-center transition-all ${activeCardTab === 'TASKS' ? `bg-${primaryColor}-400 text-white scale-110` : 'bg-black/5 text-black/40 dark:bg-white/5 dark:text-white/40 hover:bg-black/10'}`}
-                          >
-                              <Book size={12} />
-                          </button>
-                      </div>
+                            {/* TABS HEADER */}
+                            <div className="absolute top-4 right-4 flex gap-1 z-20">
+                                <button 
+                                    onClick={() => handleCardTabChange('STATUS')}
+                                    className={`w-6 h-6 rounded-full flex items-center justify-center transition-all ${activeCardTab === 'STATUS' ? `bg-${primaryColor}-500 text-white scale-110` : 'bg-black/5 text-black/40 dark:bg-white/5 dark:text-white/40 hover:bg-black/10'}`}
+                                >
+                                    <CheckCircle size={12} />
+                                </button>
+                                <button 
+                                    onClick={() => handleCardTabChange('HOLIDAY')}
+                                    className={`w-6 h-6 rounded-full flex items-center justify-center transition-all ${activeCardTab === 'HOLIDAY' ? 'bg-indigo-500 text-white scale-110' : 'bg-black/5 text-black/40 dark:bg-white/5 dark:text-white/40 hover:bg-black/10'}`}
+                                >
+                                    <Coffee size={12} />
+                                </button>
+                                <button 
+                                    onClick={() => handleCardTabChange('TASKS')}
+                                    className={`w-6 h-6 rounded-full flex items-center justify-center transition-all ${activeCardTab === 'TASKS' ? `bg-${primaryColor}-400 text-white scale-110` : 'bg-black/5 text-black/40 dark:bg-white/5 dark:text-white/40 hover:bg-black/10'}`}
+                                >
+                                    <Book size={12} />
+                                </button>
+                            </div>
 
-                      <AnimatePresence mode="wait">
-                          {activeCardTab === 'HOLIDAY' && (
-                             <motion.div
-                                key="holiday"
-                                className="h-full flex flex-col justify-between"
-                                initial={{ opacity: 0, x: 20 }}
-                                animate={{ opacity: 1, x: 0 }}
-                                exit={{ opacity: 0, x: -20 }}
-                                transition={{ type: 'spring', stiffness: 300, damping: 30 }}
-                             >
-                                 <div className={`absolute -right-4 -top-4 w-24 h-24 rounded-full blur-xl ${isDarkMode ? 'bg-indigo-500/20' : 'bg-indigo-200/50'}`} />
-                                 
-                                 <div className="flex justify-between items-start relative z-10">
-                                    <span className={`text-[10px] font-black uppercase tracking-wide px-2 py-1 rounded-md ${isDarkMode ? 'bg-indigo-900 text-indigo-300' : 'bg-indigo-200 text-indigo-800'}`}>
-                                        Status
-                                    </span>
-                                </div>
-                                
-                                <div className="relative z-10 mt-2">
-                                    <div className={`text-3xl font-black mb-1 leading-tight ${isDarkMode ? 'text-indigo-400' : 'text-indigo-700'}`}>
-                                        RELAXA! <br/> É FERIADO.
-                                    </div>
-                                    <div className={`text-xs font-medium mt-2 leading-snug ${isDarkMode ? 'text-indigo-300/70' : 'text-indigo-600'}`}>
-                                        {upcomingHoliday 
-                                            ? `Aproveite o dia de folga: ${upcomingHoliday.name}.`
-                                            : "Sem feriados próximos, mas tire um tempo para você!"}
-                                    </div>
-                                </div>
-                             </motion.div>
-                          )}
-
-                          {activeCardTab === 'STATUS' && (
-                            <motion.div
-                                key="status"
-                                className="h-full flex flex-col justify-between"
-                                initial={{ opacity: 0, x: 20 }}
-                                animate={{ opacity: 1, x: 0 }}
-                                exit={{ opacity: 0, x: -20 }}
-                                transition={{ type: 'spring', stiffness: 300, damping: 30 }}
-                             >
-                                <div className={`absolute -right-4 -top-4 w-24 h-24 rounded-full blur-xl ${isDarkMode ? `bg-${primaryColor}-500/20` : `bg-${primaryColor}-200/50`}`} />
-                                
-                                <div className="flex justify-between items-start relative z-10">
-                                    <span className={`text-[10px] font-black uppercase tracking-wide px-2 py-1 rounded-md ${isDarkMode ? `bg-${primaryColor}-900 text-${primaryColor}-300` : `bg-${primaryColor}-200 text-${primaryColor}-800`}`}>
-                                        Status
-                                    </span>
-                                </div>
-
-                                <div className="relative z-10 mt-2">
-                                    {bestSubjectToSkip ? (
-                                        <>
-                                            <div className={`text-3xl font-black mb-1 leading-tight ${isDarkMode ? `text-${primaryColor}-400` : `text-${primaryColor}-700`}`}>
-                                                PODE <br/>FALTAR
+                            <AnimatePresence mode="wait">
+                                {activeCardTab === 'HOLIDAY' && (
+                                    <motion.div
+                                    key="holiday"
+                                    className="h-full flex flex-col justify-between"
+                                    initial={{ opacity: 0, x: 20 }}
+                                    animate={{ opacity: 1, x: 0 }}
+                                    exit={{ opacity: 0, x: -20 }}
+                                    transition={{ type: 'spring', stiffness: 300, damping: 30 }}
+                                    >
+                                        <div className={`absolute -right-4 -top-4 w-24 h-24 rounded-full blur-xl ${isDarkMode ? 'bg-indigo-500/20' : 'bg-indigo-200/50'}`} />
+                                        
+                                        <div className="flex justify-between items-start relative z-10">
+                                            <span className={`text-[10px] font-black uppercase tracking-wide px-2 py-1 rounded-md ${isDarkMode ? 'bg-indigo-900 text-indigo-300' : 'bg-indigo-200 text-indigo-800'}`}>
+                                                Status
+                                            </span>
+                                        </div>
+                                        
+                                        <div className="relative z-10 mt-2">
+                                            <div className={`text-3xl font-black mb-1 leading-tight ${isDarkMode ? 'text-indigo-400' : 'text-indigo-700'}`}>
+                                                RELAXA! <br/> É FERIADO.
                                             </div>
-                                            <div className={`text-xs font-medium mt-2 leading-snug ${isDarkMode ? `text-${primaryColor}-300/70` : `text-${primaryColor}-600`}`}>
-                                                Você pode faltar em <b>{bestSubjectToSkip.subject}</b> sem reprovar.
+                                            <div className={`text-xs font-medium mt-2 leading-snug ${isDarkMode ? 'text-indigo-300/70' : 'text-indigo-600'}`}>
+                                                {upcomingHoliday 
+                                                    ? `Aproveite o dia de folga: ${upcomingHoliday.name}.`
+                                                    : "Sem feriados próximos, mas tire um tempo para você!"}
                                             </div>
-                                            <div className="flex items-end gap-2 mt-3 relative z-10">
-                                                <div className={`text-4xl font-bold ${isDarkMode ? `text-${primaryColor}-400` : `text-${primaryColor}-800`}`}>
-                                                    {bestSubjectToSkip.limit - bestSubjectToSkip.absences}
+                                        </div>
+                                    </motion.div>
+                                )}
+
+                                {activeCardTab === 'STATUS' && (
+                                <motion.div
+                                    key="status"
+                                    className="h-full flex flex-col justify-between"
+                                    initial={{ opacity: 0, x: 20 }}
+                                    animate={{ opacity: 1, x: 0 }}
+                                    exit={{ opacity: 0, x: -20 }}
+                                    transition={{ type: 'spring', stiffness: 300, damping: 30 }}
+                                    >
+                                    <div className={`absolute -right-4 -top-4 w-24 h-24 rounded-full blur-xl ${isDarkMode ? `bg-${primaryColor}-500/20` : `bg-${primaryColor}-200/50`}`} />
+                                    
+                                    <div className="flex justify-between items-start relative z-10">
+                                        <span className={`text-[10px] font-black uppercase tracking-wide px-2 py-1 rounded-md ${isDarkMode ? `bg-${primaryColor}-900 text-${primaryColor}-300` : `bg-${primaryColor}-200 text-${primaryColor}-800`}`}>
+                                            Status
+                                        </span>
+                                    </div>
+
+                                    <div className="relative z-10 mt-2">
+                                        {bestSubjectToSkip ? (
+                                            <>
+                                                <div className={`text-3xl font-black mb-1 leading-tight ${isDarkMode ? `text-${primaryColor}-400` : `text-${primaryColor}-700`}`}>
+                                                    PODE <br/>FALTAR
                                                 </div>
-                                                <div className={`text-xs font-bold mb-2 ${isDarkMode ? `text-${primaryColor}-500` : `text-${primaryColor}-600`}`}>
-                                                    Aulas restantes
+                                                <div className={`text-xs font-medium mt-2 leading-snug ${isDarkMode ? `text-${primaryColor}-300/70` : `text-${primaryColor}-600`}`}>
+                                                    Você pode faltar em <b>{bestSubjectToSkip.subject}</b> sem reprovar.
+                                                </div>
+                                                <div className="flex items-end gap-2 mt-3 relative z-10">
+                                                    <div className={`text-4xl font-bold ${isDarkMode ? `text-${primaryColor}-400` : `text-${primaryColor}-800`}`}>
+                                                        {bestSubjectToSkip.limit - bestSubjectToSkip.absences}
+                                                    </div>
+                                                    <div className={`text-xs font-bold mb-2 ${isDarkMode ? `text-${primaryColor}-500` : `text-${primaryColor}-600`}`}>
+                                                        Aulas restantes
+                                                    </div>
+                                                </div>
+                                            </>
+                                        ) : (
+                                                <div className="flex flex-col items-center justify-center h-32 text-center opacity-50">
+                                                <p className="text-xs font-bold">Analisando faltas...</p>
+                                                </div>
+                                        )}
+                                    </div>
+                                    </motion.div>
+                                )}
+
+                                {activeCardTab === 'TASKS' && (
+                                    <motion.div
+                                    key="tasks"
+                                    className="h-full flex flex-col justify-between"
+                                    initial={{ opacity: 0, x: 20 }}
+                                    animate={{ opacity: 1, x: 0 }}
+                                    exit={{ opacity: 0, x: -20 }}
+                                    transition={{ type: 'spring', stiffness: 300, damping: 30 }}
+                                    >
+                                        <div className={`absolute -right-4 -top-4 w-24 h-24 rounded-full blur-xl ${isDarkMode ? `bg-${primaryColor}-500/10` : `bg-${primaryColor}-200/30`}`} />
+                                        
+                                        <div className="flex justify-between items-start relative z-10">
+                                        <span className={`text-[10px] font-black uppercase tracking-wide px-2 py-1 rounded-md ${isDarkMode ? `bg-${primaryColor}-900/50 text-${primaryColor}-400` : `bg-${primaryColor}-100 text-${primaryColor}-700`}`}>
+                                            Classroom
+                                        </span>
+                                    </div>
+
+                                    {nextTask ? (
+                                        <>
+                                            <div className="relative z-10 mt-auto mb-auto">
+                                                <div className={`text-[10px] font-bold uppercase mb-1 ${isDarkMode ? `text-${primaryColor}-500/80` : `text-${primaryColor}-600`}`}>
+                                                    Próxima Entrega
+                                                </div>
+                                                <div className={`text-xl font-black leading-tight mb-2 line-clamp-3 ${isDarkMode ? `text-${primaryColor}-50` : 'text-gray-800'}`}>
+                                                    {nextTask.title}
+                                                </div>
+                                                <div className={`text-[10px] font-bold px-2 py-1 rounded-lg inline-block ${isDarkMode ? 'bg-white/10 text-gray-300' : 'bg-gray-100 text-gray-600'}`}>
+                                                    {nextTask.courseName}
+                                                </div>
+                                            </div>
+
+                                            <div className="relative z-10 mt-2 pt-3 border-t border-dashed border-gray-500/20 flex justify-between items-center">
+                                                <div className={`text-xs font-bold ${isDarkMode ? `text-${primaryColor}-400` : `text-${primaryColor}-600`}`}>
+                                                    {nextTask.jsDate?.toLocaleDateString('pt-BR', { weekday: 'short', day: '2-digit', month: 'short' })}
+                                                </div>
+                                                <div className={`text-xs font-bold opacity-70 ${isDarkMode ? 'text-white' : 'text-black'}`}>
+                                                    {nextTask.jsDate?.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
                                                 </div>
                                             </div>
                                         </>
                                     ) : (
-                                         <div className="flex flex-col items-center justify-center h-32 text-center opacity-50">
-                                           <p className="text-xs font-bold">Analisando faltas...</p>
-                                         </div>
+                                        <div className="relative z-10 mt-auto mb-auto text-center opacity-50">
+                                            <Book size={24} className="mx-auto mb-2" />
+                                            <p className="text-xs font-bold">Nenhuma tarefa pendente.</p>
+                                        </div>
                                     )}
-                                </div>
-                             </motion.div>
-                          )}
-
-                          {activeCardTab === 'TASKS' && (
-                             <motion.div
-                                key="tasks"
-                                className="h-full flex flex-col justify-between"
-                                initial={{ opacity: 0, x: 20 }}
-                                animate={{ opacity: 1, x: 0 }}
-                                exit={{ opacity: 0, x: -20 }}
-                                transition={{ type: 'spring', stiffness: 300, damping: 30 }}
-                             >
-                                 <div className={`absolute -right-4 -top-4 w-24 h-24 rounded-full blur-xl ${isDarkMode ? `bg-${primaryColor}-500/10` : `bg-${primaryColor}-200/30`}`} />
-                                 
-                                 <div className="flex justify-between items-start relative z-10">
-                                    <span className={`text-[10px] font-black uppercase tracking-wide px-2 py-1 rounded-md ${isDarkMode ? `bg-${primaryColor}-900/50 text-${primaryColor}-400` : `bg-${primaryColor}-100 text-${primaryColor}-700`}`}>
-                                        Classroom
-                                    </span>
-                                </div>
-
-                                {nextTask ? (
-                                    <>
-                                        <div className="relative z-10 mt-auto mb-auto">
-                                            <div className={`text-[10px] font-bold uppercase mb-1 ${isDarkMode ? `text-${primaryColor}-500/80` : `text-${primaryColor}-600`}`}>
-                                                Próxima Entrega
-                                            </div>
-                                            <div className={`text-xl font-black leading-tight mb-2 line-clamp-3 ${isDarkMode ? `text-${primaryColor}-50` : 'text-gray-800'}`}>
-                                                {nextTask.title}
-                                            </div>
-                                            <div className={`text-[10px] font-bold px-2 py-1 rounded-lg inline-block ${isDarkMode ? 'bg-white/10 text-gray-300' : 'bg-gray-100 text-gray-600'}`}>
-                                                {nextTask.courseName}
-                                            </div>
-                                        </div>
-
-                                        <div className="relative z-10 mt-2 pt-3 border-t border-dashed border-gray-500/20 flex justify-between items-center">
-                                            <div className={`text-xs font-bold ${isDarkMode ? `text-${primaryColor}-400` : `text-${primaryColor}-600`}`}>
-                                                {nextTask.jsDate?.toLocaleDateString('pt-BR', { weekday: 'short', day: '2-digit', month: 'short' })}
-                                            </div>
-                                            <div className={`text-xs font-bold opacity-70 ${isDarkMode ? 'text-white' : 'text-black'}`}>
-                                                {nextTask.jsDate?.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
-                                            </div>
-                                        </div>
-                                    </>
-                                ) : (
-                                    <div className="relative z-10 mt-auto mb-auto text-center opacity-50">
-                                        <Book size={24} className="mx-auto mb-2" />
-                                        <p className="text-xs font-bold">Nenhuma tarefa pendente.</p>
-                                    </div>
+                                    </motion.div>
                                 )}
-                             </motion.div>
-                          )}
-                      </AnimatePresence>
+                            </AnimatePresence>
 
-                   </div>
-               </div>
+                        </div>
+                    </div>
 
-               <div className="absolute bottom-0 -right-[40px] w-[40px] h-[40px]">
-                   <InvertedCorner position="bottom-left" size={40} fill={cornerColor} />
-               </div>
-           </motion.div>
+                    <div className="hidden md:block absolute bottom-0 -right-[40px] w-[40px] h-[40px]">
+                        <InvertedCorner position="bottom-left" size={40} fill={cornerColor} />
+                    </div>
+                </motion.div>
 
-           {/* AI CHAT WIDGET */}
+                {/* MOBILE: Secondary Info List (Previously Right Sidebar) */}
+                <div className="md:hidden w-full max-w-[320px] mx-auto mt-6 space-y-4 pb-8">
+                     {/* Simple Task Summary */}
+                     <div className={`p-4 rounded-2xl border backdrop-blur-sm ${isDarkMode ? 'bg-black/40 border-white/10' : 'bg-white/60 border-white/20'}`}>
+                         <div className="flex justify-between items-center mb-3">
+                            <h3 className={`text-xs font-bold uppercase ${frameText}`}>Próximas Entregas</h3>
+                            <div className={`text-[10px] px-2 py-0.5 rounded-md ${isDarkMode ? 'bg-white/10' : 'bg-black/10'}`}>{classroomWork.length}</div>
+                         </div>
+                         {classroomWork.slice(0, 3).map(work => (
+                             <div key={work.id} className="flex justify-between items-center py-2 border-b border-dashed border-gray-500/10 last:border-0">
+                                 <span className={`text-xs truncate max-w-[70%] ${frameText}`}>{work.title}</span>
+                                 <span className={`text-[10px] font-bold ${isDarkMode ? `text-${primaryColor}-400` : `text-${primaryColor}-600`}`}>
+                                     {work.jsDate?.toLocaleDateString('pt-BR', {day: '2-digit', month: '2-digit'})}
+                                 </span>
+                             </div>
+                         ))}
+                         {classroomWork.length === 0 && <p className="text-xs opacity-50 text-center py-2">Nada pendente.</p>}
+                     </div>
+                </div>
+
+           </div>
+
+           {/* AI CHAT WIDGET (Responsive Position) */}
            <AnimatePresence>
             {isLoggedIn && (
               <motion.div 
                 initial={{ opacity: 0, y: 50 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 1 }}
-                className="absolute bottom-10 left-[322px] right-0 z-[70] flex justify-center items-end pointer-events-none"
+                className="fixed md:absolute bottom-20 md:bottom-10 left-0 md:left-[322px] right-0 z-[70] flex justify-center items-end pointer-events-none px-4 md:px-0"
               >
-                  <div className="pointer-events-auto">
+                  <div className="pointer-events-auto w-full max-w-md md:w-auto">
                       <AIChatWidget 
                         isDarkMode={isDarkMode} 
                         accentColor={primaryColor} 
@@ -694,6 +735,7 @@ export const DashboardLayout: React.FC<DashboardProps> = ({
                         grades={grades}
                         schedule={schedule}
                         holidays={holidays}
+                        onRequestSettings={onOpenSettings}
                       />
                   </div>
               </motion.div>
@@ -703,8 +745,8 @@ export const DashboardLayout: React.FC<DashboardProps> = ({
         </div>
       </div>
 
-      {/* 3. RIGHT SIDEBAR - CONTENT */}
-      <div className={`relative z-50 h-[calc(100vh-2rem)] my-4 w-[360px] flex flex-col p-8 transition-colors duration-500 ${frameBg}`}>
+      {/* 3. RIGHT SIDEBAR - CONTENT (Hidden on Mobile) */}
+      <div className={`hidden md:flex relative z-50 h-[calc(100vh-2rem)] my-4 w-[360px] flex-col p-8 transition-colors duration-500 ${frameBg}`}>
           
           <div className="absolute top-0 -left-[40px] w-[40px] h-[40px] z-50">
              <InvertedCorner position="top-right" size={40} fill={cornerColor} />
@@ -1113,9 +1155,56 @@ export const DashboardLayout: React.FC<DashboardProps> = ({
           )}
       </div>
 
+      {/* 4. MOBILE FLOATING NAVBAR (Bottom) */}
+      <MobileNavBar 
+        activeNav={activeNav} 
+        handleNavClick={handleNavClick} 
+        isDarkMode={isDarkMode} 
+        primaryColor={primaryColor} 
+        onToggleTheme={onToggleTheme}
+      />
+
     </div>
   );
 };
+
+// --- MOBILE NAV COMPONENT ---
+const MobileNavBar: React.FC<{ 
+    activeNav: ViewState, 
+    handleNavClick: (v: ViewState) => void, 
+    isDarkMode: boolean, 
+    primaryColor: string,
+    onToggleTheme: () => void
+}> = ({ activeNav, handleNavClick, isDarkMode, primaryColor, onToggleTheme }) => {
+    return (
+        <div className={`md:hidden fixed bottom-6 left-6 right-6 h-20 rounded-full backdrop-blur-2xl shadow-2xl z-[60] border flex items-center justify-evenly px-6 transition-colors duration-500
+            ${isDarkMode ? 'bg-slate-950/90 border-white/10 shadow-black/50' : 'bg-white/90 border-white/50 shadow-gray-200/50'}`}
+        >
+             <MobileNavItem icon={<Home size={24} />} active={activeNav === ViewState.DASHBOARD} onClick={() => handleNavClick(ViewState.DASHBOARD)} color={primaryColor} />
+             <MobileNavItem icon={<BookOpen size={24} />} active={activeNav === ViewState.GRADES} onClick={() => handleNavClick(ViewState.GRADES)} color={primaryColor} />
+             <MobileNavItem icon={<CalendarIcon size={24} />} active={activeNav === ViewState.SCHEDULE} onClick={() => handleNavClick(ViewState.SCHEDULE)} color={primaryColor} />
+             <MobileNavItem icon={<Monitor size={24} />} active={activeNav === ViewState.CLASSROOM} onClick={() => handleNavClick(ViewState.CLASSROOM)} color={primaryColor} />
+             
+             <button 
+                onClick={onToggleTheme}
+                className={`w-12 h-12 rounded-full flex items-center justify-center transition-all ${isDarkMode ? 'bg-white/10 text-yellow-400' : 'bg-black/5 text-gray-600'}`}
+             >
+                {isDarkMode ? <Moon size={20} fill="currentColor" /> : <Sun size={20} fill="currentColor" />}
+             </button>
+        </div>
+    )
+}
+
+const MobileNavItem: React.FC<{ icon: React.ReactNode, active?: boolean, onClick: () => void, color: string }> = ({ icon, active, onClick, color }) => (
+    <button 
+        onClick={onClick}
+        className={`relative p-3 transition-all duration-300 ${active ? `text-${color}-500 scale-110` : 'text-gray-400'}`}
+    >
+        {icon}
+        {active && <motion.div layoutId="mobile-active" className={`absolute -bottom-1 left-1/2 -translate-x-1/2 w-1.5 h-1.5 rounded-full bg-${color}-500`} />}
+    </button>
+);
+
 
 // --- LOGIN MODAL COMPONENT ---
 const LoginModal: React.FC<{ isDarkMode: boolean, primaryColor: string, onLogin: () => void }> = ({ isDarkMode, primaryColor, onLogin }) => {
@@ -1163,7 +1252,7 @@ const LoginModal: React.FC<{ isDarkMode: boolean, primaryColor: string, onLogin:
 
     return (
         <motion.div 
-           className="fixed inset-0 z-[100] flex items-center justify-center"
+           className="fixed inset-0 z-[100] flex items-center justify-center p-4"
            initial={{ opacity: 0 }}
            animate={{ opacity: 1 }}
            exit={{ opacity: 0, transition: { duration: 0.5 } }}
@@ -1171,7 +1260,7 @@ const LoginModal: React.FC<{ isDarkMode: boolean, primaryColor: string, onLogin:
             <div className="absolute inset-0 bg-black/40 backdrop-blur-md" />
 
             <motion.div 
-               className={`relative w-full max-w-lg p-12 rounded-[2.5rem] shadow-2xl border overflow-hidden ${isDarkMode ? 'bg-slate-900/80 border-white/10' : 'bg-white/80 border-white/40'} backdrop-blur-xl`}
+               className={`relative w-full max-w-lg p-8 md:p-12 rounded-[2.5rem] shadow-2xl border overflow-hidden ${isDarkMode ? 'bg-slate-900/80 border-white/10' : 'bg-white/80 border-white/40'} backdrop-blur-xl`}
                initial={{ scale: 0.9, opacity: 0, y: 20 }}
                animate={{ scale: 1, opacity: 1, y: 0 }}
                exit={{ scale: 1.05, opacity: 0, y: -20 }}
@@ -1184,7 +1273,7 @@ const LoginModal: React.FC<{ isDarkMode: boolean, primaryColor: string, onLogin:
                     <div className="text-xs font-black tracking-widest mb-2 text-gray-400">ELECTRON</div>
                     <h2 className={`text-4xl font-black italic mb-4 ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>SUPACO</h2>
                     <p className={`text-base leading-relaxed max-w-xs mx-auto ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
-                        Bem-vindo ao Supaco Desktop. <br/>
+                        Bem-vindo ao Supaco. <br/>
                         Uma experiência acadêmica discreta.
                     </p>
                 </div>

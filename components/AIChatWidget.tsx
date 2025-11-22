@@ -1,7 +1,7 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Sparkles, CornerDownLeft } from 'lucide-react';
+import { X, Sparkles, CornerDownLeft, Settings, MessageCircle } from 'lucide-react';
 import { GoogleGenAI, FunctionDeclaration, Type } from "@google/genai";
 import ReactMarkdown from 'react-markdown';
 import { GradeInfo, ProcessedClass, SuapProfile, Holiday } from '../types';
@@ -13,6 +13,7 @@ interface AIChatWidgetProps {
   grades: GradeInfo[];
   schedule: ProcessedClass[];
   holidays: Holiday[];
+  onRequestSettings: () => void;
 }
 
 interface Message {
@@ -21,13 +22,22 @@ interface Message {
   text: string;
 }
 
-export const AIChatWidget: React.FC<AIChatWidgetProps> = ({ isDarkMode, accentColor, userData, grades, schedule, holidays }) => {
+export const AIChatWidget: React.FC<AIChatWidgetProps> = ({ isDarkMode, accentColor, userData, grades, schedule, holidays, onRequestSettings }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [input, setInput] = useState('');
   const [messages, setMessages] = useState<Message[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
+  
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+      const checkMobile = () => setIsMobile(window.innerWidth < 768);
+      checkMobile();
+      window.addEventListener('resize', checkMobile);
+      return () => window.removeEventListener('resize', checkMobile);
+  }, []);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -133,6 +143,22 @@ DIRETRIZES:
 
   const handleSend = async () => {
     if (!input.trim()) return;
+
+    // CHECK FOR API KEY FIRST
+    const apiKey = localStorage.getItem('gemini_api_key') || process.env.API_KEY;
+    if (!apiKey) {
+        const systemMsg: Message = {
+            id: Date.now().toString(),
+            role: 'model',
+            text: "Preciso da sua Chave de API do Google Gemini para funcionar. Redirecionando para as configurações..."
+        };
+        setMessages(prev => [...prev, systemMsg]);
+        setTimeout(() => {
+            setIsOpen(false);
+            onRequestSettings();
+        }, 2000);
+        return;
+    }
     
     const userText = input;
     setInput(''); 
@@ -143,9 +169,6 @@ DIRETRIZES:
     setTimeout(() => inputRef.current?.focus(), 10);
 
     try {
-      const apiKey = localStorage.getItem('gemini_api_key') || process.env.API_KEY;
-      if (!apiKey) throw new Error("API Key missing");
-
       const ai = new GoogleGenAI({ apiKey });
       
       // 1. Initial Request with Tools
@@ -202,12 +225,19 @@ DIRETRIZES:
           setMessages(prev => [...prev, aiMsg]);
       }
 
-    } catch (error) {
+    } catch (error: any) {
       console.error(error);
+      let text = "Erro de conexão ou configuração.";
+      
+      // Check if error suggests invalid key
+      if (error.message?.includes('400') || error.message?.includes('API key')) {
+          text = "Sua chave de API parece inválida. Por favor, verifique nas configurações.";
+      }
+
       const errorMsg: Message = { 
         id: (Date.now() + 1).toString(), 
         role: 'model', 
-        text: "Erro de conexão ou configuração. Verifique se sua API Key está válida nas configurações."
+        text: text
       };
       setMessages(prev => [...prev, errorMsg]);
     } finally {
@@ -225,23 +255,39 @@ DIRETRIZES:
 
   // --- Styles ---
   const glassClass = isDarkMode 
-    ? 'bg-white/5 border-white/10 shadow-2xl shadow-black/50' 
-    : `bg-white/10 border-white/20 shadow-xl shadow-${accentColor}-500/5`;
+    ? 'bg-slate-900/95 border-white/10 shadow-2xl shadow-black/80' 
+    : `bg-white/95 border-white/20 shadow-2xl shadow-${accentColor}-500/20`;
+
+  // Animation Variables
+  // Mobile: Closed = 48x48 circle, Open = 100vw x 100vh
+  // Desktop: Closed = 140x42 capsule, Open = 500x450 box
+  
+  const width = isOpen 
+    ? (isMobile ? '100vw' : 500) 
+    : (isMobile ? 48 : 140);
+
+  const height = isOpen 
+    ? (isMobile ? '100dvh' : 450) 
+    : (isMobile ? 48 : 42);
+
+  const borderRadius = isOpen 
+    ? (isMobile ? 0 : 32) 
+    : 99;
 
   return (
     <>
-      {isOpen && <div className="fixed inset-0 z-[80]" onClick={() => setIsOpen(false)} />}
+      {isOpen && <div className="fixed inset-0 z-[80] bg-black/30 backdrop-blur-[2px]" onClick={() => setIsOpen(false)} />}
 
       <motion.div
         layout
         initial={false}
-        animate={{ 
-          width: isOpen ? 500 : 140,
-          height: isOpen ? 450 : 42,
-          borderRadius: isOpen ? 32 : 99
-        }}
+        animate={{ width, height, borderRadius }}
         transition={{ type: 'spring', stiffness: 280, damping: 24 }}
-        className={`relative z-[90] backdrop-blur-md border overflow-hidden flex flex-col ${glassClass}`}
+        className={`overflow-hidden flex flex-col z-[90]
+          ${isOpen && isMobile ? 'fixed inset-0 m-0' : 'relative'} 
+          ${glassClass}
+          ${!isOpen && isMobile ? 'rounded-full' : 'backdrop-blur-xl border'}
+        `}
       >
         <AnimatePresence mode="wait">
           {isOpen ? (
@@ -254,19 +300,32 @@ DIRETRIZES:
               className="flex-1 flex flex-col h-full relative"
             >
               {/* Header */}
-              <div className="flex items-center justify-between px-5 py-3 shrink-0 border-b border-white/5">
+              <div className={`flex items-center justify-between px-5 py-3 shrink-0 border-b ${isDarkMode ? 'border-white/5' : 'border-black/5'}`}>
                   <div className="flex items-center gap-2">
                       <MonochromeIcon accentColor={accentColor} />
                       <span className={`text-xs font-bold tracking-wider uppercase ${isDarkMode ? 'text-white/90' : `text-${accentColor}-900/80`}`}>
                           Assistente
                       </span>
                   </div>
-                  <button 
-                      onClick={(e) => { e.stopPropagation(); setIsOpen(false); }}
-                      className={`p-1.5 rounded-full transition-colors ${isDarkMode ? 'hover:bg-white/10 text-white/50' : 'hover:bg-black/5 text-black/50'}`}
-                  >
-                      <X size={16} />
-                  </button>
+                  <div className="flex items-center gap-1">
+                      <button 
+                          onClick={(e) => {
+                              e.stopPropagation();
+                              setIsOpen(false);
+                              onRequestSettings();
+                          }}
+                          className={`p-2 rounded-full transition-colors ${isDarkMode ? 'hover:bg-white/10 text-white/50' : 'hover:bg-black/5 text-black/50'}`}
+                          title="Configurações"
+                      >
+                          <Settings size={18} />
+                      </button>
+                      <button 
+                          onClick={(e) => { e.stopPropagation(); setIsOpen(false); }}
+                          className={`p-2 rounded-full transition-colors ${isDarkMode ? 'hover:bg-white/10 text-white/50' : 'hover:bg-black/5 text-black/50'}`}
+                      >
+                          <X size={20} />
+                      </button>
+                  </div>
               </div>
 
               {/* Messages Area */}
@@ -329,7 +388,7 @@ DIRETRIZES:
               </div>
 
               {/* Input Area */}
-              <div className="p-4 pt-0">
+              <div className="p-4 pt-0 pb-6 md:pb-4">
                   <div className={`flex items-center gap-2 rounded-2xl p-1 pl-4 border transition-colors ${isDarkMode ? 'bg-black/40 border-white/10' : 'bg-white/40 border-white/20'}`}>
                       <input
                           ref={inputRef}
@@ -342,19 +401,19 @@ DIRETRIZES:
                       <button 
                           onClick={handleSend}
                           disabled={!input.trim()}
-                          className={`w-8 h-8 rounded-xl flex items-center justify-center transition-all ${
+                          className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all ${
                               input.trim() 
                                ? `bg-${accentColor}-500 text-white shadow-lg shadow-${accentColor}-500/30 hover:scale-105` 
                                : 'bg-transparent text-gray-400 opacity-50'
                           }`}
                       >
-                           <CornerDownLeft size={16} />
+                           <CornerDownLeft size={20} />
                       </button>
                   </div>
               </div>
             </motion.div>
           ) : (
-            /* --- IDLE STATE (Capsule) --- */
+            /* --- IDLE STATE (Capsule/Button) --- */
             <motion.button 
               key="idle-capsule"
               initial={{ opacity: 0 }}
@@ -362,12 +421,14 @@ DIRETRIZES:
               exit={{ opacity: 0 }}
               transition={{ delay: 0.1 }}
               onClick={() => setIsOpen(true)}
-              className="absolute inset-0 flex items-center justify-center gap-2.5 w-full h-full group cursor-pointer hover:bg-white/5 transition-colors"
+              className={`absolute inset-0 flex items-center justify-center gap-2.5 w-full h-full group cursor-pointer hover:bg-white/5 transition-colors ${isMobile ? 'rounded-full' : ''}`}
             >
-                <MonochromeIcon size={18} accentColor={accentColor} />
-                <span className={`text-xs font-bold tracking-wider uppercase ${isDarkMode ? 'text-white/80' : `text-gray-600 group-hover:text-${accentColor}-600`}`}>
-                    AI Chat
-                </span>
+                <MonochromeIcon size={isMobile ? 24 : 18} accentColor={accentColor} />
+                {!isMobile && (
+                    <span className={`text-xs font-bold tracking-wider uppercase ${isDarkMode ? 'text-white/80' : `text-gray-600 group-hover:text-${accentColor}-600`}`}>
+                        AI Chat
+                    </span>
+                )}
             </motion.button>
           )}
         </AnimatePresence>

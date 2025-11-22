@@ -2,24 +2,19 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { DashboardLayout } from './components/DashboardLayout';
 import { ContentView } from './components/ContentViews';
+import { LandingPage } from './components/LandingPage';
 import { ViewState, ThemeVariant, SuapProfile, SuapMeusDadosAluno, SuapPeriod, SuapBoletim, SuapDiarioResponse, ProcessedClass, GradeInfo, SuapCompletionData, Holiday, ClassroomWork, ClassroomCourse } from './types';
 import { AnimatePresence } from 'framer-motion';
+import { SecureStorage } from './services/SecureStorage';
 
 const DEFAULT_WALLPAPER = "https://images2.alphacoders.com/134/thumb-1920-1345658.png";
 
-// Cache Keys
+// Cache Keys (Settings only - Data is now in SecureStorage)
 const CACHE_KEYS = {
-    PROFILE: 'suap_cache_profile',
-    ACADEMIC: 'suap_cache_academic',
-    COMPLETION: 'suap_cache_completion',
-    PERIODS: 'suap_cache_periods',
-    CURRENT_PERIOD: 'suap_cache_current_period',
-    GRADES: 'suap_cache_grades',
-    SCHEDULE: 'suap_cache_schedule',
-    HOLIDAYS: 'suap_cache_holidays',
     WALLPAPER: 'suap_saved_wallpaper',
     THEME_VARIANT: 'suap_saved_theme_variant',
-    THEME_MODE: 'suap_saved_theme_mode'
+    THEME_MODE: 'suap_saved_theme_mode',
+    WELCOME_SEEN: 'suap_welcome_seen'
 };
 
 // Define palette structure
@@ -41,6 +36,11 @@ const WALLPAPER_THEMES: Record<string, Palette> = {
 };
 
 const App: React.FC = () => {
+  // --- LANDING PAGE STATE ---
+  const [showLanding, setShowLanding] = useState(() => {
+      return !localStorage.getItem(CACHE_KEYS.WELCOME_SEEN);
+  });
+
   const [currentView, setCurrentView] = useState<ViewState>(ViewState.DASHBOARD);
   
   // Settings State (Initialize from cache if available)
@@ -76,7 +76,6 @@ const App: React.FC = () => {
 
   // --- PERSISTENCE HELPERS ---
 
-  // Save settings when they change
   useEffect(() => {
       localStorage.setItem(CACHE_KEYS.THEME_MODE, isDarkMode ? 'dark' : 'light');
   }, [isDarkMode]);
@@ -92,26 +91,20 @@ const App: React.FC = () => {
   // --- OAUTH CALLBACK HANDLER ---
   useEffect(() => {
       const hash = window.location.hash;
-      // Look for access_token in the URL hash (Google Implicit Flow)
       if (hash && hash.includes('access_token')) {
-          const params = new URLSearchParams(hash.substring(1)); // remove #
+          const params = new URLSearchParams(hash.substring(1));
           const accessToken = params.get('access_token');
           
           if (accessToken) {
-              console.log("Google Access Token detected via URL Hash");
-              
-              // Save token to localStorage
               localStorage.setItem('google_classroom_token', accessToken);
-              
-              // Clear the hash from URL to prevent issues and clean up
               window.history.replaceState(null, '', window.location.pathname);
-              
-              // Automatically open the Settings > Integrations > Classroom panel
-              // We use a small timeout to ensure the app is fully mounted/ready if needed
               setTimeout(() => {
                   setCurrentView(ViewState.PROFILE);
                   setProfileInitialTab('settings');
                   setAutoExpandClassroom(true);
+                  // Ensure landing is skipped if returning from OAuth
+                  setShowLanding(false);
+                  localStorage.setItem(CACHE_KEYS.WELCOME_SEEN, 'true');
               }, 100);
           }
       }
@@ -120,102 +113,69 @@ const App: React.FC = () => {
   // --- KEYBOARD SHORTCUTS ---
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-        if (e.repeat) return; // Prevent repeating keydown events
+        if (showLanding) return; // Disable shortcuts on landing page
 
-        // Ignore if user is typing in an input field
+        if (e.repeat) return; 
         if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
 
-        // ESC to close modals
         if (e.key === 'Escape') {
             handleCloseOverlay();
             return;
         }
 
-        // CTRL + Number for Main Navigation
         if ((e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey) {
             switch(e.key) {
-                case '1': 
-                    e.preventDefault();
-                    setCurrentView(ViewState.DASHBOARD); 
-                    break;
-                case '2': 
-                    e.preventDefault();
-                    setCurrentView(ViewState.GRADES); 
-                    break;
-                case '3': 
-                    e.preventDefault();
-                    setCurrentView(ViewState.ABSENCES); 
-                    break;
-                case '4': 
-                    e.preventDefault();
-                    setCurrentView(ViewState.SCHEDULE); 
-                    break;
-                case '5': 
-                    e.preventDefault();
-                    setCurrentView(ViewState.CLASSROOM); 
-                    break;
-                case '6': 
-                    e.preventDefault();
-                    setCurrentView(ViewState.CONCLUSION); 
-                    break;
-                case 'i':
-                case 'I':
-                    e.preventDefault();
-                    setCurrentView(ViewState.PROFILE);
-                    setProfileInitialTab('settings');
-                    break;
+                case '1': e.preventDefault(); setCurrentView(ViewState.DASHBOARD); break;
+                case '2': e.preventDefault(); setCurrentView(ViewState.GRADES); break;
+                case '3': e.preventDefault(); setCurrentView(ViewState.ABSENCES); break;
+                case '4': e.preventDefault(); setCurrentView(ViewState.SCHEDULE); break;
+                case '5': e.preventDefault(); setCurrentView(ViewState.CLASSROOM); break;
+                case '6': e.preventDefault(); setCurrentView(ViewState.CONCLUSION); break;
+                case 'i': e.preventDefault(); handleOpenSettings(); break;
             }
         }
 
-        // ALT + Number for Right Sidebar Tabs
         if (e.altKey && !e.ctrlKey && !e.metaKey) {
              switch(e.key) {
-                case '1':
-                    e.preventDefault();
-                    setRightSidebarTab('overview');
-                    break;
-                case '2':
-                    e.preventDefault();
-                    setRightSidebarTab('tasks');
-                    break;
-                case '3':
-                    e.preventDefault();
-                    setRightSidebarTab('holidays');
-                    break;
+                case '1': e.preventDefault(); setRightSidebarTab('overview'); break;
+                case '2': e.preventDefault(); setRightSidebarTab('tasks'); break;
+                case '3': e.preventDefault(); setRightSidebarTab('holidays'); break;
              }
         }
     };
-
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, []);
+  }, [showLanding]);
 
-  // Load cached data into state
-  const loadCache = () => {
+  // --- CACHE LOADING (DECRYPTED) ---
+  const loadUserCache = (matricula: string) => {
       try {
-          const cachedProfile = localStorage.getItem(CACHE_KEYS.PROFILE);
-          if (cachedProfile) setUserData(JSON.parse(cachedProfile));
-
-          const cachedAcademic = localStorage.getItem(CACHE_KEYS.ACADEMIC);
-          if (cachedAcademic) setAcademicData(JSON.parse(cachedAcademic));
-
-          const cachedCompletion = localStorage.getItem(CACHE_KEYS.COMPLETION);
-          if (cachedCompletion) setCompletionData(JSON.parse(cachedCompletion));
-
-          const cachedPeriod = localStorage.getItem(CACHE_KEYS.CURRENT_PERIOD);
-          if (cachedPeriod) setCurrentPeriod(JSON.parse(cachedPeriod));
-
-          const cachedGrades = localStorage.getItem(CACHE_KEYS.GRADES);
-          if (cachedGrades) setProcessedGrades(JSON.parse(cachedGrades));
-
-          const cachedSchedule = localStorage.getItem(CACHE_KEYS.SCHEDULE);
-          if (cachedSchedule) setProcessedSchedule(JSON.parse(cachedSchedule));
+          console.log(`[App] Loading encrypted cache for user: ${matricula}`);
           
-          const cachedHolidays = localStorage.getItem(CACHE_KEYS.HOLIDAYS);
+          const profile = SecureStorage.loadItem(matricula, 'profile');
+          if (profile) setUserData(profile);
+
+          const academic = SecureStorage.loadItem(matricula, 'academic');
+          if (academic) setAcademicData(academic);
+
+          const completion = SecureStorage.loadItem(matricula, 'completion');
+          if (completion) setCompletionData(completion);
+
+          const period = SecureStorage.loadItem(matricula, 'current_period');
+          if (period) setCurrentPeriod(period);
+
+          const grades = SecureStorage.loadItem(matricula, 'grades');
+          if (grades) setProcessedGrades(grades);
+
+          const schedule = SecureStorage.loadItem(matricula, 'schedule');
+          if (schedule) setProcessedSchedule(schedule);
+
+          // Holidays are global, not per user, but we can just load from generic storage
+          const cachedHolidays = localStorage.getItem('suap_cache_holidays');
           if (cachedHolidays) setHolidays(JSON.parse(cachedHolidays));
 
       } catch (e) {
-          console.error("Error loading cache:", e);
+          console.error("[App] Error loading secure cache:", e);
       }
   };
 
@@ -261,7 +221,6 @@ const App: React.FC = () => {
             const refreshed = await refreshSuapToken();
             
             if (refreshed) {
-                // Retry with new token
                 token = localStorage.getItem('suap_access_token');
                 response = await fetch(url, {
                     headers: {
@@ -270,7 +229,6 @@ const App: React.FC = () => {
                     }
                 });
             } else {
-                // Refresh failed, logout
                 handleLogout();
                 return null;
             }
@@ -285,14 +243,13 @@ const App: React.FC = () => {
   };
 
   const fetchHolidays = async () => {
-      // Load from cache first (handled in mount), then update
       const year = new Date().getFullYear();
       try {
           const response = await fetch(`https://brasilapi.com.br/api/feriados/v1/${year}`);
           if (response.ok) {
               const data = await response.json();
               setHolidays(data);
-              localStorage.setItem(CACHE_KEYS.HOLIDAYS, JSON.stringify(data));
+              localStorage.setItem('suap_cache_holidays', JSON.stringify(data));
           }
       } catch (error) {
           console.warn("Failed to update holidays (offline)", error);
@@ -333,67 +290,68 @@ const App: React.FC = () => {
     }
   };
 
-  const fetchUserData = async () => {
+  // --- BACKGROUND SYNC ENGINE ---
+  const fetchAllUserDataBackground = async (currentMatricula: string) => {
+    console.log("[App] Starting background data sync...");
     try {
         // 1. User Profile
         const profile = await fetchWithAuth('https://suap.ifrn.edu.br/api/v2/minhas-informacoes/meus-dados/');
         if (profile) {
             setUserData(profile);
-            localStorage.setItem(CACHE_KEYS.PROFILE, JSON.stringify(profile));
+            SecureStorage.saveItem(currentMatricula, 'profile', profile);
         }
 
-        // 2. Detailed Academic Data (IRA, Matrix, Entry etc)
+        // 2. Academic Data
         const academic = await fetchWithAuth('https://suap.ifrn.edu.br/api/ensino/meus-dados-aluno/');
         if (academic) {
             setAcademicData(academic);
-            localStorage.setItem(CACHE_KEYS.ACADEMIC, JSON.stringify(academic));
+            SecureStorage.saveItem(currentMatricula, 'academic', academic);
         }
 
-        // 3. Completion Requirements
+        // 3. Completion
         const completion = await fetchWithAuth('https://suap.ifrn.edu.br/api/ensino/requisitos-conclusao/');
         if (completion) {
             setCompletionData(completion);
-            localStorage.setItem(CACHE_KEYS.COMPLETION, JSON.stringify(completion));
+            SecureStorage.saveItem(currentMatricula, 'completion', completion);
         }
 
-        // 4. Periods (New Endpoint)
+        // 4. Periods
         const periods: SuapPeriod[] = await fetchWithAuth('https://suap.ifrn.edu.br/api/ensino/periodos/');
         if (periods && periods.length > 0) {
-            localStorage.setItem(CACHE_KEYS.PERIODS, JSON.stringify(periods));
-
-            // Sort descending by string (e.g. "2025.1" > "2024.2")
+            // We don't need to encrypt periods list as it's generic, but we can save current period
             const sortedPeriods = periods.sort((a, b) => b.semestre.localeCompare(a.semestre));
-            const activePeriod = sortedPeriods[0]; // Get most recent
+            const activePeriod = sortedPeriods[0];
             
             setCurrentPeriod(activePeriod);
-            localStorage.setItem(CACHE_KEYS.CURRENT_PERIOD, JSON.stringify(activePeriod));
+            SecureStorage.saveItem(currentMatricula, 'current_period', activePeriod);
             
-            // 5. Fetch Active Data using active semester slug
+            // 5. Grades & Schedule (Requires Period)
             if (activePeriod) {
-                await fetchAcademicData(activePeriod.semestre);
+                await fetchAcademicDetails(activePeriod.semestre, currentMatricula);
             }
         }
         
-        // 6. Fetch Classroom
         fetchClassroomData();
+        console.log("[App] Background sync complete.");
 
     } catch (error) {
-        console.error("Error fetching data:", error);
+        console.error("[App] Error in background sync:", error);
     }
   };
 
-  const fetchAcademicData = async (semestre: string) => {
+  const fetchAcademicDetails = async (semestre: string, matricula: string) => {
       const [ano, periodo] = semestre.split('.');
       
       // Boletim
       const boletim = await fetchWithAuth(`https://suap.ifrn.edu.br/api/v2/minhas-informacoes/boletim/${ano}/${periodo}/`);
       if (boletim) {
-          processGrades(boletim);
+          const processed = processGrades(boletim);
+          SecureStorage.saveItem(matricula, 'grades', processed);
+          setProcessedGrades(processed);
       }
 
-      // Diarios (New Schedule Endpoint)
+      // Diarios
       const diariosResponse: SuapDiarioResponse = await fetchWithAuth(`https://suap.ifrn.edu.br/api/ensino/diarios/${semestre}/`);
-      
       let diariosList = [];
       if (Array.isArray(diariosResponse)) {
           diariosList = diariosResponse;
@@ -402,15 +360,17 @@ const App: React.FC = () => {
       }
 
       if (diariosList.length > 0) {
-          processSchedule(diariosList);
+          const processed = processSchedule(diariosList);
+          SecureStorage.saveItem(matricula, 'schedule', processed);
+          setProcessedSchedule(processed);
       }
   };
 
   // --- PROCESSING LOGIC ---
 
   const processGrades = (boletim: SuapBoletim[]) => {
-      const processed: GradeInfo[] = boletim.map(b => ({
-          subject: b.disciplina.replace(/\(.*\)/, '').trim(), // Clean name
+      return boletim.map(b => ({
+          subject: b.disciplina.replace(/\(.*\)/, '').trim(),
           code: b.codigo_diario,
           status: b.situacao,
           n1: b.nota_etapa_1?.nota ?? '-',
@@ -422,89 +382,70 @@ const App: React.FC = () => {
           frequency: b.percentual_carga_horaria_frequentada,
           absences: b.numero_faltas,
           totalHours: b.carga_horaria,
-          limit: Math.floor(b.carga_horaria * 0.25) // 25% Rule
+          limit: Math.floor(b.carga_horaria * 0.25)
       }));
-      
-      setProcessedGrades(processed);
-      localStorage.setItem(CACHE_KEYS.GRADES, JSON.stringify(processed));
   };
 
   const processSchedule = (diarios: any[]) => {
       const parsedClasses: ProcessedClass[] = [];
-      
-      const dayOrder: Record<string, number> = { 
-          'Segunda': 2, 'Terça': 3, 'Quarta': 4, 
-          'Quinta': 5, 'Sexta': 6, 'Sábado': 7, 'Domingo': 1 
-      };
+      const dayOrder: Record<string, number> = { 'Segunda': 2, 'Terça': 3, 'Quarta': 4, 'Quinta': 5, 'Sexta': 6, 'Sábado': 7, 'Domingo': 1 };
 
       diarios.forEach(diario => {
           if (!diario.horarios || diario.horarios.length === 0) return;
           
           diario.horarios.forEach((h: any) => {
               const times = h.horario.split(' - ');
-              const startTime = times[0] || "00:00";
-              const endTime = times[1] || "00:00";
-              
-              const fullName = diario.disciplina?.descricao || "Disciplina";
-              const shortName = diario.disciplina?.sigla || "---";
-              
-              const fullRoom = diario.local?.sala || "Sem local definido";
-              let shortRoom = "Local ?";
-              if (fullRoom.includes(" - ")) {
-                 const parts = fullRoom.split(" - ");
-                 shortRoom = parts[1] || parts[0]; 
-              } else {
-                 shortRoom = fullRoom;
-              }
-              
+              const fullRoom = diario.local?.sala || "Sem local";
+              let shortRoom = fullRoom.includes(" - ") ? (fullRoom.split(" - ")[1] || fullRoom.split(" - ")[0]) : fullRoom;
               if (shortRoom.length > 15) shortRoom = shortRoom.substring(0, 15) + '...';
-
-              const professors = diario.professores?.map((p: any) => p.nome) || [];
 
               parsedClasses.push({
                   day: h.dia,
                   dayInt: dayOrder[h.dia] || 8,
-                  startTime,
-                  endTime,
+                  startTime: times[0] || "00:00",
+                  endTime: times[1] || "00:00",
                   timeLabel: h.horario,
-                  name: fullName.replace(/\(.*\)/, '').trim(),
-                  shortName: shortName,
+                  name: diario.disciplina?.descricao.replace(/\(.*\)/, '').trim() || "Disciplina",
+                  shortName: diario.disciplina?.sigla || "---",
                   room: shortRoom,
                   fullRoom: fullRoom,
-                  professors: professors,
+                  professors: diario.professores?.map((p: any) => p.nome) || [],
                   type: 'Aula'
               });
           });
       });
 
-      const sortedSchedule = parsedClasses.sort((a, b) => {
+      return parsedClasses.sort((a, b) => {
           if (a.dayInt !== b.dayInt) return a.dayInt - b.dayInt;
           return a.startTime.localeCompare(b.startTime);
       });
-
-      setProcessedSchedule(sortedSchedule);
-      localStorage.setItem(CACHE_KEYS.SCHEDULE, JSON.stringify(sortedSchedule));
   };
 
   // --- INITIALIZATION ---
   
   useEffect(() => {
-    // 1. Immediately load whatever we have in cache to show UI
-    loadCache();
     fetchHolidays(); 
 
-    // 2. Check authentication and fetch fresh data in background
     const token = localStorage.getItem('suap_access_token');
-    if (token) {
+    const matricula = localStorage.getItem('suap_username');
+
+    if (token && matricula) {
       setIsLoggedIn(true);
-      fetchUserData();
+      // 1. Load Encrypted Cache immediately
+      loadUserCache(matricula);
+      // 2. Trigger background refresh
+      fetchAllUserDataBackground(matricula);
     }
   }, []);
 
   const handleViewChange = (view: ViewState) => {
     setCurrentView(view);
-    // Reset profile tab to default if opening via click
     if (view === ViewState.PROFILE) setProfileInitialTab('profile');
+  };
+
+  const handleOpenSettings = () => {
+    setCurrentView(ViewState.PROFILE);
+    setProfileInitialTab('settings');
   };
 
   const handleCloseOverlay = () => {
@@ -516,27 +457,26 @@ const App: React.FC = () => {
   };
 
   const handleLogin = () => {
-      setIsLoggedIn(true);
-      fetchUserData();
+      const matricula = localStorage.getItem('suap_username');
+      if (matricula) {
+          setIsLoggedIn(true);
+          // Initial background fetch after login
+          fetchAllUserDataBackground(matricula);
+      }
   };
 
   const handleLogout = () => {
-      // Clear Authentication
+      const matricula = localStorage.getItem('suap_username');
+      
       localStorage.removeItem('suap_access_token');
       localStorage.removeItem('suap_refresh_token');
       localStorage.removeItem('suap_username');
-      localStorage.removeItem('google_classroom_token'); // Also clear integration
-      
-      // Clear User Data Cache (But keep settings like wallpaper/api key)
-      localStorage.removeItem(CACHE_KEYS.PROFILE);
-      localStorage.removeItem(CACHE_KEYS.ACADEMIC);
-      localStorage.removeItem(CACHE_KEYS.COMPLETION);
-      localStorage.removeItem(CACHE_KEYS.GRADES);
-      localStorage.removeItem(CACHE_KEYS.SCHEDULE);
-      localStorage.removeItem(CACHE_KEYS.CURRENT_PERIOD);
-      localStorage.removeItem(CACHE_KEYS.PERIODS);
+      localStorage.removeItem('google_classroom_token');
 
-      // Reset State
+      // Optional: Decide if you want to clear the cache on logout or keep it for next login
+      // For security as requested, we leave it encrypted. 
+      // If you want to wipe it: SecureStorage.clearUserData(matricula);
+
       setUserData(null);
       setAcademicData(null);
       setProcessedSchedule([]);
@@ -549,70 +489,87 @@ const App: React.FC = () => {
       setCurrentView(ViewState.DASHBOARD);
   };
 
-  // Calculate Active Palette based on Variant & Wallpaper
+  const handleFinishLanding = () => {
+      setShowLanding(false);
+      localStorage.setItem(CACHE_KEYS.WELCOME_SEEN, 'true');
+  };
+
   const palette = useMemo((): Palette => {
       switch (themeVariant) {
-          case 'monochrome': 
-              return { primary: 'zinc', secondary: 'zinc' }; // All Gray
-          case 'saturated': 
-              return { primary: 'fuchsia', secondary: 'cyan' }; // High Vibrancy
-          case 'dynamic': 
-              // Fallback to default if wallpaper not found in map
-              return WALLPAPER_THEMES[currentWallpaper] || { primary: 'emerald', secondary: 'rose' };
-          default: 
-              return { primary: 'emerald', secondary: 'rose' }; // Classic Default
+          case 'monochrome': return { primary: 'zinc', secondary: 'zinc' };
+          case 'saturated': return { primary: 'fuchsia', secondary: 'cyan' };
+          case 'dynamic': return WALLPAPER_THEMES[currentWallpaper] || { primary: 'emerald', secondary: 'rose' };
+          default: return { primary: 'emerald', secondary: 'rose' };
       }
   }, [themeVariant, currentWallpaper]);
 
   return (
     <div className={`font-sans antialiased transition-colors duration-500 ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
-      {/* Base Layout */}
-      <DashboardLayout 
-        currentView={currentView} 
-        onChangeView={handleViewChange} 
-        isDarkMode={isDarkMode}
-        onToggleTheme={toggleTheme}
-        currentWallpaper={currentWallpaper}
-        primaryColor={palette.primary}
-        secondaryColor={palette.secondary}
-        isLoggedIn={isLoggedIn}
-        onLogin={handleLogin}
-        userData={userData}
-        currentPeriod={currentPeriod}
-        grades={processedGrades}
-        schedule={processedSchedule}
-        completionData={completionData}
-        holidays={holidays}
-        classroomWork={classroomWork}
-        rightTab={rightSidebarTab}
-        onRightTabChange={setRightSidebarTab}
-      />
-
-      {/* Overlays */}
-      <AnimatePresence>
-        {currentView !== ViewState.DASHBOARD && (
-          <ContentView 
-            view={currentView} 
-            onClose={handleCloseOverlay}
-            onChangeView={handleViewChange}
+      
+      {/* Dashboard is always rendered to allow the "curtain" effect of the Landing Page */}
+      <div className={showLanding ? 'fixed inset-0' : ''}>
+        <DashboardLayout 
+            key="dashboard"
+            currentView={currentView} 
+            onChangeView={handleViewChange} 
             isDarkMode={isDarkMode}
             onToggleTheme={toggleTheme}
             currentWallpaper={currentWallpaper}
-            onWallpaperChange={setCurrentWallpaper}
-            themeVariant={themeVariant}
-            onThemeVariantChange={setThemeVariant}
             primaryColor={palette.primary}
             secondaryColor={palette.secondary}
+            isLoggedIn={isLoggedIn}
+            onLogin={handleLogin}
             userData={userData}
-            academicData={academicData}
+            currentPeriod={currentPeriod}
             grades={processedGrades}
             schedule={processedSchedule}
             completionData={completionData}
-            onLogout={handleLogout}
-            autoExpandClassroom={autoExpandClassroom}
-            onAutoExpandClassroom={setAutoExpandClassroom}
-            initialProfileTab={profileInitialTab}
-          />
+            holidays={holidays}
+            classroomWork={classroomWork}
+            rightTab={rightSidebarTab}
+            onRightTabChange={setRightSidebarTab}
+            onOpenSettings={handleOpenSettings}
+        />
+
+        <AnimatePresence>
+            {currentView !== ViewState.DASHBOARD && (
+            <ContentView 
+                view={currentView} 
+                onClose={handleCloseOverlay}
+                onChangeView={handleViewChange}
+                isDarkMode={isDarkMode}
+                onToggleTheme={toggleTheme}
+                currentWallpaper={currentWallpaper}
+                onWallpaperChange={setCurrentWallpaper}
+                themeVariant={themeVariant}
+                onThemeVariantChange={setThemeVariant}
+                primaryColor={palette.primary}
+                secondaryColor={palette.secondary}
+                userData={userData}
+                academicData={academicData}
+                grades={processedGrades}
+                schedule={processedSchedule}
+                completionData={completionData}
+                onLogout={handleLogout}
+                autoExpandClassroom={autoExpandClassroom}
+                onAutoExpandClassroom={setAutoExpandClassroom}
+                initialProfileTab={profileInitialTab}
+            />
+            )}
+        </AnimatePresence>
+      </div>
+
+      {/* Landing Page as an Overlay */}
+      <AnimatePresence>
+        {showLanding && (
+            <LandingPage 
+                key="landing"
+                onComplete={handleFinishLanding}
+                onLogin={handleLogin} 
+                isDarkMode={isDarkMode} 
+                primaryColor={palette.primary}
+                currentWallpaper={currentWallpaper}
+            />
         )}
       </AnimatePresence>
     </div>
