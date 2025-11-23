@@ -13,6 +13,7 @@ const ASSETS_TO_CACHE = [
   '/components/DashboardLayout.tsx',
   '/components/ContentViews.tsx',
   '/components/AIChatWidget.tsx',
+  '/components/PomodoroWidget.tsx',
   '/components/LandingPage.tsx',
   '/components/InvertedCorner.tsx',
   'https://cdn.tailwindcss.com',

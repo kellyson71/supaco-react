@@ -1,4 +1,6 @@
 
+
+
 export enum ViewState {
   DASHBOARD = 'DASHBOARD',
   GRADES = 'GRADES',
@@ -9,7 +11,7 @@ export enum ViewState {
   CONCLUSION = 'CONCLUSION'
 }
 
-export type ThemeVariant = 'default' | 'monochrome' | 'saturated' | 'dynamic';
+export type ThemeVariant = 'default' | 'monochrome' | 'saturated' | 'dynamic' | 'sepia';
 
 export interface Student {
   name: string;
@@ -38,6 +40,7 @@ export interface SuapProfile {
       matricula: string;
       nome: string;
       turno: string;
+      situacao?: string;
   };
 }
 
