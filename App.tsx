@@ -4,8 +4,9 @@ import { DashboardLayout } from './components/DashboardLayout';
 import { ContentView } from './components/ContentViews';
 import { LandingPage } from './components/LandingPage';
 import { ViewState, ThemeVariant, SuapProfile, SuapMeusDadosAluno, SuapPeriod, SuapBoletim, SuapDiarioResponse, ProcessedClass, GradeInfo, SuapCompletionData, Holiday, ClassroomWork, ClassroomCourse } from './types';
-import { AnimatePresence } from 'framer-motion';
+import { AnimatePresence, motion } from 'framer-motion';
 import { SecureStorage } from './services/SecureStorage';
+import { WifiOff } from 'lucide-react';
 
 const DEFAULT_WALLPAPER = "https://images2.alphacoders.com/134/thumb-1920-1345658.png";
 
@@ -60,6 +61,7 @@ const App: React.FC = () => {
 
   // Auth State
   const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [isOffline, setIsOffline] = useState(!navigator.onLine);
   
   // Data State (Will be populated by cache first, then API)
   const [userData, setUserData] = useState<SuapProfile | null>(null);
@@ -87,6 +89,20 @@ const App: React.FC = () => {
   useEffect(() => {
       localStorage.setItem(CACHE_KEYS.WALLPAPER, currentWallpaper);
   }, [currentWallpaper]);
+
+  // --- OFFLINE DETECTION ---
+  useEffect(() => {
+    const handleOnline = () => setIsOffline(false);
+    const handleOffline = () => setIsOffline(true);
+
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
 
   // --- OAUTH CALLBACK HANDLER ---
   useEffect(() => {
@@ -182,6 +198,8 @@ const App: React.FC = () => {
   // --- API FETCHING & REFRESH ---
 
   const refreshSuapToken = async () => {
+      if (!navigator.onLine) return false;
+      
       const refresh = localStorage.getItem('suap_refresh_token');
       if (!refresh) return false;
 
@@ -207,6 +225,12 @@ const App: React.FC = () => {
   const fetchWithAuth = async (url: string) => {
     let token = localStorage.getItem('suap_access_token');
     if (!token) return null;
+    
+    // Immediate offline check to prevent request latency
+    if (!navigator.onLine) {
+        console.log("Offline mode: Skipping fetch for", url);
+        return null; 
+    }
 
     try {
         let response = await fetch(url, {
@@ -258,7 +282,7 @@ const App: React.FC = () => {
 
   const fetchClassroomData = async () => {
     const token = localStorage.getItem('google_classroom_token');
-    if (!token) return;
+    if (!token || !navigator.onLine) return;
 
     try {
         const coursesRes = await fetch('https://classroom.googleapis.com/v1/courses?courseStates=ACTIVE', {
@@ -386,36 +410,37 @@ const App: React.FC = () => {
       }));
   };
 
-  const processSchedule = (diarios: any[]) => {
-      const parsedClasses: ProcessedClass[] = [];
-      const dayOrder: Record<string, number> = { 'Segunda': 2, 'Terça': 3, 'Quarta': 4, 'Quinta': 5, 'Sexta': 6, 'Sábado': 7, 'Domingo': 1 };
+  const processSchedule = (diarios: any[]): ProcessedClass[] => {
+      const dayMap: Record<string, number> = {
+          'Segunda': 2, 'Terça': 3, 'Quarta': 4, 'Quinta': 5, 'Sexta': 6, 'Sábado': 7, 'Domingo': 1
+      };
+
+      const classes: ProcessedClass[] = [];
 
       diarios.forEach(diario => {
-          if (!diario.horarios || diario.horarios.length === 0) return;
-          
+          if (!diario.horarios) return;
           diario.horarios.forEach((h: any) => {
-              const times = h.horario.split(' - ');
-              const fullRoom = diario.local?.sala || "Sem local";
-              let shortRoom = fullRoom.includes(" - ") ? (fullRoom.split(" - ")[1] || fullRoom.split(" - ")[0]) : fullRoom;
-              if (shortRoom.length > 15) shortRoom = shortRoom.substring(0, 15) + '...';
+              if (!h.horario) return;
+              const [start, end] = h.horario.split(' - ');
+              const dayInt = dayMap[h.dia] || 0;
 
-              parsedClasses.push({
+              classes.push({
                   day: h.dia,
-                  dayInt: dayOrder[h.dia] || 8,
-                  startTime: times[0] || "00:00",
-                  endTime: times[1] || "00:00",
+                  dayInt: dayInt,
+                  startTime: start ? start.trim() : '',
+                  endTime: end ? end.trim() : '',
                   timeLabel: h.horario,
-                  name: diario.disciplina?.descricao.replace(/\(.*\)/, '').trim() || "Disciplina",
-                  shortName: diario.disciplina?.sigla || "---",
-                  room: shortRoom,
-                  fullRoom: fullRoom,
-                  professors: diario.professores?.map((p: any) => p.nome) || [],
-                  type: 'Aula'
+                  name: diario.disciplina?.descricao || 'Disciplina',
+                  shortName: diario.disciplina?.sigla || '',
+                  room: diario.local?.sala || 'N/A',
+                  fullRoom: diario.local?.sala || 'N/A',
+                  professors: diario.professores?.map((p:any) => p.nome) || [],
+                  type: 'Regular'
               });
           });
       });
 
-      return parsedClasses.sort((a, b) => {
+      return classes.sort((a, b) => {
           if (a.dayInt !== b.dayInt) return a.dayInt - b.dayInt;
           return a.startTime.localeCompare(b.startTime);
       });
@@ -433,8 +458,10 @@ const App: React.FC = () => {
       setIsLoggedIn(true);
       // 1. Load Encrypted Cache immediately
       loadUserCache(matricula);
-      // 2. Trigger background refresh
-      fetchAllUserDataBackground(matricula);
+      // 2. Trigger background refresh if online
+      if (navigator.onLine) {
+        fetchAllUserDataBackground(matricula);
+      }
     }
   }, []);
 
@@ -466,16 +493,13 @@ const App: React.FC = () => {
   };
 
   const handleLogout = () => {
-      const matricula = localStorage.getItem('suap_username');
+      // Don't clear cache aggressively on logout so offline works for last user if needed,
+      // but typical behavior is to clear. Here we keep token removal but can leave data until new login overwrites.
       
       localStorage.removeItem('suap_access_token');
       localStorage.removeItem('suap_refresh_token');
       localStorage.removeItem('suap_username');
       localStorage.removeItem('google_classroom_token');
-
-      // Optional: Decide if you want to clear the cache on logout or keep it for next login
-      // For security as requested, we leave it encrypted. 
-      // If you want to wipe it: SecureStorage.clearUserData(matricula);
 
       setUserData(null);
       setAcademicData(null);
@@ -506,6 +530,23 @@ const App: React.FC = () => {
   return (
     <div className={`font-sans antialiased transition-colors duration-500 ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
       
+      {/* Offline Indicator - Discreet */}
+      <AnimatePresence>
+        {isOffline && isLoggedIn && (
+            <motion.div
+                initial={{ opacity: 0, y: -20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -20 }}
+                className="fixed top-0 inset-x-0 z-[300] flex justify-center pointer-events-none"
+            >
+                <div className={`mt-2 px-3 py-1.5 rounded-full flex items-center gap-2 text-[10px] font-bold uppercase tracking-wider shadow-xl backdrop-blur-md ${isDarkMode ? 'bg-red-500/20 text-red-200 border border-red-500/30' : 'bg-red-100 text-red-600 border border-red-200'}`}>
+                    <WifiOff size={12} />
+                    <span>Modo Offline</span>
+                </div>
+            </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* Dashboard is always rendered to allow the "curtain" effect of the Landing Page */}
       <div className={showLanding ? 'fixed inset-0' : ''}>
         <DashboardLayout 
