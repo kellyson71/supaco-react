@@ -1,20 +1,17 @@
 
-import React, { useState, useMemo, useEffect, Suspense } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
+import { DashboardLayout } from './components/DashboardLayout';
+import { ContentView } from './components/ContentViews';
+import { LandingPage } from './components/LandingPage';
+import { MobileNavBar } from './components/MobileNavBar';
 import { ViewState, ThemeVariant, SuapProfile, SuapMeusDadosAluno, SuapPeriod, SuapBoletim, SuapDiarioResponse, ProcessedClass, GradeInfo, SuapCompletionData, Holiday, ClassroomWork, ClassroomCourse } from './types';
 import { AnimatePresence, motion } from 'framer-motion';
 import { SecureStorage } from './services/SecureStorage';
-import { WifiOff, Loader2 } from 'lucide-react';
-
-// --- LAZY LOAD COMPONENTS ---
-// This splits the code into separate chunks, drastically improving initial load time on mobile.
-const DashboardLayout = React.lazy(() => import('./components/DashboardLayout').then(module => ({ default: module.DashboardLayout })));
-const ContentView = React.lazy(() => import('./components/ContentViews').then(module => ({ default: module.ContentView })));
-const LandingPage = React.lazy(() => import('./components/LandingPage').then(module => ({ default: module.LandingPage })));
-const MobileNavBar = React.lazy(() => import('./components/MobileNavBar').then(module => ({ default: module.MobileNavBar })));
+import { WifiOff } from 'lucide-react';
 
 const DEFAULT_WALLPAPER = "https://images2.alphacoders.com/134/thumb-1920-1345658.png";
 
-// Cache Keys
+// Cache Keys (Settings only - Data is now in SecureStorage)
 const CACHE_KEYS = {
     WALLPAPER: 'suap_saved_wallpaper',
     THEME_VARIANT: 'suap_saved_theme_variant',
@@ -24,25 +21,21 @@ const CACHE_KEYS = {
 
 // Define palette structure
 interface Palette {
-    primary: string;
-    secondary: string;
+    primary: string;   // Replaces 'Green' (Success, Status, Progress)
+    secondary: string; // Replaces 'Red' (Warnings, Danger, Alerts)
 }
 
+// Wallpaper to Palette Map
 const WALLPAPER_THEMES: Record<string, Palette> = {
+    // Makima (Pink/Red)
     "https://images2.alphacoders.com/134/thumb-1920-1345658.png": { primary: "rose", secondary: "pink" },
+    // Landscape (Sunset - Amber/Orange)
     "https://images7.alphacoders.com/134/thumb-1920-1344447.png": { primary: "amber", secondary: "orange" },
+    // Astronauts (Black/White - Zinc/Slate) - True Monochrome
     "https://images7.alphacoders.com/140/thumb-1920-1402439.jpg": { primary: "slate", secondary: "zinc" },
+    // Power (Orange/Red)
     "https://images6.alphacoders.com/129/thumb-1920-1297223.jpg": { primary: "orange", secondary: "red" }
 };
-
-// Loading Spinner Component for Suspense
-const LoadingScreen = () => (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/50 backdrop-blur-sm">
-        <div className="p-4 rounded-full bg-white/10 border border-white/20 shadow-xl">
-             <Loader2 className="animate-spin text-white" size={32} />
-        </div>
-    </div>
-);
 
 const App: React.FC = () => {
   // --- LANDING PAGE STATE ---
@@ -52,7 +45,7 @@ const App: React.FC = () => {
 
   const [currentView, setCurrentView] = useState<ViewState>(ViewState.DASHBOARD);
   
-  // Settings State 
+  // Settings State (Initialize from cache if available)
   const [isDarkMode, setIsDarkMode] = useState(() => {
       return localStorage.getItem(CACHE_KEYS.THEME_MODE) === 'dark';
   });
@@ -71,7 +64,7 @@ const App: React.FC = () => {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [isOffline, setIsOffline] = useState(!navigator.onLine);
   
-  // Data State 
+  // Data State (Will be populated by cache first, then API)
   const [userData, setUserData] = useState<SuapProfile | null>(null);
   const [academicData, setAcademicData] = useState<SuapMeusDadosAluno | null>(null);
   const [currentPeriod, setCurrentPeriod] = useState<SuapPeriod | null>(null);
@@ -144,6 +137,7 @@ const App: React.FC = () => {
                   setCurrentView(ViewState.PROFILE);
                   setProfileInitialTab('settings');
                   setAutoExpandClassroom(true);
+                  // Ensure landing is skipped if returning from OAuth
                   setShowLanding(false);
                   localStorage.setItem(CACHE_KEYS.WELCOME_SEEN, 'true');
               }, 100);
@@ -154,7 +148,7 @@ const App: React.FC = () => {
   // --- KEYBOARD SHORTCUTS ---
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-        if (showLanding) return; 
+        if (showLanding) return; // Disable shortcuts on landing page
 
         if (e.repeat) return; 
         if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
@@ -175,12 +169,20 @@ const App: React.FC = () => {
                 case 'i': e.preventDefault(); handleOpenSettings(); break;
             }
         }
+
+        if (e.altKey && !e.ctrlKey && !e.metaKey) {
+             switch(e.key) {
+                case '1': e.preventDefault(); setRightSidebarTab('overview'); break;
+                case '2': e.preventDefault(); setRightSidebarTab('tasks'); break;
+                case '3': e.preventDefault(); setRightSidebarTab('holidays'); break;
+             }
+        }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [showLanding]);
 
-  // --- PROCESSING LOGIC ---
+  // --- PROCESSING LOGIC (Defined first to be available) ---
 
   const processGrades = (boletim: SuapBoletim[]) => {
       return boletim.map(b => ({
@@ -239,6 +241,8 @@ const App: React.FC = () => {
   // --- CACHE LOADING (DECRYPTED) ---
   const loadUserCache = (matricula: string) => {
       try {
+          console.log(`[App] Loading encrypted cache for user: ${matricula}`);
+          
           const profile = SecureStorage.loadItem(matricula, 'profile');
           if (profile) setUserData(profile);
 
@@ -257,6 +261,7 @@ const App: React.FC = () => {
           const schedule = SecureStorage.loadItem(matricula, 'schedule');
           if (schedule) setProcessedSchedule(schedule);
 
+          // Holidays are global, not per user, but we can just load from generic storage
           const cachedHolidays = localStorage.getItem('suap_cache_holidays');
           if (cachedHolidays) setHolidays(JSON.parse(cachedHolidays));
 
@@ -269,6 +274,7 @@ const App: React.FC = () => {
 
   const refreshSuapToken = async () => {
       if (!navigator.onLine) return false;
+      
       const refresh = localStorage.getItem('suap_refresh_token');
       if (!refresh) return false;
 
@@ -294,7 +300,12 @@ const App: React.FC = () => {
   const fetchWithAuth = async (url: string) => {
     let token = localStorage.getItem('suap_access_token');
     if (!token) return null;
-    if (!navigator.onLine) return null; 
+    
+    // Immediate offline check to prevent request latency
+    if (!navigator.onLine) {
+        console.log("Offline mode: Skipping fetch for", url);
+        return null; 
+    }
 
     try {
         let response = await fetch(url, {
@@ -305,11 +316,16 @@ const App: React.FC = () => {
         });
 
         if (response.status === 401) {
+            console.log("Access Token Expired. Attempting Refresh...");
             const refreshed = await refreshSuapToken();
+            
             if (refreshed) {
                 token = localStorage.getItem('suap_access_token');
                 response = await fetch(url, {
-                    headers: { 'Authorization': `Bearer ${token}`, 'Accept': 'application/json' }
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Accept': 'application/json'
+                    }
                 });
             } else {
                 handleLogout();
@@ -320,6 +336,7 @@ const App: React.FC = () => {
         if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
         return await response.json();
     } catch (error) {
+        console.warn(`Fetch failed for ${url} (likely offline)`, error);
         return null;
     }
   };
@@ -333,7 +350,9 @@ const App: React.FC = () => {
               setHolidays(data);
               localStorage.setItem('suap_cache_holidays', JSON.stringify(data));
           }
-      } catch (error) { console.warn("Failed to update holidays", error); }
+      } catch (error) {
+          console.warn("Failed to update holidays (offline)", error);
+      }
   };
 
   const fetchClassroomData = async () => {
@@ -365,43 +384,64 @@ const App: React.FC = () => {
         const futureWork = allWork.filter(w => w.jsDate && w.jsDate >= new Date()).sort((a, b) => a.jsDate!.getTime() - b.jsDate!.getTime());
         
         setClassroomWork(futureWork);
-    } catch (e) { console.error("Failed to fetch classroom data", e); }
+    } catch (e) {
+        console.error("Failed to fetch classroom data", e);
+    }
   };
 
+  // --- BACKGROUND SYNC ENGINE ---
   const fetchAllUserDataBackground = async (currentMatricula: string) => {
+    console.log("[App] Starting background data sync...");
     try {
+        // 1. User Profile
         const profile = await fetchWithAuth('https://suap.ifrn.edu.br/api/v2/minhas-informacoes/meus-dados/');
         if (profile) {
             setUserData(profile);
             SecureStorage.saveItem(currentMatricula, 'profile', profile);
         }
 
+        // 2. Academic Data
         const academic = await fetchWithAuth('https://suap.ifrn.edu.br/api/ensino/meus-dados-aluno/');
         if (academic) {
             setAcademicData(academic);
             SecureStorage.saveItem(currentMatricula, 'academic', academic);
         }
 
+        // 3. Completion
         const completion = await fetchWithAuth('https://suap.ifrn.edu.br/api/ensino/requisitos-conclusao/');
         if (completion) {
             setCompletionData(completion);
             SecureStorage.saveItem(currentMatricula, 'completion', completion);
         }
 
+        // 4. Periods
         const periods: SuapPeriod[] = await fetchWithAuth('https://suap.ifrn.edu.br/api/ensino/periodos/');
         if (periods && periods.length > 0) {
+            // We don't need to encrypt periods list as it's generic, but we can save current period
             const sortedPeriods = periods.sort((a, b) => b.semestre.localeCompare(a.semestre));
             const activePeriod = sortedPeriods[0];
+            
             setCurrentPeriod(activePeriod);
             SecureStorage.saveItem(currentMatricula, 'current_period', activePeriod);
-            if (activePeriod) await fetchAcademicDetails(activePeriod.semestre, currentMatricula);
+            
+            // 5. Grades & Schedule (Requires Period)
+            if (activePeriod) {
+                await fetchAcademicDetails(activePeriod.semestre, currentMatricula);
+            }
         }
+        
         fetchClassroomData();
-    } catch (error) { console.error("Background sync error", error); }
+        console.log("[App] Background sync complete.");
+
+    } catch (error) {
+        console.error("[App] Error in background sync:", error);
+    }
   };
 
   const fetchAcademicDetails = async (semestre: string, matricula: string) => {
       const [ano, periodo] = semestre.split('.');
+      
+      // Boletim
       const boletim = await fetchWithAuth(`https://suap.ifrn.edu.br/api/v2/minhas-informacoes/boletim/${ano}/${periodo}/`);
       if (boletim) {
           const processed = processGrades(boletim);
@@ -409,10 +449,14 @@ const App: React.FC = () => {
           setProcessedGrades(processed);
       }
 
+      // Diarios
       const diariosResponse: SuapDiarioResponse = await fetchWithAuth(`https://suap.ifrn.edu.br/api/ensino/diarios/${semestre}/`);
       let diariosList = [];
-      if (Array.isArray(diariosResponse)) diariosList = diariosResponse;
-      else if (diariosResponse && Array.isArray(diariosResponse.results)) diariosList = diariosResponse.results;
+      if (Array.isArray(diariosResponse)) {
+          diariosList = diariosResponse;
+      } else if (diariosResponse && Array.isArray(diariosResponse.results)) {
+          diariosList = diariosResponse.results;
+      }
 
       if (diariosList.length > 0) {
           const processed = processSchedule(diariosList);
@@ -422,14 +466,21 @@ const App: React.FC = () => {
   };
 
   // --- INITIALIZATION ---
+  
   useEffect(() => {
     fetchHolidays(); 
+
     const token = localStorage.getItem('suap_access_token');
     const matricula = localStorage.getItem('suap_username');
+
     if (token && matricula) {
       setIsLoggedIn(true);
+      // 1. Load Encrypted Cache immediately
       loadUserCache(matricula);
-      if (navigator.onLine) fetchAllUserDataBackground(matricula);
+      // 2. Trigger background refresh if online
+      if (navigator.onLine) {
+        fetchAllUserDataBackground(matricula);
+      }
     }
   }, []);
 
@@ -447,21 +498,28 @@ const App: React.FC = () => {
     setCurrentView(ViewState.DASHBOARD);
   };
 
-  const toggleTheme = () => setIsDarkMode(!isDarkMode);
+  const toggleTheme = () => {
+    setIsDarkMode(!isDarkMode);
+  };
 
   const handleLogin = () => {
       const matricula = localStorage.getItem('suap_username');
       if (matricula) {
           setIsLoggedIn(true);
+          // Initial background fetch after login
           fetchAllUserDataBackground(matricula);
       }
   };
 
   const handleLogout = () => {
+      // Don't clear cache aggressively on logout so offline works for last user if needed,
+      // but typical behavior is to clear. Here we keep token removal but can leave data until new login overwrites.
+      
       localStorage.removeItem('suap_access_token');
       localStorage.removeItem('suap_refresh_token');
       localStorage.removeItem('suap_username');
       localStorage.removeItem('google_classroom_token');
+
       setUserData(null);
       setAcademicData(null);
       setProcessedSchedule([]);
@@ -469,6 +527,7 @@ const App: React.FC = () => {
       setCompletionData(null);
       setCurrentPeriod(null);
       setClassroomWork([]);
+      
       setIsLoggedIn(false);
       setCurrentView(ViewState.DASHBOARD);
   };
@@ -491,6 +550,7 @@ const App: React.FC = () => {
   return (
     <div className={`font-sans antialiased transition-colors duration-500 ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
       
+      {/* Offline Indicator - Discreet */}
       <AnimatePresence>
         {isOffline && isLoggedIn && (
             <motion.div
@@ -507,94 +567,96 @@ const App: React.FC = () => {
         )}
       </AnimatePresence>
 
+      {/* Dashboard is always rendered to allow the "curtain" effect of the Landing Page */}
       <div className={showLanding ? 'fixed inset-0' : ''}>
+        
+        {/* Special Filter Overlay for Sepia Mode */}
         {themeVariant === 'sepia' && (
             <div className="fixed inset-0 z-[1] pointer-events-none opacity-[0.12] mix-blend-overlay" 
                  style={{backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E")`}} 
             />
         )}
+        
         <div style={{ filter: themeVariant === 'sepia' ? 'sepia(80%) contrast(90%)' : 'none', transition: 'filter 0.5s ease' }} className="h-full w-full absolute inset-0 z-0" />
 
         <div className="relative z-10 h-full">
-            <Suspense fallback={<LoadingScreen />}>
-                <DashboardLayout 
-                    currentView={currentView} 
-                    onChangeView={handleViewChange} 
-                    isDarkMode={isDarkMode}
-                    onToggleTheme={toggleTheme}
-                    currentWallpaper={currentWallpaper}
-                    primaryColor={palette.primary}
-                    secondaryColor={palette.secondary}
-                    isLoggedIn={isLoggedIn}
-                    onLogin={handleLogin}
-                    userData={userData}
-                    currentPeriod={currentPeriod}
-                    grades={processedGrades}
-                    schedule={processedSchedule}
-                    completionData={completionData}
-                    holidays={holidays}
-                    classroomWork={classroomWork}
-                    rightTab={rightSidebarTab}
-                    onRightTabChange={setRightSidebarTab}
-                    onOpenSettings={handleOpenSettings}
-                />
-            </Suspense>
+            <DashboardLayout 
+                key="dashboard"
+                currentView={currentView} 
+                onChangeView={handleViewChange} 
+                isDarkMode={isDarkMode}
+                onToggleTheme={toggleTheme}
+                currentWallpaper={currentWallpaper}
+                primaryColor={palette.primary}
+                secondaryColor={palette.secondary}
+                isLoggedIn={isLoggedIn}
+                onLogin={handleLogin}
+                userData={userData}
+                currentPeriod={currentPeriod}
+                grades={processedGrades}
+                schedule={processedSchedule}
+                completionData={completionData}
+                holidays={holidays}
+                classroomWork={classroomWork}
+                rightTab={rightSidebarTab}
+                onRightTabChange={setRightSidebarTab}
+                onOpenSettings={handleOpenSettings}
+                // Pass next class explicitly computed in DashboardLayout. Or pass it here if needed. 
+                // Currently logic is in DashboardLayout, so fine.
+            />
 
             <AnimatePresence>
                 {currentView !== ViewState.DASHBOARD && (
-                <Suspense fallback={<LoadingScreen />}>
-                    <ContentView 
-                        view={currentView} 
-                        onClose={handleCloseOverlay}
-                        onChangeView={handleViewChange}
-                        isDarkMode={isDarkMode}
-                        onToggleTheme={toggleTheme}
-                        currentWallpaper={currentWallpaper}
-                        onWallpaperChange={setCurrentWallpaper}
-                        themeVariant={themeVariant}
-                        onThemeVariantChange={setThemeVariant}
-                        primaryColor={palette.primary}
-                        secondaryColor={palette.secondary}
-                        userData={userData}
-                        academicData={academicData}
-                        grades={processedGrades}
-                        schedule={processedSchedule}
-                        completionData={completionData}
-                        onLogout={handleLogout}
-                        autoExpandClassroom={autoExpandClassroom}
-                        onAutoExpandClassroom={setAutoExpandClassroom}
-                        initialProfileTab={profileInitialTab}
-                        onInstallPwa={handleInstallPwa}
-                        canInstall={!!deferredPrompt}
-                    />
-                </Suspense>
+                <ContentView 
+                    view={currentView} 
+                    onClose={handleCloseOverlay}
+                    onChangeView={handleViewChange}
+                    isDarkMode={isDarkMode}
+                    onToggleTheme={toggleTheme}
+                    currentWallpaper={currentWallpaper}
+                    onWallpaperChange={setCurrentWallpaper}
+                    themeVariant={themeVariant}
+                    onThemeVariantChange={setThemeVariant}
+                    primaryColor={palette.primary}
+                    secondaryColor={palette.secondary}
+                    userData={userData}
+                    academicData={academicData}
+                    grades={processedGrades}
+                    schedule={processedSchedule}
+                    completionData={completionData}
+                    onLogout={handleLogout}
+                    autoExpandClassroom={autoExpandClassroom}
+                    onAutoExpandClassroom={setAutoExpandClassroom}
+                    initialProfileTab={profileInitialTab}
+                    onInstallPwa={handleInstallPwa}
+                    canInstall={!!deferredPrompt}
+                />
                 )}
             </AnimatePresence>
             
+            {/* New Persistent Mobile Navigation */}
             {isLoggedIn && !showLanding && (
-               <Suspense fallback={null}>
-                   <MobileNavBar 
-                     currentView={currentView}
-                     onChangeView={handleViewChange}
-                     isDarkMode={isDarkMode}
-                     primaryColor={palette.primary}
-                   />
-               </Suspense>
+               <MobileNavBar 
+                 currentView={currentView}
+                 onChangeView={handleViewChange}
+                 isDarkMode={isDarkMode}
+                 primaryColor={palette.primary}
+               />
             )}
         </div>
       </div>
 
+      {/* Landing Page as an Overlay */}
       <AnimatePresence>
         {showLanding && (
-            <Suspense fallback={<LoadingScreen />}>
-                <LandingPage 
-                    onComplete={handleFinishLanding}
-                    onLogin={handleLogin} 
-                    isDarkMode={isDarkMode} 
-                    primaryColor={palette.primary}
-                    currentWallpaper={currentWallpaper}
-                />
-            </Suspense>
+            <LandingPage 
+                key="landing"
+                onComplete={handleFinishLanding}
+                onLogin={handleLogin} 
+                isDarkMode={isDarkMode} 
+                primaryColor={palette.primary}
+                currentWallpaper={currentWallpaper}
+            />
         )}
       </AnimatePresence>
     </div>

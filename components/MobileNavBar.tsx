@@ -1,5 +1,4 @@
-
-import React, { memo } from 'react';
+import React from 'react';
 import { Home, BookOpen, AlertTriangle, Calendar, Monitor } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { ViewState } from '../types';
@@ -11,7 +10,7 @@ interface MobileNavBarProps {
   primaryColor: string;
 }
 
-export const MobileNavBar: React.FC<MobileNavBarProps> = memo(({ currentView, onChangeView, isDarkMode, primaryColor }) => {
+export const MobileNavBar: React.FC<MobileNavBarProps> = ({ currentView, onChangeView, isDarkMode, primaryColor }) => {
   
   const navItems = [
     { id: ViewState.DASHBOARD, icon: Home, label: 'Início' },
@@ -67,4 +66,4 @@ export const MobileNavBar: React.FC<MobileNavBarProps> = memo(({ currentView, on
       </div>
     </div>
   );
-});
+};
