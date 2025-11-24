@@ -76,6 +76,7 @@ interface DashboardProps {
   rightTab: 'overview' | 'tasks' | 'holidays';
   onRightTabChange: (tab: 'overview' | 'tasks' | 'holidays') => void;
   onOpenSettings: () => void;
+  userPhoto: string; // New Prop for resolved photo URL
 }
 
 interface TodoItem {
@@ -107,7 +108,8 @@ export const DashboardLayout: React.FC<DashboardProps> = ({
   classroomWork = [],
   rightTab,
   onRightTabChange,
-  onOpenSettings
+  onOpenSettings,
+  userPhoto // Use passed prop
 }) => {
   const [activeNav, setActiveNav] = useState<ViewState>(ViewState.DASHBOARD);
   
@@ -541,10 +543,6 @@ export const DashboardLayout: React.FC<DashboardProps> = ({
   const frameBg = isDarkMode ? DARK_FRAME : LIGHT_FRAME;
   const frameText = isDarkMode ? 'text-white' : 'text-gray-900';
   const cornerColor = isDarkMode ? DARK_CORNER : LIGHT_CORNER;
-
-  const userPhoto = userData?.foto 
-      ? (userData.foto.startsWith('http') ? userData.foto : `https://suap.ifrn.edu.br${userData.foto}`)
-      : DEFAULT_PROFILE_IMG;
 
   return (
     <div className={`relative w-full h-[100dvh] md:h-screen overflow-hidden flex flex-col md:flex-row font-sans transition-colors duration-500 ${isDarkMode ? 'bg-black' : 'bg-gray-900'}`}>

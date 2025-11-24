@@ -1,8 +1,9 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, AlertTriangle, AlertCircle, CheckCircle, Clock, MapPin, Award, Briefcase, User, Calendar, GraduationCap, Settings, Monitor, Moon, Sun, ToggleLeft, ToggleRight, Link2, ExternalLink, Cpu, ShieldCheck, Eye, EyeOff, Key, Image as ImageIcon, Check, BookOpen, Palette, RefreshCw, Mail, Fingerprint, FileText, UserSquare2, Percent, Calculator, Flag, Target, CheckSquare, LogOut, ArrowRight, Copy, Clipboard, HelpCircle, Book, CalendarClock, ChevronRight, MoreHorizontal, Save, Download, Droplet, Coffee, Aperture, BookMarked, Users, Rocket, Zap, TrendingUp, TrendingDown, Minus } from 'lucide-react';
-import { ViewState, GradeInfo, ThemeVariant, SuapProfile, SuapMeusDadosAluno, ProcessedClass, SuapCompletionData, CompletionCategory, ClassroomCourse, ClassroomWork } from '../types';
+import { X, AlertTriangle, AlertCircle, CheckCircle, Clock, MapPin, Award, Briefcase, User, Calendar, GraduationCap, Settings, Monitor, Moon, Sun, ToggleLeft, ToggleRight, Link2, ExternalLink, Cpu, ShieldCheck, Eye, EyeOff, Key, Image as ImageIcon, Check, BookOpen, Palette, RefreshCw, Mail, Fingerprint, FileText, UserSquare2, Percent, Calculator, Flag, Target, CheckSquare, LogOut, ArrowRight, Copy, Clipboard, HelpCircle, Book, CalendarClock, ChevronRight, MoreHorizontal, Save, Download, Droplet, Coffee, Aperture, BookMarked, Users, Rocket, Zap, TrendingUp, TrendingDown, Minus, Sparkles, Camera, PenLine, Trash2, Cloud, UploadCloud } from 'lucide-react';
+import { ViewState, GradeInfo, ThemeVariant, SuapProfile, SuapMeusDadosAluno, ProcessedClass, SuapCompletionData, CompletionCategory, ClassroomCourse, ClassroomWork, PerformanceSettings } from '../types';
+import { SecureStorage } from '../services/SecureStorage';
 
 interface OverlayViewProps {
   view: ViewState;
@@ -24,9 +25,16 @@ interface OverlayViewProps {
   onLogout: () => void;
   autoExpandClassroom: boolean;
   onAutoExpandClassroom: (v: boolean) => void;
-  initialProfileTab?: 'profile' | 'settings' | 'wallpaper';
+  initialProfileTab?: 'profile' | 'settings' | 'wallpaper' | 'performance';
   onInstallPwa?: () => void;
   canInstall?: boolean;
+  performanceSettings?: PerformanceSettings;
+  onUpdatePerformance?: (settings: PerformanceSettings) => void;
+  // Profile Photo Props
+  customPhotoUrl?: string;
+  onUpdateCustomPhoto?: (url: string) => void;
+  useCustomPhoto?: boolean;
+  onToggleCustomPhoto?: (enable: boolean) => void;
 }
 
 const WALLPAPERS = [
@@ -40,7 +48,7 @@ const DEFAULT_PROFILE_IMG = "https://i.pinimg.com/736x/9c/63/e1/9c63e1cf0546ecd4
 
 const GOOGLE_CLIENT_ID = "493737247808-0rv9jbldtskqdg78l122foess6h1t7ll.apps.googleusercontent.com";
 
-export const ContentView: React.FC<OverlayViewProps> = ({ view, onClose, onChangeView, isDarkMode, onToggleTheme, currentWallpaper, onWallpaperChange, themeVariant, onThemeVariantChange, primaryColor, secondaryColor, userData, academicData, grades, schedule, completionData, onLogout, autoExpandClassroom, onAutoExpandClassroom, initialProfileTab, onInstallPwa, canInstall }) => {
+export const ContentView: React.FC<OverlayViewProps> = ({ view, onClose, onChangeView, isDarkMode, onToggleTheme, currentWallpaper, onWallpaperChange, themeVariant, onThemeVariantChange, primaryColor, secondaryColor, userData, academicData, grades, schedule, completionData, onLogout, autoExpandClassroom, onAutoExpandClassroom, initialProfileTab, onInstallPwa, canInstall, performanceSettings, onUpdatePerformance, customPhotoUrl = '', onUpdateCustomPhoto, useCustomPhoto = false, onToggleCustomPhoto }) => {
   if (view === ViewState.DASHBOARD) return null;
 
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
@@ -235,6 +243,13 @@ export const ContentView: React.FC<OverlayViewProps> = ({ view, onClose, onChang
                 initialTab={initialProfileTab}
                 onInstallPwa={onInstallPwa}
                 canInstall={canInstall}
+                performanceSettings={performanceSettings}
+                onUpdatePerformance={onUpdatePerformance}
+                // Photo Props
+                customPhotoUrl={customPhotoUrl}
+                onUpdateCustomPhoto={onUpdateCustomPhoto}
+                useCustomPhoto={useCustomPhoto}
+                onToggleCustomPhoto={onToggleCustomPhoto}
             />
           )}
         </motion.div>
@@ -668,7 +683,7 @@ const ScheduleContent = ({ isDark, accentColor, secondaryColor, schedule }: any)
      </div>
 );
 
-const ProfileContent = ({ isDark, onToggleTheme, currentWallpaper, onWallpaperChange, themeVariant, onThemeVariantChange, accentColor, secondaryColor, userData, academicData, grades, onLogout, autoExpandClassroom, onResetAutoExpand, initialTab, onInstallPwa, canInstall }: { 
+const ProfileContent = ({ isDark, onToggleTheme, currentWallpaper, onWallpaperChange, themeVariant, onThemeVariantChange, accentColor, secondaryColor, userData, academicData, grades, onLogout, autoExpandClassroom, onResetAutoExpand, initialTab, onInstallPwa, canInstall, performanceSettings, onUpdatePerformance, customPhotoUrl, onUpdateCustomPhoto, useCustomPhoto, onToggleCustomPhoto }: { 
     isDark: boolean, 
     onToggleTheme?: () => void,
     currentWallpaper?: string,
@@ -683,17 +698,36 @@ const ProfileContent = ({ isDark, onToggleTheme, currentWallpaper, onWallpaperCh
     onLogout: () => void,
     autoExpandClassroom: boolean,
     onResetAutoExpand: () => void,
-    initialTab?: 'profile' | 'settings' | 'wallpaper',
+    initialTab?: 'profile' | 'settings' | 'wallpaper' | 'performance',
     onInstallPwa?: () => void,
-    canInstall?: boolean
+    canInstall?: boolean,
+    performanceSettings?: PerformanceSettings,
+    onUpdatePerformance?: (settings: PerformanceSettings) => void,
+    customPhotoUrl?: string,
+    onUpdateCustomPhoto?: (url: string) => void,
+    useCustomPhoto?: boolean,
+    onToggleCustomPhoto?: (enable: boolean) => void
 }) => {
-    const [activeTab, setActiveTab] = useState<'profile' | 'settings' | 'wallpaper'>('profile');
-    const [useCustomPhoto, setUseCustomPhoto] = useState(false);
+    const [activeTab, setActiveTab] = useState<'profile' | 'settings' | 'wallpaper' | 'performance'>('profile');
     
+    const [showPhotoInput, setShowPhotoInput] = useState(false);
+    const [localPhotoInput, setLocalPhotoInput] = useState(customPhotoUrl || '');
+    const [imgError, setImgError] = useState(false);
+
+    // Sync local state when prop changes (in case of external update)
+    useEffect(() => {
+        setLocalPhotoInput(customPhotoUrl || '');
+    }, [customPhotoUrl]);
+
     // Update active tab if prop changes (e.g. via shortcut)
     useEffect(() => {
         if (initialTab) setActiveTab(initialTab);
     }, [initialTab]);
+
+    const handleSavePhoto = () => {
+        onUpdateCustomPhoto?.(localPhotoInput);
+        setShowPhotoInput(false);
+    };
 
     // API Key Logic
     const [apiKey, setApiKey] = useState('');
@@ -707,6 +741,9 @@ const ProfileContent = ({ isDark, onToggleTheme, currentWallpaper, onWallpaperCh
     const [classroomStatus, setClassroomStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
     const [manualTokenInput, setManualTokenInput] = useState('');
     
+    // Cloud Sync State
+    const [syncState, setSyncState] = useState<'idle' | 'syncing' | 'success' | 'error'>('idle');
+
     // Detect Current Redirect URI (Dynamic)
     const redirectUri = window.location.origin;
 
@@ -788,6 +825,65 @@ const ProfileContent = ({ isDark, onToggleTheme, currentWallpaper, onWallpaperCh
             }
         } catch (e) { setClassroomStatus('error'); }
     };
+
+    const handleCloudSync = async () => {
+        if (!userData?.matricula) return;
+        setSyncState('syncing');
+        // Force a fresh sync from cloud first to get latest settings, then save current state if needed?
+        // Actually, simple "Sync Now" usually means push current state or pull remote.
+        // Let's do a smart sync: Try to load, if remote is newer (we don't track version yet), use it.
+        // For simplicity: We will Trigger a Load then Save to ensure we are connected, 
+        // but since this is a manual "Sync Now" button, users might expect to SAVE their current changes.
+        // Let's do PUSH (Save) then Pull (Load) to verify?
+        
+        // Actually best UX for "Backup" is Push. Best UX for "Restore" is Pull.
+        // Let's implement Push here as "Backup".
+        
+        const success = await SecureStorage.syncToCloud(userData.matricula);
+        if (success) {
+            setSyncState('success');
+            setTimeout(() => setSyncState('idle'), 2000);
+        } else {
+            setSyncState('error');
+            setTimeout(() => setSyncState('idle'), 3000);
+        }
+    };
+
+    const handleCloudRestore = async () => {
+        if (!userData?.matricula) return;
+        setSyncState('syncing');
+        const success = await SecureStorage.syncFromCloud(userData.matricula);
+        if (success) {
+            setSyncState('success');
+            // Reload page to apply settings
+            setTimeout(() => window.location.reload(), 1000);
+        } else {
+            setSyncState('error');
+            setTimeout(() => setSyncState('idle'), 3000);
+        }
+    };
+
+    // Performance Update Helpers
+    const toggleMotion = () => onUpdatePerformance?.({ ...performanceSettings!, reduceMotion: !performanceSettings?.reduceMotion });
+    const toggleBlur = () => onUpdatePerformance?.({ ...performanceSettings!, disableBlur: !performanceSettings?.disableBlur });
+    const toggleGlow = () => onUpdatePerformance?.({ ...performanceSettings!, disableGlow: !performanceSettings?.disableGlow });
+    const toggleEcoMode = () => {
+        const isActive = performanceSettings?.reduceMotion && performanceSettings?.disableBlur && performanceSettings?.disableGlow;
+        onUpdatePerformance?.({
+            reduceMotion: !isActive,
+            disableBlur: !isActive,
+            disableGlow: !isActive
+        });
+    }
+
+    const getCleanCourseName = (raw: string) => {
+        if (!raw) return 'Curso não identificado';
+        // Remove code at start (e.g. "09404 - ")
+        let clean = raw.replace(/^\d+\s-\s/, '');
+        // Remove campus info at end if present (usually after " - Campus")
+        clean = clean.split(' - Campus')[0];
+        return clean;
+    };
     
     const cardBg = isDark ? 'bg-slate-900 border-white/5' : 'bg-white border-gray-100';
     const textMain = isDark ? 'text-white' : 'text-gray-900';
@@ -826,10 +922,32 @@ const ProfileContent = ({ isDark, onToggleTheme, currentWallpaper, onWallpaperCh
         )
     };
 
+    const ToggleRow = ({ label, description, active, onClick, icon: Icon }: any) => (
+        <div onClick={onClick} className={`p-4 rounded-2xl border flex items-center justify-between cursor-pointer transition-colors ${active ? `border-${accentColor}-500/30 bg-${accentColor}-500/5` : (isDark ? 'bg-white/5 border-white/5 hover:bg-white/10' : 'bg-gray-50 border-gray-100 hover:bg-gray-100')}`}>
+            <div className="flex items-center gap-4">
+                <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${active ? `bg-${accentColor}-500 text-white` : (isDark ? 'bg-white/10 text-gray-400' : 'bg-white text-gray-400 shadow-sm')}`}>
+                    <Icon size={20} />
+                </div>
+                <div>
+                    <div className={`font-bold text-sm ${textMain}`}>{label}</div>
+                    <div className="text-[10px] opacity-60 max-w-[200px]">{description}</div>
+                </div>
+            </div>
+            <div className={`w-12 h-6 rounded-full relative transition-colors ${active ? `bg-${accentColor}-500` : 'bg-gray-300 dark:bg-white/10'}`}>
+                <div className={`absolute top-1 w-4 h-4 rounded-full bg-white shadow-sm transition-transform duration-300 ${active ? 'translate-x-7' : 'translate-x-1'}`} />
+            </div>
+        </div>
+    );
+
     const suapPhotoPath = userData?.url_foto_150x200 || userData?.foto;
-    const userPhoto = (useCustomPhoto || !suapPhotoPath) 
-        ? DEFAULT_PROFILE_IMG 
-        : (suapPhotoPath.startsWith('http') ? suapPhotoPath : `https://suap.ifrn.edu.br${suapPhotoPath}`);
+    const effectivePhoto = (useCustomPhoto && customPhotoUrl && !imgError)
+        ? customPhotoUrl
+        : (suapPhotoPath 
+            ? (suapPhotoPath.startsWith('http') ? suapPhotoPath : `https://suap.ifrn.edu.br${suapPhotoPath}`)
+            : DEFAULT_PROFILE_IMG);
+    
+    // Reset image error state if source changes
+    useEffect(() => setImgError(false), [useCustomPhoto, customPhotoUrl]);
 
     return (
         <div className="h-full flex flex-col">
@@ -838,6 +956,7 @@ const ProfileContent = ({ isDark, onToggleTheme, currentWallpaper, onWallpaperCh
                 <TabButton id="profile" label="Perfil" icon={User} />
                 <TabButton id="settings" label="Configurações" icon={Settings} />
                 <TabButton id="wallpaper" label="Papéis de Parede" icon={ImageIcon} />
+                <TabButton id="performance" label="Desempenho" icon={Zap} />
             </div>
 
             <AnimatePresence mode="wait">
@@ -848,52 +967,214 @@ const ProfileContent = ({ isDark, onToggleTheme, currentWallpaper, onWallpaperCh
                         initial="hidden"
                         animate="show"
                         exit={{ opacity: 0, y: -10 }}
-                        className="grid grid-cols-1 md:grid-cols-3 gap-8 h-full overflow-y-auto"
+                        className="h-full overflow-y-auto space-y-6 pb-12"
                     >
-                        <div className={`md:col-span-1 rounded-[2rem] border p-8 flex flex-col items-center text-center shadow-sm relative overflow-hidden ${cardBg} h-fit`}>
-                             <div className={`w-32 h-32 rounded-full p-1.5 transition-transform duration-300 group-hover:scale-105 ${isDark ? 'bg-slate-800' : 'bg-white shadow-sm'} mb-4`}>
-                                    <img src={userPhoto} className={`w-full h-full rounded-full object-cover border-4 ${isDark ? 'border-slate-700' : 'border-gray-50'}`} alt="Profile"/>
-                             </div>
-                             <h2 className={`text-2xl font-black ${textMain}`}>{userData ? userData.nome_usual : 'Carregando...'}</h2>
-                             <div className={`text-sm font-mono font-bold tracking-widest mt-1 opacity-60 ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>{userData ? userData.matricula : '...'}</div>
-                             
-                             <div className="flex gap-2 mt-6 w-full">
-                                <div className={`flex-1 p-3 rounded-2xl ${isDark ? 'bg-white/5' : 'bg-gray-50'} flex flex-col items-center`}>
-                                    <span className="text-[10px] uppercase font-bold text-gray-500">IRA</span>
-                                    <span className={`text-xl font-black ${textMain}`}>{academicData?.ira || '-'}</span>
+                        {/* 1. HERO PROFILE CARD */}
+                        <div className={`relative overflow-hidden rounded-[2.5rem] border ${isDark ? 'bg-white/5 border-white/5' : 'bg-white border-gray-100 shadow-sm'}`}>
+                            {/* Background Decorative */}
+                            <div className={`absolute inset-0 h-32 bg-gradient-to-r from-${accentColor}-500/20 to-${accentColor}-500/5`} />
+                            
+                            <div className="relative z-10 px-8 pt-12 pb-8 flex flex-col md:flex-row items-center md:items-end gap-6">
+                                {/* Avatar & Custom Photo Control */}
+                                <div className="relative group">
+                                    <div className={`w-32 h-32 rounded-[2rem] p-1.5 ${isDark ? 'bg-slate-900' : 'bg-white shadow-lg'} rotate-3 transition-transform group-hover:rotate-0`}>
+                                        <img 
+                                            src={effectivePhoto} 
+                                            onError={() => setImgError(true)}
+                                            className={`w-full h-full rounded-[1.7rem] object-cover border-2 ${isDark ? 'border-white/10' : 'border-gray-100'}`} 
+                                            alt="Profile"
+                                        />
+                                    </div>
+                                    <button 
+                                        onClick={() => setShowPhotoInput(!showPhotoInput)}
+                                        className={`absolute bottom-0 right-0 p-2.5 rounded-xl shadow-lg transition-transform hover:scale-110 active:scale-90 ${isDark ? `bg-${accentColor}-500 text-white` : `bg-white text-${accentColor}-600`}`}
+                                    >
+                                        <Camera size={16} />
+                                    </button>
                                 </div>
-                                <div className={`flex-1 p-3 rounded-2xl ${isDark ? 'bg-white/5' : 'bg-gray-50'} flex flex-col items-center`}>
-                                    <span className="text-[10px] uppercase font-bold text-gray-500">Período</span>
-                                    <span className={`text-xl font-black ${textMain}`}>{academicData?.periodo_referencia || '-'}</span>
+                                
+                                {/* Name & Basic Info */}
+                                <div className="text-center md:text-left flex-1 pb-2 min-w-0 w-full">
+                                    <h2 className={`text-3xl md:text-4xl font-black tracking-tight leading-none mb-2 truncate ${textMain}`}>
+                                        {userData?.nome_usual || 'Estudante'}
+                                    </h2>
+                                    <div className="flex flex-wrap items-center justify-center md:justify-start gap-3">
+                                        <span className={`px-3 py-1 rounded-lg text-xs font-mono font-bold tracking-wider border ${isDark ? 'bg-black/40 border-white/10 text-gray-400' : 'bg-gray-100 border-gray-200 text-gray-600'}`}>
+                                            {userData?.matricula}
+                                        </span>
+                                        <span className={`px-3 py-1 rounded-lg text-xs font-bold uppercase tracking-wide flex items-center gap-1.5 ${academicData?.situacao?.includes('Matriculado') ? `bg-${accentColor}-500/10 text-${accentColor}-500` : 'bg-gray-100 text-gray-500'}`}>
+                                            <div className={`w-1.5 h-1.5 rounded-full ${academicData?.situacao?.includes('Matriculado') ? `bg-${accentColor}-500` : 'bg-gray-400'}`} />
+                                            {academicData?.situacao || 'Status Desconhecido'}
+                                        </span>
+                                    </div>
                                 </div>
-                             </div>
+                            </div>
+
+                            {/* Custom Photo Input Panel */}
+                            <AnimatePresence>
+                                {showPhotoInput && (
+                                    <motion.div 
+                                        initial={{ height: 0, opacity: 0 }}
+                                        animate={{ height: 'auto', opacity: 1 }}
+                                        exit={{ height: 0, opacity: 0 }}
+                                        className={`px-8 pb-8 overflow-hidden`}
+                                    >
+                                        <div className="flex flex-col gap-3">
+                                            {/* LIVE PREVIEW */}
+                                            {localPhotoInput && (
+                                                <div className="flex justify-center pb-2">
+                                                    <div className={`relative w-20 h-20 rounded-2xl border-2 border-dashed p-1 flex items-center justify-center ${isDark ? 'border-white/20' : 'border-gray-300'}`}>
+                                                         <div className="absolute inset-0 flex items-center justify-center opacity-30">
+                                                            <ImageIcon size={20} />
+                                                         </div>
+                                                         <img 
+                                                            src={localPhotoInput} 
+                                                            className="relative z-10 w-full h-full rounded-xl object-cover bg-transparent"
+                                                            alt="Preview"
+                                                            onError={(e) => e.currentTarget.style.display = 'none'}
+                                                            onLoad={(e) => e.currentTarget.style.display = 'block'}
+                                                         />
+                                                         <div className={`absolute -bottom-2 px-2 py-0.5 rounded-md text-[9px] font-bold uppercase ${isDark ? 'bg-white text-black' : 'bg-black text-white'}`}>
+                                                            Prévia
+                                                         </div>
+                                                    </div>
+                                                </div>
+                                            )}
+
+                                            {/* URL Input */}
+                                            <div className={`p-4 rounded-2xl border flex gap-2 ${isDark ? 'bg-black/30 border-white/10' : 'bg-gray-50 border-gray-200'}`}>
+                                                <input 
+                                                    type="text" 
+                                                    placeholder="Cole a URL da sua foto..." 
+                                                    value={localPhotoInput}
+                                                    onChange={(e) => setLocalPhotoInput(e.target.value)}
+                                                    onKeyDown={(e) => {
+                                                        if(e.key === 'Enter') handleSavePhoto();
+                                                    }}
+                                                    className={`flex-1 bg-transparent outline-none text-xs font-bold ${isDark ? 'text-white placeholder:text-gray-600' : 'text-gray-800 placeholder:text-gray-400'}`}
+                                                />
+                                                {localPhotoInput && (
+                                                    <button onClick={() => { setLocalPhotoInput(''); handleSavePhoto(); }} className="p-2 text-red-400 hover:bg-red-500/10 rounded-lg transition-colors">
+                                                        <Trash2 size={14} />
+                                                    </button>
+                                                )}
+                                                <button onClick={handleSavePhoto} className={`p-2 rounded-lg ${isDark ? `bg-${accentColor}-500/20 text-${accentColor}-400` : `bg-${accentColor}-100 text-${accentColor}-600`}`}>
+                                                    <Check size={14} />
+                                                </button>
+                                            </div>
+
+                                            {/* Custom Photo Toggle Switch */}
+                                            <div 
+                                                onClick={() => onToggleCustomPhoto?.(!useCustomPhoto)}
+                                                className={`p-3 rounded-2xl border flex items-center justify-between cursor-pointer transition-colors ${useCustomPhoto ? `border-${accentColor}-500/30 bg-${accentColor}-500/5` : (isDark ? 'bg-white/5 border-white/5' : 'bg-gray-50 border-gray-100')}`}
+                                            >
+                                                <span className={`text-xs font-bold ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
+                                                    Usar foto personalizada
+                                                </span>
+                                                <div className={`w-10 h-5 rounded-full relative transition-colors ${useCustomPhoto ? `bg-${accentColor}-500` : 'bg-gray-400 dark:bg-white/20'}`}>
+                                                    <div className={`absolute top-1 w-3 h-3 rounded-full bg-white shadow-sm transition-transform duration-300 ${useCustomPhoto ? 'translate-x-6' : 'translate-x-1'}`} />
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </motion.div>
+                                )}
+                            </AnimatePresence>
                         </div>
-                        
-                        <div className="md:col-span-2 flex flex-col gap-6 pb-8">
-                             <div className={`${cardBg} p-8 rounded-[2rem] border shadow-sm`}>
-                                  <h3 className={`text-2xl font-bold leading-tight mb-4 ${textMain}`}>{academicData?.curso || userData?.vinculo?.curso || 'Curso não identificado'}</h3>
-                                  
-                                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                      <div className={`p-4 rounded-xl ${isDark ? 'bg-black/20' : 'bg-gray-50'}`}>
-                                          <div className="text-[10px] uppercase font-bold text-gray-500 mb-1">Campus</div>
-                                          <div className={`font-medium ${textMain}`}>{userData?.campus}</div>
-                                      </div>
-                                      <div className={`p-4 rounded-xl ${isDark ? 'bg-black/20' : 'bg-gray-50'}`}>
-                                          <div className="text-[10px] uppercase font-bold text-gray-500 mb-1">Situação</div>
-                                          <div className={`font-medium ${academicData?.situacao === 'Matriculado' ? `text-${accentColor}-500` : textMain}`}>
-                                              {academicData?.situacao || userData?.vinculo?.situacao || '---'}
-                                          </div>
-                                      </div>
-                                      <div className={`p-4 rounded-xl ${isDark ? 'bg-black/20' : 'bg-gray-50'}`}>
-                                          <div className="text-[10px] uppercase font-bold text-gray-500 mb-1">Email Acadêmico</div>
-                                          <div className={`font-medium text-xs break-all ${textMain}`}>{userData?.email_academico}</div>
-                                      </div>
-                                      <div className={`p-4 rounded-xl ${isDark ? 'bg-black/20' : 'bg-gray-50'}`}>
-                                          <div className="text-[10px] uppercase font-bold text-gray-500 mb-1">Ingresso</div>
-                                          <div className={`font-medium ${textMain}`}>{academicData?.ingresso}</div>
-                                      </div>
-                                  </div>
-                             </div>
+
+                        {/* 2. REORGANIZED ACADEMIC DATA GRID (IMPROVED UI) */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            
+                            {/* Card: Dados do Curso (Course Info) */}
+                            <div className={`p-6 rounded-[2rem] border relative overflow-hidden group ${isDark ? 'bg-white/5 border-white/5' : 'bg-white border-gray-100 shadow-sm'}`}>
+                                <div className={`absolute top-0 right-0 p-6 opacity-5 group-hover:opacity-10 transition-opacity text-${accentColor}-500`}>
+                                    <GraduationCap size={120} />
+                                </div>
+                                <h3 className="text-xs font-bold uppercase tracking-widest text-gray-400 mb-6 flex items-center gap-2 relative z-10">
+                                    <BookOpen size={14} /> Dados Acadêmicos
+                                </h3>
+                                
+                                <div className="space-y-5 relative z-10">
+                                    <div>
+                                        <label className="text-[10px] font-bold uppercase text-gray-500 block mb-1">Curso</label>
+                                        <div className={`text-sm font-bold leading-snug ${textMain}`}>{getCleanCourseName(academicData?.curso || '')}</div>
+                                    </div>
+                                    
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <div>
+                                            <label className="text-[10px] font-bold uppercase text-gray-500 block mb-1">Matriz</label>
+                                            <div className={`text-xs font-mono opacity-80 ${textMain}`}>{academicData?.matriz?.split(' - ')[0] || '-'}</div>
+                                        </div>
+                                        <div>
+                                            <label className="text-[10px] font-bold uppercase text-gray-500 block mb-1">Campus</label>
+                                            <div className={`text-xs opacity-80 ${textMain}`}>{userData?.campus}</div>
+                                        </div>
+                                    </div>
+
+                                    <div className={`p-4 rounded-xl flex items-center justify-between ${isDark ? 'bg-black/20' : 'bg-gray-50'}`}>
+                                        <div>
+                                            <div className="text-[10px] font-bold uppercase text-gray-500 mb-0.5">Coeficiente (IRA)</div>
+                                            <div className={`text-2xl font-black ${textMain}`}>{academicData?.ira || '-'}</div>
+                                        </div>
+                                        <div className="text-right">
+                                            <div className="text-[10px] font-bold uppercase text-gray-500 mb-0.5">Período</div>
+                                            <div className={`text-xl font-black ${textMain}`}>{academicData?.periodo_referencia || 1}º <span className="text-sm opacity-40">/ {academicData?.qtd_periodos || 8}</span></div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Card: Documentação & Contato (ID Card Style) */}
+                            <div className={`p-6 rounded-[2rem] border relative overflow-hidden group ${isDark ? 'bg-white/5 border-white/5' : 'bg-white border-gray-100 shadow-sm'}`}>
+                                <div className="absolute top-0 right-0 p-6 opacity-5 group-hover:opacity-10 transition-opacity text-blue-500">
+                                    <Fingerprint size={120} />
+                                </div>
+                                <h3 className="text-xs font-bold uppercase tracking-widest text-gray-400 mb-6 flex items-center gap-2 relative z-10">
+                                    <ShieldCheck size={14} /> Identificação e Contato
+                                </h3>
+
+                                <div className="space-y-4 relative z-10">
+                                    {/* Email Academico */}
+                                    <div className={`p-3 rounded-xl flex items-center gap-3 border ${isDark ? 'bg-black/20 border-white/5' : 'bg-gray-50 border-gray-100'}`}>
+                                        <div className={`p-2 rounded-lg ${isDark ? 'bg-white/10' : 'bg-white shadow-sm'}`}>
+                                            <Mail size={16} className="opacity-70"/>
+                                        </div>
+                                        <div className="overflow-hidden">
+                                            <div className="text-[9px] font-bold uppercase text-gray-500">Email Acadêmico</div>
+                                            <div className={`text-xs font-medium truncate ${textMain}`}>{academicData?.email_academico || '-'}</div>
+                                        </div>
+                                        <button className="ml-auto p-2 opacity-50 hover:opacity-100" onClick={() => navigator.clipboard.writeText(academicData?.email_academico || '')}>
+                                            <Copy size={12} />
+                                        </button>
+                                    </div>
+
+                                    {/* CPF & Ingresso Grid */}
+                                    <div className="grid grid-cols-2 gap-3">
+                                        <div className={`p-3 rounded-xl border ${isDark ? 'bg-black/20 border-white/5' : 'bg-gray-50 border-gray-100'}`}>
+                                            <div className="text-[9px] font-bold uppercase text-gray-500 mb-1">CPF</div>
+                                            <div className={`text-xs font-mono font-bold ${textMain}`}>{academicData?.cpf || '***.***.***-**'}</div>
+                                        </div>
+                                        <div className={`p-3 rounded-xl border ${isDark ? 'bg-black/20 border-white/5' : 'bg-gray-50 border-gray-100'}`}>
+                                            <div className="text-[9px] font-bold uppercase text-gray-500 mb-1">Ingresso</div>
+                                            <div className={`text-xs font-bold ${textMain}`}>{academicData?.ingresso?.replace('/', '.') || '-'}</div>
+                                        </div>
+                                    </div>
+
+                                    {/* Status Chips */}
+                                    <div className="flex flex-wrap gap-2 pt-2">
+                                        {academicData?.impressao_digital ? (
+                                            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-[10px] font-bold uppercase bg-green-500/10 text-green-500 border-green-500/20">
+                                                <Check size={10} /> Biometria
+                                            </div>
+                                        ) : <div className="px-3 py-1.5 rounded-lg border text-[10px] font-bold uppercase opacity-40 border-dashed">Sem Biometria</div>}
+                                        
+                                        {academicData?.emitiu_diploma ? (
+                                            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-[10px] font-bold uppercase bg-blue-500/10 text-blue-500 border-blue-500/20">
+                                                <Award size={10} /> Diploma
+                                            </div>
+                                        ) : null}
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                     </motion.div>
                 ) : activeTab === 'wallpaper' ? (
@@ -909,6 +1190,53 @@ const ProfileContent = ({ isDark, onToggleTheme, currentWallpaper, onWallpaperCh
                                 )
                             })}
                         </div>
+                    </motion.div>
+                ) : activeTab === 'performance' ? (
+                    <motion.div key="performance" variants={itemAnim} initial="hidden" animate="show" exit={{ opacity: 0 }} className="h-full overflow-y-auto max-w-2xl mx-auto w-full">
+                         <div className="space-y-6 pb-8">
+                            <div className={`p-6 rounded-[2rem] border text-center ${isDark ? 'bg-white/5 border-white/5' : 'bg-white border-gray-100'}`}>
+                                <h2 className="text-xl font-black mb-2">Otimização de Desempenho</h2>
+                                <p className="text-sm opacity-60 max-w-md mx-auto">Ajuste os efeitos visuais para economizar bateria ou melhorar a fluidez em dispositivos mais antigos.</p>
+                                
+                                <div className="mt-6 flex justify-center">
+                                     <button 
+                                        onClick={toggleEcoMode}
+                                        className={`px-6 py-3 rounded-xl font-bold text-sm flex items-center gap-2 transition-all ${
+                                            performanceSettings?.reduceMotion && performanceSettings?.disableBlur && performanceSettings?.disableGlow
+                                            ? `bg-${accentColor}-500 text-white shadow-lg` 
+                                            : `bg-gray-100 text-gray-600 dark:bg-white/10 dark:text-gray-300`
+                                        }`}
+                                     >
+                                        <Zap size={16} className={performanceSettings?.reduceMotion && performanceSettings?.disableBlur && performanceSettings?.disableGlow ? 'fill-current' : ''} />
+                                        {performanceSettings?.reduceMotion && performanceSettings?.disableBlur && performanceSettings?.disableGlow ? 'Modo Econômico Ativado' : 'Ativar Modo Econômico'}
+                                     </button>
+                                </div>
+                            </div>
+
+                            <div className="space-y-3">
+                                <ToggleRow 
+                                    label="Reduzir Movimento" 
+                                    description="Desativa animações de transição para uma navegação mais direta." 
+                                    icon={Rocket}
+                                    active={performanceSettings?.reduceMotion}
+                                    onClick={toggleMotion}
+                                />
+                                <ToggleRow 
+                                    label="Desativar Transparência" 
+                                    description="Substitui o efeito de vidro (blur) por fundos sólidos. Melhora muito o FPS." 
+                                    icon={Droplet}
+                                    active={performanceSettings?.disableBlur}
+                                    onClick={toggleBlur}
+                                />
+                                <ToggleRow 
+                                    label="Desativar Efeitos Visuais" 
+                                    description="Remove brilhos, sombras complexas e orbs de fundo." 
+                                    icon={Sparkles}
+                                    active={performanceSettings?.disableGlow}
+                                    onClick={toggleGlow}
+                                />
+                            </div>
+                         </div>
                     </motion.div>
                 ) : (
                     <motion.div
@@ -952,6 +1280,39 @@ const ProfileContent = ({ isDark, onToggleTheme, currentWallpaper, onWallpaperCh
                                 <div>
                                     <h3 className="text-xs font-bold uppercase tracking-widest text-gray-400 mb-4">Sistema</h3>
                                     
+                                    {/* Cloud Sync Button */}
+                                    <div className={`p-4 mb-4 rounded-[2rem] border flex items-center justify-between transition-all ${isDark ? 'bg-white/5 border-white/5' : 'bg-white border-gray-100'}`}>
+                                        <div className="flex items-center gap-3">
+                                            <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${isDark ? `bg-${accentColor}-500/20 text-${accentColor}-400` : `bg-${accentColor}-50 text-${accentColor}-600`}`}>
+                                                <Cloud size={20} />
+                                            </div>
+                                            <div>
+                                                <div className="font-bold text-sm">Nuvem Supaco</div>
+                                                <div className="text-[10px] opacity-70">
+                                                    {syncState === 'syncing' ? 'Sincronizando...' : syncState === 'success' ? 'Backup realizado' : syncState === 'error' ? 'Erro no backup' : 'Sincronizar dados'}
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div className="flex gap-2">
+                                             <button 
+                                                onClick={handleCloudRestore}
+                                                disabled={syncState === 'syncing'}
+                                                className={`p-2 rounded-xl border border-dashed transition-all ${isDark ? 'border-white/20 hover:bg-white/5' : 'border-gray-300 hover:bg-gray-50'}`}
+                                                title="Restaurar da nuvem"
+                                            >
+                                                <Download size={16} className={isDark ? 'text-gray-400' : 'text-gray-500'} />
+                                            </button>
+                                            <button 
+                                                onClick={handleCloudSync}
+                                                disabled={syncState === 'syncing'}
+                                                className={`p-2 rounded-xl transition-all ${isDark ? `bg-${accentColor}-500/20 text-${accentColor}-400 hover:bg-${accentColor}-500/30` : `bg-${accentColor}-100 text-${accentColor}-600 hover:bg-${accentColor}-200`}`}
+                                                title="Salvar na nuvem"
+                                            >
+                                                {syncState === 'syncing' ? <RefreshCw size={16} className="animate-spin" /> : <UploadCloud size={16} />}
+                                            </button>
+                                        </div>
+                                    </div>
+
                                     {/* PWA INSTALL BUTTON */}
                                     {canInstall && (
                                         <button 
@@ -988,7 +1349,7 @@ const ProfileContent = ({ isDark, onToggleTheme, currentWallpaper, onWallpaperCh
                                         </div>
                                         <AnimatePresence>
                                             {classroomEnabled && (
-                                                <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} className={`overflow-hidden ${isDark ? 'bg-black/20' : 'bg-gray-50/50'}`}>
+                                                <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto' }} exit={{ height: 0, opacity: 0 }} className={`overflow-hidden ${isDark ? 'bg-black/20' : 'bg-gray-50/50'}`}>
                                                     <div className="p-6 pt-4 space-y-6">
                                                         {classroomStatus !== 'success' && (
                                                             <>

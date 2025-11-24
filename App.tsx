@@ -1,22 +1,31 @@
 
-import React, { useState, useMemo, useEffect } from 'react';
+
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { DashboardLayout } from './components/DashboardLayout';
 import { ContentView } from './components/ContentViews';
 import { LandingPage } from './components/LandingPage';
 import { MobileNavBar } from './components/MobileNavBar';
-import { ViewState, ThemeVariant, SuapProfile, SuapMeusDadosAluno, SuapPeriod, SuapBoletim, SuapDiarioResponse, ProcessedClass, GradeInfo, SuapCompletionData, Holiday, ClassroomWork, ClassroomCourse } from './types';
+import { ViewState, ThemeVariant, SuapProfile, SuapMeusDadosAluno, SuapPeriod, SuapBoletim, SuapDiarioResponse, ProcessedClass, GradeInfo, SuapCompletionData, Holiday, ClassroomWork, ClassroomCourse, PerformanceSettings } from './types';
 import { AnimatePresence, motion } from 'framer-motion';
 import { SecureStorage } from './services/SecureStorage';
-import { WifiOff } from 'lucide-react';
+import { WifiOff, RefreshCw } from 'lucide-react';
 
 const DEFAULT_WALLPAPER = "https://images2.alphacoders.com/134/thumb-1920-1345658.png";
+const DEFAULT_PROFILE_IMG = "https://i.pinimg.com/736x/9c/63/e1/9c63e1cf0546ecd4f83b7df067f440d2.jpg";
 
 // Cache Keys (Settings only - Data is now in SecureStorage)
 const CACHE_KEYS = {
     WALLPAPER: 'suap_saved_wallpaper',
     THEME_VARIANT: 'suap_saved_theme_variant',
     THEME_MODE: 'suap_saved_theme_mode',
+    PERFORMANCE: 'suap_performance_settings',
     WELCOME_SEEN: 'suap_welcome_seen'
+};
+
+const DEFAULT_PERFORMANCE: PerformanceSettings = {
+    reduceMotion: false,
+    disableBlur: false,
+    disableGlow: false
 };
 
 // Define palette structure
@@ -55,14 +64,23 @@ const App: React.FC = () => {
   const [currentWallpaper, setCurrentWallpaper] = useState(() => {
       return localStorage.getItem(CACHE_KEYS.WALLPAPER) || DEFAULT_WALLPAPER;
   });
+  const [performanceSettings, setPerformanceSettings] = useState<PerformanceSettings>(() => {
+      const saved = localStorage.getItem(CACHE_KEYS.PERFORMANCE);
+      return saved ? JSON.parse(saved) : DEFAULT_PERFORMANCE;
+  });
+
+  // Profile Photo State
+  const [customPhotoUrl, setCustomPhotoUrl] = useState(localStorage.getItem('suap_custom_photo') || '');
+  const [useCustomPhoto, setUseCustomPhoto] = useState(localStorage.getItem('suap_use_custom_photo') === 'true');
   
   // UI State
   const [rightSidebarTab, setRightSidebarTab] = useState<'overview' | 'tasks' | 'holidays'>('overview');
-  const [profileInitialTab, setProfileInitialTab] = useState<'profile' | 'settings' | 'wallpaper'>('profile');
+  const [profileInitialTab, setProfileInitialTab] = useState<'profile' | 'settings' | 'wallpaper' | 'performance'>('profile');
 
   // Auth State
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [isOffline, setIsOffline] = useState(!navigator.onLine);
+  const [isSyncing, setIsSyncing] = useState(false);
   
   // Data State (Will be populated by cache first, then API)
   const [userData, setUserData] = useState<SuapProfile | null>(null);
@@ -93,6 +111,58 @@ const App: React.FC = () => {
   useEffect(() => {
       localStorage.setItem(CACHE_KEYS.WALLPAPER, currentWallpaper);
   }, [currentWallpaper]);
+
+  useEffect(() => {
+      localStorage.setItem(CACHE_KEYS.PERFORMANCE, JSON.stringify(performanceSettings));
+  }, [performanceSettings]);
+
+  // Profile Photo Handlers
+  const handleUpdateCustomPhoto = (url: string) => {
+      setCustomPhotoUrl(url);
+      if(url) {
+          localStorage.setItem('suap_custom_photo', url);
+          // Auto-enable if setting a new valid URL and currently not using custom
+          if (!useCustomPhoto) {
+              setUseCustomPhoto(true);
+              localStorage.setItem('suap_use_custom_photo', 'true');
+          }
+      } else {
+          localStorage.removeItem('suap_custom_photo');
+      }
+  };
+
+  const handleToggleCustomPhoto = (enable: boolean) => {
+      setUseCustomPhoto(enable);
+      localStorage.setItem('suap_use_custom_photo', String(enable));
+  };
+
+  // --- AUTO SYNC FOR SETTINGS ---
+  const syncTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+      // If user is logged in and we have a matricula, perform a debounced sync whenever settings change
+      if (isLoggedIn && userData?.matricula && !isOffline) {
+          if (syncTimeoutRef.current) clearTimeout(syncTimeoutRef.current);
+          
+          setIsSyncing(true);
+          syncTimeoutRef.current = setTimeout(async () => {
+              console.log("[App] Auto-syncing settings to cloud...");
+              await SecureStorage.syncToCloud(userData.matricula!);
+              setIsSyncing(false);
+          }, 3000); // 3 second debounce
+      }
+  }, [currentWallpaper, customPhotoUrl, useCustomPhoto, themeVariant, isDarkMode, performanceSettings, isLoggedIn, userData?.matricula]);
+
+
+  // Calculate Active User Photo
+  const activeUserPhoto = useMemo(() => {
+      if (useCustomPhoto && customPhotoUrl) return customPhotoUrl;
+      if (userData?.foto) {
+          return userData.foto.startsWith('http') ? userData.foto : `https://suap.ifrn.edu.br${userData.foto}`;
+      }
+      return DEFAULT_PROFILE_IMG;
+  }, [useCustomPhoto, customPhotoUrl, userData]);
+
 
   // --- OFFLINE DETECTION & PWA PROMPT ---
   useEffect(() => {
@@ -393,14 +463,14 @@ const App: React.FC = () => {
   const fetchAllUserDataBackground = async (currentMatricula: string) => {
     console.log("[App] Starting background data sync...");
     try {
-        // 1. User Profile
+        // 1. User Profile (Expanded with Birth Date, CPF etc implicitly)
         const profile = await fetchWithAuth('https://suap.ifrn.edu.br/api/v2/minhas-informacoes/meus-dados/');
         if (profile) {
             setUserData(profile);
             SecureStorage.saveItem(currentMatricula, 'profile', profile);
         }
 
-        // 2. Academic Data
+        // 2. Academic Data (Includes CPF too)
         const academic = await fetchWithAuth('https://suap.ifrn.edu.br/api/ensino/meus-dados-aluno/');
         if (academic) {
             setAcademicData(academic);
@@ -430,7 +500,12 @@ const App: React.FC = () => {
             }
         }
         
-        fetchClassroomData();
+        await fetchClassroomData();
+
+        // 6. Supabase Sync (Cloud Backup) - Triggered immediately on first load/login
+        console.log("[App] Attempting cloud backup...");
+        await SecureStorage.syncToCloud(currentMatricula);
+
         console.log("[App] Background sync complete.");
 
     } catch (error) {
@@ -512,13 +587,12 @@ const App: React.FC = () => {
   };
 
   const handleLogout = () => {
-      // Don't clear cache aggressively on logout so offline works for last user if needed,
-      // but typical behavior is to clear. Here we keep token removal but can leave data until new login overwrites.
-      
       localStorage.removeItem('suap_access_token');
       localStorage.removeItem('suap_refresh_token');
       localStorage.removeItem('suap_username');
       localStorage.removeItem('google_classroom_token');
+      localStorage.removeItem('suap_custom_photo');
+      localStorage.removeItem('suap_use_custom_photo');
 
       setUserData(null);
       setAcademicData(null);
@@ -550,6 +624,56 @@ const App: React.FC = () => {
   return (
     <div className={`font-sans antialiased transition-colors duration-500 ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
       
+      {/* Performance Styles Overrides */}
+      <style>
+        {`
+            ${performanceSettings.disableBlur ? `
+                .backdrop-blur-xl, .backdrop-blur-md, .backdrop-blur-2xl, .backdrop-blur-lg, .backdrop-blur-sm, .backdrop-blur { 
+                    backdrop-filter: none !important; 
+                    -webkit-backdrop-filter: none !important;
+                    background-color: ${isDarkMode ? 'rgba(15, 23, 42, 0.98)' : 'rgba(255, 255, 255, 0.98)'} !important;
+                }
+            ` : ''}
+            
+            ${performanceSettings.reduceMotion ? `
+                *, *::before, *::after {
+                    animation-duration: 0.01s !important;
+                    animation-iteration-count: 1 !important;
+                    transition-duration: 0.01s !important;
+                    scroll-behavior: auto !important;
+                }
+                .animate-pulse, .animate-spin, .animate-ping, .animate-bounce {
+                    animation: none !important;
+                }
+            ` : ''}
+
+            ${performanceSettings.disableGlow ? `
+                .shadow-2xl, .shadow-xl, .shadow-lg, .shadow-md, .shadow-sm, .shadow {
+                    box-shadow: none !important;
+                }
+                .blur-3xl, .blur-2xl, .blur-xl {
+                    display: none !important;
+                }
+            ` : ''}
+        `}
+      </style>
+
+      {/* Syncing Indicator */}
+      <AnimatePresence>
+        {isSyncing && (
+            <motion.div
+                initial={{ opacity: 0, scale: 0.8 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.8 }}
+                className="fixed top-4 right-4 z-[300] pointer-events-none"
+            >
+                <div className={`p-2 rounded-full shadow-lg backdrop-blur-md ${isDarkMode ? 'bg-white/10 text-white' : 'bg-white text-gray-800'}`}>
+                    <RefreshCw size={14} className="animate-spin" />
+                </div>
+            </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* Offline Indicator - Discreet */}
       <AnimatePresence>
         {isOffline && isLoggedIn && (
@@ -601,8 +725,7 @@ const App: React.FC = () => {
                 rightTab={rightSidebarTab}
                 onRightTabChange={setRightSidebarTab}
                 onOpenSettings={handleOpenSettings}
-                // Pass next class explicitly computed in DashboardLayout. Or pass it here if needed. 
-                // Currently logic is in DashboardLayout, so fine.
+                userPhoto={activeUserPhoto} // Pass resolved photo here
             />
 
             <AnimatePresence>
@@ -630,6 +753,13 @@ const App: React.FC = () => {
                     initialProfileTab={profileInitialTab}
                     onInstallPwa={handleInstallPwa}
                     canInstall={!!deferredPrompt}
+                    performanceSettings={performanceSettings}
+                    onUpdatePerformance={setPerformanceSettings}
+                    // Profile Photo Props
+                    customPhotoUrl={customPhotoUrl}
+                    onUpdateCustomPhoto={handleUpdateCustomPhoto}
+                    useCustomPhoto={useCustomPhoto}
+                    onToggleCustomPhoto={handleToggleCustomPhoto}
                 />
                 )}
             </AnimatePresence>

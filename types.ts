@@ -1,6 +1,5 @@
 
 
-
 export enum ViewState {
   DASHBOARD = 'DASHBOARD',
   GRADES = 'GRADES',
@@ -12,6 +11,12 @@ export enum ViewState {
 }
 
 export type ThemeVariant = 'default' | 'monochrome' | 'saturated' | 'dynamic' | 'sepia';
+
+export interface PerformanceSettings {
+  reduceMotion: boolean;
+  disableBlur: boolean;
+  disableGlow: boolean;
+}
 
 export interface Student {
   name: string;
@@ -29,12 +34,18 @@ export interface SuapPeriod {
 
 export interface SuapProfile {
   nome_usual: string;
+  nome_completo?: string;
   foto: string;
   url_foto_150x200?: string;
   email_academico: string;
+  email_secundario?: string;
   campus: string;
   matricula?: string; 
   tipo_vinculo?: string;
+  cpf?: string;
+  data_nascimento?: string;
+  sexo?: string;
+  rg?: string;
   vinculo?: {
       curso: string;
       matricula: string;
