@@ -1,5 +1,4 @@
 
-
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { motion, AnimatePresence, PanInfo } from 'framer-motion';
 import { 
@@ -603,7 +602,7 @@ export const DashboardLayout: React.FC<DashboardProps> = ({
       <div className={`hidden md:block absolute bottom-0 inset-x-0 h-4 z-40 transition-colors duration-500 ${frameBg}`} />
 
       {/* 1. LEFT SIDEBAR (Desktop Only) */}
-      <div className={`hidden md:flex relative z-50 h-[calc(100vh-2rem)] my-4 w-24 flex-col items-center py-8 transition-colors duration-500 ${frameBg}`}>
+      <div id="tut-nav-desktop" className={`hidden md:flex relative z-50 h-[calc(100vh-2rem)] my-4 w-24 flex-col items-center py-8 transition-colors duration-500 ${frameBg}`}>
         <div className="text-xs font-black tracking-widest mb-1 text-gray-400">ELECTRON</div>
         <div className={`text-xl font-black italic mb-10 transition-colors duration-500 ${frameText}`}>SUPACO</div>
         
@@ -647,6 +646,7 @@ export const DashboardLayout: React.FC<DashboardProps> = ({
            </button>
 
            <button 
+             id="tut-profile"
              onClick={() => handleNavClick(ViewState.PROFILE)}
              className={`w-10 h-10 rounded-full overflow-hidden border-2 p-0.5 hover:scale-110 transition-transform ${activeNav === ViewState.PROFILE ? `border-${primaryColor}-500 scale-110` : 'border-transparent'}`}
             >
@@ -753,7 +753,7 @@ export const DashboardLayout: React.FC<DashboardProps> = ({
                         >
                             <RefreshCw size={14} className={isRefreshing ? 'animate-spin' : ''} />
                         </button>
-                        <button onClick={() => handleNavClick(ViewState.PROFILE)} className="w-8 h-8 rounded-full overflow-hidden border border-white/20">
+                        <button id="tut-profile-mobile" onClick={() => handleNavClick(ViewState.PROFILE)} className="w-8 h-8 rounded-full overflow-hidden border border-white/20">
                             <img src={userPhoto} className="w-full h-full object-cover" alt="Profile" />
                         </button>
                     </div>
@@ -838,7 +838,7 @@ export const DashboardLayout: React.FC<DashboardProps> = ({
                         <InvertedCorner position="bottom-left" size={40} fill={cornerColor} />
                     </div>
 
-                    <div className={`w-full max-w-[320px] md:w-[322px] rounded-[2rem] md:rounded-none md:rounded-tr-[40px] p-0 md:p-6 md:pb-12 relative transition-colors duration-500 bg-transparent md:${frameBg}`}>
+                    <div id="tut-carousel" className={`w-full max-w-[320px] md:w-[322px] rounded-[2rem] md:rounded-none md:rounded-tr-[40px] p-0 md:p-6 md:pb-12 relative transition-colors duration-500 bg-transparent md:${frameBg}`}>
                         
                         {/* --- CAROUSEL STACK CONTAINER --- */}
                         <div className="relative h-[240px] w-full perspective-1000">
@@ -959,6 +959,7 @@ export const DashboardLayout: React.FC<DashboardProps> = ({
             {isLoggedIn && (
               // Changed from motion.div with opacity to a simpler div to avoid transform stacking context issues affecting fixed children
               <div 
+                id="tut-widgets"
                 className="fixed md:absolute bottom-24 md:bottom-10 left-0 md:left-[322px] right-0 z-[250] flex justify-center items-end pointer-events-none px-4 md:px-0 transition-opacity duration-1000 opacity-100"
               >
                   <div className="pointer-events-auto flex items-end gap-4 w-full max-w-md md:w-auto justify-center md:justify-start">
@@ -1294,7 +1295,7 @@ export const DashboardLayout: React.FC<DashboardProps> = ({
                                                 </div>
                                             </div>
                                             <h3 className={`text-sm font-bold leading-tight mb-2 ${frameText}`}>{work.title}</h3>
-                                            <a href={work.alternateLink} target="_blank" rel="noreferrer" className={`text-[10px] font-bold uppercase underline decoration-dashed ${isDarkMode ? 'text-gray-400 hover:text-white' : 'text-gray-500 hover:text-black'}`}>
+                                            <a href={work.alternateLink} target="_blank" rel="noreferrer" className={`text-[11px] font-bold uppercase underline decoration-dashed ${isDarkMode ? 'text-gray-400 hover:text-white' : 'text-gray-500 hover:text-black'}`}>
                                                 Abrir no Classroom
                                             </a>
                                         </div>

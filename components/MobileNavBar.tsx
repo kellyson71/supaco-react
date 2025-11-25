@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { Home, BookOpen, AlertTriangle, Calendar, Monitor, Shield } from 'lucide-react';
 import { motion } from 'framer-motion';
@@ -29,7 +30,7 @@ export const MobileNavBar: React.FC<MobileNavBarProps> = ({ currentView, onChang
   }
 
   return (
-    <div className="md:hidden fixed bottom-4 left-4 right-4 z-[200]">
+    <div id="tut-nav-mobile" className="md:hidden fixed bottom-4 left-4 right-4 z-[200]">
       <div 
         className={`flex items-center justify-between px-2 py-3 rounded-[2rem] shadow-2xl backdrop-blur-2xl border transition-colors duration-500 overflow-x-auto hide-scrollbar
         ${isDarkMode 

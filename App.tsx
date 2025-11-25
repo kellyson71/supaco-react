@@ -4,10 +4,11 @@ import { DashboardLayout } from './components/DashboardLayout';
 import { ContentView } from './components/ContentViews';
 import { LandingPage } from './components/LandingPage';
 import { MobileNavBar } from './components/MobileNavBar';
+import { TutorialOverlay, TutorialStep } from './components/TutorialOverlay';
 import { ViewState, ThemeVariant, SuapProfile, SuapMeusDadosAluno, SuapPeriod, SuapDiario, SuapBoletim, ProcessedClass, GradeInfo, SuapCompletionData, Holiday, ClassroomWork, ClassroomCourse, PerformanceSettings, SuapMeusPeriodosLetivos, TodoItem } from './types';
 import { AnimatePresence, motion } from 'framer-motion';
 import { SecureStorage } from './services/SecureStorage';
-import { WifiOff, RefreshCw } from 'lucide-react';
+import { WifiOff, RefreshCw, Navigation, Layers, Zap, User } from 'lucide-react';
 
 const DEFAULT_WALLPAPER = "https://images2.alphacoders.com/134/thumb-1920-1345658.png";
 const DEFAULT_PROFILE_IMG = "https://i.pinimg.com/736x/9c/63/e1/9c63e1cf0546ecd4f83b7df067f440d2.jpg";
@@ -18,7 +19,8 @@ const CACHE_KEYS = {
     THEME_VARIANT: 'suap_saved_theme_variant',
     THEME_MODE: 'suap_saved_theme_mode',
     PERFORMANCE: 'suap_performance_settings',
-    WELCOME_SEEN: 'suap_welcome_seen'
+    WELCOME_SEEN: 'suap_welcome_seen',
+    TUTORIAL_SEEN: 'suap_tutorial_completed_v1' // New key for tutorial
 };
 
 const DEFAULT_PERFORMANCE: PerformanceSettings = {
@@ -44,6 +46,42 @@ const WALLPAPER_THEMES: Record<string, Palette> = {
     // Power (Orange/Red)
     "https://images6.alphacoders.com/129/thumb-1920-1297223.jpg": { primary: "orange", secondary: "red" }
 };
+
+// TUTORIAL STEPS CONFIGURATION
+const TUTORIAL_STEPS: TutorialStep[] = [
+    {
+        targetId: 'tut-carousel', 
+        mobileTargetId: 'tut-carousel',
+        title: 'Visão Geral',
+        description: 'Aqui ficam seus cartões principais. Deslize para ver horários, feriados e tarefas pendentes de forma rápida.',
+        position: 'right',
+        icon: <Layers />
+    },
+    {
+        targetId: 'tut-nav-desktop',
+        mobileTargetId: 'tut-nav-mobile',
+        title: 'Navegação',
+        description: 'Acesse suas notas detalhadas, faltas, grade de horários e integração com o Google Classroom por aqui.',
+        position: 'right', // Desktop defaults to right of sidebar
+        icon: <Navigation />
+    },
+    {
+        targetId: 'tut-widgets',
+        mobileTargetId: 'tut-widgets',
+        title: 'Ferramentas Inteligentes',
+        description: 'Converse com a IA sobre suas notas ou use o Pomodoro para focar nos estudos.',
+        position: 'top',
+        icon: <Zap />
+    },
+    {
+        targetId: 'tut-profile',
+        mobileTargetId: 'tut-profile-mobile',
+        title: 'Seu Perfil',
+        description: 'Personalize o tema, troque o papel de parede e sincronize seus dados com a nuvem.',
+        position: 'left',
+        icon: <User />
+    }
+];
 
 const App: React.FC = () => {
   // --- LANDING PAGE STATE ---
@@ -81,6 +119,9 @@ const App: React.FC = () => {
   const [isOffline, setIsOffline] = useState(!navigator.onLine);
   const [isSyncing, setIsSyncing] = useState(false);
   
+  // Tutorial State
+  const [showTutorial, setShowTutorial] = useState(false);
+
   // Data State
   const [userData, setUserData] = useState<SuapProfile | null>(null);
   const [academicData, setAcademicData] = useState<SuapMeusDadosAluno | null>(null);
@@ -123,6 +164,23 @@ const App: React.FC = () => {
   useEffect(() => {
       localStorage.setItem(CACHE_KEYS.PERFORMANCE, JSON.stringify(performanceSettings));
   }, [performanceSettings]);
+
+  // Check Tutorial Status whenever Login or Landing changes
+  useEffect(() => {
+      if (isLoggedIn && !showLanding) {
+          const seen = localStorage.getItem(CACHE_KEYS.TUTORIAL_SEEN);
+          if (!seen) {
+              // Wait a bit for layout to settle/animations to finish
+              const t = setTimeout(() => setShowTutorial(true), 1500);
+              return () => clearTimeout(t);
+          }
+      }
+  }, [isLoggedIn, showLanding]);
+
+  const handleFinishTutorial = () => {
+      setShowTutorial(false);
+      localStorage.setItem(CACHE_KEYS.TUTORIAL_SEEN, 'true');
+  };
 
   // Profile Photo Handlers
   const handleUpdateCustomPhoto = (url: string) => {
@@ -864,6 +922,18 @@ const App: React.FC = () => {
                 onToggleTodo={handleToggleTodo}
                 onRemoveTodo={handleRemoveTodo}
             />
+
+            <AnimatePresence>
+                {/* TUTORIAL OVERLAY */}
+                {showTutorial && (
+                    <TutorialOverlay 
+                        steps={TUTORIAL_STEPS}
+                        onComplete={handleFinishTutorial}
+                        isDarkMode={isDarkMode}
+                        primaryColor={palette.primary}
+                    />
+                )}
+            </AnimatePresence>
 
             <AnimatePresence>
                 {currentView !== ViewState.DASHBOARD && (
