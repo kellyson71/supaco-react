@@ -25,6 +25,12 @@ export interface Student {
   grade: string;
 }
 
+export interface TodoItem {
+    id: string;
+    text: string;
+    completed: boolean;
+}
+
 // --- SUAP API INTERFACES ---
 
 // Updated to match GET /api/ensino/periodos/

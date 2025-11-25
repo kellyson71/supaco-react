@@ -1,3 +1,4 @@
+
 import { supabase } from './supabaseClient';
 
 // Service for simulating a folder-based cache structure in localStorage.
@@ -76,6 +77,7 @@ export const SecureStorage = {
             const completion = SecureStorage.loadItem(matricula, 'completion');
             const grades = SecureStorage.loadItem(matricula, 'grades');
             const schedule = SecureStorage.loadItem(matricula, 'schedule');
+            const todos = SecureStorage.loadItem(matricula, 'todos');
             
             // Collect settings from root localStorage
             const settings = {
@@ -95,6 +97,7 @@ export const SecureStorage = {
                 grades,
                 schedule,
                 settings,
+                todos,
                 updated_at: new Date().toISOString()
             };
 
@@ -134,6 +137,7 @@ export const SecureStorage = {
             if (data.completion) SecureStorage.saveItem(matricula, 'completion', data.completion);
             if (data.grades) SecureStorage.saveItem(matricula, 'grades', data.grades);
             if (data.schedule) SecureStorage.saveItem(matricula, 'schedule', data.schedule);
+            if (data.todos) SecureStorage.saveItem(matricula, 'todos', data.todos);
             
             if (data.settings) {
                 if(data.settings.wallpaper) localStorage.setItem('suap_saved_wallpaper', data.settings.wallpaper);

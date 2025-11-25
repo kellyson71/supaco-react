@@ -1,3 +1,5 @@
+
+
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { motion, AnimatePresence, PanInfo } from 'framer-motion';
 import { 
@@ -40,10 +42,11 @@ import {
   Menu,
   Layers,
   ThumbsUp,
-  Shield
+  Shield,
+  Link2
 } from 'lucide-react';
 import { InvertedCorner } from './InvertedCorner';
-import { ViewState, ClassroomWork, SuapProfile, SuapPeriod, GradeInfo, ProcessedClass, SuapCompletionData, Holiday } from '../types';
+import { ViewState, ClassroomWork, SuapProfile, SuapPeriod, GradeInfo, ProcessedClass, SuapCompletionData, Holiday, TodoItem } from '../types';
 import { AIChatWidget } from './AIChatWidget';
 import { PomodoroWidget } from './PomodoroWidget';
 import { SecureStorage } from '../services/SecureStorage';
@@ -79,12 +82,12 @@ interface DashboardProps {
   onOpenSettings: () => void;
   userPhoto: string; // New Prop for resolved photo URL
   onRefresh?: () => void; // New prop for manual refresh
-}
-
-interface TodoItem {
-    id: string;
-    text: string;
-    completed: boolean;
+  isClassroomLinked?: boolean;
+  // Todo Props
+  todos?: TodoItem[];
+  onAddTodo?: (text: string) => void;
+  onToggleTodo?: (id: string) => void;
+  onRemoveTodo?: (id: string) => void;
 }
 
 // --- CALENDAR HELPERS ---
@@ -112,14 +115,18 @@ export const DashboardLayout: React.FC<DashboardProps> = ({
   onRightTabChange,
   onOpenSettings,
   userPhoto,
-  onRefresh
+  onRefresh,
+  isClassroomLinked = false,
+  todos = [],
+  onAddTodo,
+  onToggleTodo,
+  onRemoveTodo
 }) => {
   const [activeNav, setActiveNav] = useState<ViewState>(ViewState.DASHBOARD);
   const [isRefreshing, setIsRefreshing] = useState(false);
   
-  // ToDo List State - Empty by default
+  // ToDo Input State
   const [todoInput, setTodoInput] = useState('');
-  const [todos, setTodos] = useState<TodoItem[]>([]);
 
   // Calculated States
   const [bestSubjectToSkip, setBestSubjectToSkip] = useState<GradeInfo | null>(null);
@@ -129,16 +136,12 @@ export const DashboardLayout: React.FC<DashboardProps> = ({
   const [nextClassContext, setNextClassContext] = useState<string>(''); // "Hoje", "Amanhã"
   
   // Carousel State - UNIFIED
-  // 0: Status (Smart), 1: Holiday, 2: Tasks
   const [carouselIndex, setCarouselIndex] = useState(0); 
   const TOTAL_SLIDES = 3;
 
   // Calendar State
   const [currentDate, setCurrentDate] = useState(new Date());
   const [hoveredDate, setHoveredDate] = useState<{ date: Date, rect: DOMRect } | null>(null);
-
-  // Task List Hover State
-  const [hoveredTaskId, setHoveredTaskId] = useState<string | null>(null);
 
   useEffect(() => {
     setActiveNav(currentView);
@@ -291,23 +294,14 @@ export const DashboardLayout: React.FC<DashboardProps> = ({
   };
 
   // ToDo Handlers
-  const handleAddTodo = () => {
+  const handleAddTodoClick = () => {
       if (!todoInput.trim()) return;
-      const newTodo: TodoItem = {
-          id: Date.now().toString(),
-          text: todoInput,
-          completed: false
-      };
-      setTodos([newTodo, ...todos]);
+      onAddTodo?.(todoInput);
       setTodoInput('');
   };
 
-  const handleToggleTodo = (id: string) => {
-      setTodos(todos.map(t => t.id === id ? { ...t, completed: !t.completed } : t));
-  };
-
   const handleKeyDownTodo = (e: React.KeyboardEvent) => {
-      if (e.key === 'Enter') handleAddTodo();
+      if (e.key === 'Enter') handleAddTodoClick();
   };
 
   // Calendar Helpers
@@ -511,6 +505,28 @@ export const DashboardLayout: React.FC<DashboardProps> = ({
         );
     } else {
         // TASKS CARD
+        // Check if Linked
+        if (!isClassroomLinked) {
+            return (
+                <div className="h-full flex flex-col items-center justify-center text-center gap-4 p-4">
+                    <div className={`absolute -right-4 -top-4 w-24 h-24 rounded-full blur-xl ${isDarkMode ? `bg-gray-500/10` : `bg-gray-200/50`}`} />
+                    <div className={`w-12 h-12 rounded-2xl flex items-center justify-center ${isDarkMode ? 'bg-white/10' : 'bg-gray-100 text-gray-400'}`}>
+                         <Link2 size={24} />
+                    </div>
+                    <div>
+                        <h3 className={`text-sm font-black uppercase mb-1 ${isDarkMode ? 'text-white' : 'text-gray-800'}`}>Classroom</h3>
+                        <p className="text-[10px] opacity-60 max-w-[150px] mx-auto leading-relaxed">Conecte sua conta Google para ver tarefas aqui.</p>
+                    </div>
+                    <button 
+                        onClick={onOpenSettings}
+                        className={`text-[10px] font-bold uppercase tracking-wide px-4 py-2 rounded-xl transition-colors ${isDarkMode ? 'bg-white text-black hover:bg-gray-200' : 'bg-black text-white hover:bg-gray-800'}`}
+                    >
+                        Vincular
+                    </button>
+                </div>
+            )
+        }
+
         return (
             <div className="h-full flex flex-col gap-4">
                 <div className={`absolute -right-4 -top-4 w-24 h-24 rounded-full blur-xl ${isDarkMode ? `bg-${primaryColor}-500/10` : `bg-${primaryColor}-200/30`}`} />
@@ -915,15 +931,24 @@ export const DashboardLayout: React.FC<DashboardProps> = ({
                             <h3 className={`text-xs font-bold uppercase ${frameText}`}>Próximas Entregas</h3>
                             <div className={`text-[10px] px-2 py-0.5 rounded-md ${isDarkMode ? 'bg-white/10' : 'bg-black/10'}`}>{classroomWork.length}</div>
                          </div>
-                         {classroomWork.slice(0, 3).map(work => (
-                             <div key={work.id} className="flex justify-between items-center py-2 border-b border-dashed border-gray-500/10 last:border-0">
-                                 <span className={`text-xs truncate max-w-[70%] ${frameText}`}>{work.title}</span>
-                                 <span className={`text-[10px] font-bold ${isDarkMode ? `text-${primaryColor}-400` : `text-${primaryColor}-600`}`}>
-                                     {work.jsDate?.toLocaleDateString('pt-BR', {day: '2-digit', month: '2-digit'})}
-                                 </span>
+                         {isClassroomLinked ? (
+                             <>
+                                {classroomWork.slice(0, 3).map(work => (
+                                    <div key={work.id} className="flex justify-between items-center py-2 border-b border-dashed border-gray-500/10 last:border-0">
+                                        <span className={`text-xs truncate max-w-[70%] ${frameText}`}>{work.title}</span>
+                                        <span className={`text-[10px] font-bold ${isDarkMode ? `text-${primaryColor}-400` : `text-${primaryColor}-600`}`}>
+                                            {work.jsDate?.toLocaleDateString('pt-BR', {day: '2-digit', month: '2-digit'})}
+                                        </span>
+                                    </div>
+                                ))}
+                                {classroomWork.length === 0 && <p className="text-xs opacity-50 text-center py-2">Nada pendente.</p>}
+                             </>
+                         ) : (
+                             <div className="text-center py-4">
+                                <p className="text-xs opacity-50 mb-2">Classroom não vinculado</p>
+                                <button onClick={onOpenSettings} className={`text-[10px] font-bold uppercase underline ${isDarkMode ? 'text-white' : 'text-black'}`}>Conectar</button>
                              </div>
-                         ))}
-                         {classroomWork.length === 0 && <p className="text-xs opacity-50 text-center py-2">Nada pendente.</p>}
+                         )}
                      </div>
                 </div>
 
@@ -1012,9 +1037,9 @@ export const DashboardLayout: React.FC<DashboardProps> = ({
                 </div>
 
                 {/* Sidebar Content */}
-                <div className="flex-1 relative overflow-hidden flex flex-col">
+                <div className="flex-1 relative overflow-hidden flex flex-col custom-scroll overflow-y-auto">
                   <AnimatePresence mode="wait">
-                      {rightTab === 'overview' ? (
+                      {rightTab === 'overview' && (
                           <motion.div 
                               key="overview"
                               initial={{ opacity: 0, x: 20 }}
@@ -1022,7 +1047,7 @@ export const DashboardLayout: React.FC<DashboardProps> = ({
                               exit={{ opacity: 0, x: -20 }}
                               className="h-full flex flex-col gap-4"
                           >
-                              {/* CALENDAR WIDGET - Main Item */}
+                              {/* CALENDAR WIDGET */}
                               <div className={`rounded-[2rem] border p-6 relative flex flex-col shadow-sm transition-colors ${isDarkMode ? 'bg-white/5 border-white/10' : 'bg-white border-gray-200'}`}>
                                   {/* Calendar Header */}
                                   <div className="flex items-center justify-between mb-4">
@@ -1085,6 +1110,83 @@ export const DashboardLayout: React.FC<DashboardProps> = ({
                                           );
                                       })}
                                   </div>
+                              </div>
+                            
+                              {/* TODO LIST */}
+                              <div className={`rounded-[2rem] border p-5 flex flex-col flex-1 shadow-sm transition-colors ${isDarkMode ? 'bg-white/5 border-white/10' : 'bg-white border-gray-200'}`}>
+                                  <div className="flex items-center justify-between mb-3">
+                                      <h3 className={`text-xs font-bold uppercase tracking-widest flex items-center gap-2 ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                                          <ListTodo size={14} /> Tarefas
+                                      </h3>
+                                      <span className="text-[10px] font-bold opacity-50">{todos.filter(t => !t.completed).length} pendentes</span>
+                                  </div>
+                                  
+                                  <div className="flex items-center gap-2 mb-3 bg-gray-50 dark:bg-black/20 p-2 rounded-xl border border-gray-200 dark:border-white/5">
+                                      <Plus size={16} className="text-gray-400" />
+                                      <input 
+                                          type="text" 
+                                          value={todoInput}
+                                          onChange={(e) => setTodoInput(e.target.value)}
+                                          onKeyDown={handleKeyDownTodo}
+                                          placeholder="Nova tarefa..."
+                                          className={`bg-transparent outline-none text-xs font-bold w-full ${isDarkMode ? 'text-white placeholder:text-gray-600' : 'text-gray-800 placeholder:text-gray-400'}`}
+                                      />
+                                      <button onClick={handleAddTodoClick} className={`p-1.5 rounded-lg transition-colors ${todoInput.trim() ? `bg-${primaryColor}-500 text-white` : 'bg-transparent text-gray-400'}`}>
+                                          <ArrowRight size={14} />
+                                      </button>
+                                  </div>
+
+                                  <div className="flex-1 overflow-y-auto custom-scroll space-y-2 max-h-[150px]">
+                                      {todos.length === 0 ? (
+                                          <div className="text-center py-6 opacity-40 text-xs font-bold">Sem tarefas.</div>
+                                      ) : (
+                                          todos.map((todo) => (
+                                              <div key={todo.id} className="flex items-center gap-3 group">
+                                                  <button 
+                                                      onClick={() => onToggleTodo?.(todo.id)}
+                                                      className={`w-5 h-5 rounded-md border flex items-center justify-center transition-all ${todo.completed ? `bg-${primaryColor}-500 border-${primaryColor}-500 text-white` : (isDarkMode ? 'border-white/20 hover:border-white/40' : 'border-gray-300 hover:border-gray-400')}`}
+                                                  >
+                                                      {todo.completed && <Check size={12} />}
+                                                  </button>
+                                                  <span className={`text-xs font-medium flex-1 truncate transition-all ${todo.completed ? 'opacity-40 line-through' : (isDarkMode ? 'text-gray-300' : 'text-gray-700')}`}>
+                                                      {todo.text}
+                                                  </span>
+                                                  <button onClick={() => onRemoveTodo?.(todo.id)} className="opacity-0 group-hover:opacity-100 p-1.5 text-gray-400 hover:text-red-400 transition-all">
+                                                      <Trash2 size={12} />
+                                                  </button>
+                                              </div>
+                                          ))
+                                      )}
+                                  </div>
+                              </div>
+                              
+                              {/* Bottom Mini Cards */}
+                              <div className="grid grid-cols-2 gap-3 mt-auto">
+                                    {/* Next Holiday Mini */}
+                                    <div className={`p-4 rounded-[1.5rem] border flex flex-col justify-center ${isDarkMode ? 'bg-indigo-500/10 border-indigo-500/20' : 'bg-indigo-50 border-indigo-100'}`}>
+                                        <div className="text-[9px] font-bold uppercase tracking-wider text-indigo-500 mb-1">Próximo Feriado</div>
+                                        {upcomingHoliday ? (
+                                            <>
+                                                <div className={`text-sm font-black leading-tight mb-0.5 ${isDarkMode ? 'text-indigo-100' : 'text-indigo-900'}`}>{upcomingHoliday.name}</div>
+                                                <div className="text-[10px] opacity-70 font-bold text-indigo-400">{isTodayHoliday ? 'Hoje!' : `Faltam ${upcomingHoliday.diffDays} dias`}</div>
+                                            </>
+                                        ) : (
+                                            <div className="text-xs font-bold opacity-50">Nenhum</div>
+                                        )}
+                                    </div>
+
+                                    {/* Next Task Mini */}
+                                    <div className={`p-4 rounded-[1.5rem] border flex flex-col justify-center ${isDarkMode ? `bg-${primaryColor}-500/10 border-${primaryColor}-500/20` : `bg-${primaryColor}-50 border-${primaryColor}-100`}`}>
+                                        <div className={`text-[9px] font-bold uppercase tracking-wider mb-1 text-${primaryColor}-500`}>Entrega</div>
+                                        {nextTask ? (
+                                            <>
+                                                <div className={`text-sm font-black leading-tight mb-0.5 truncate ${isDarkMode ? `text-${primaryColor}-100` : `text-${primaryColor}-900`}`}>{nextTask.title}</div>
+                                                <div className={`text-[10px] opacity-70 font-bold text-${primaryColor}-400`}>{nextTask.jsDate?.toLocaleDateString('pt-BR', {day: '2-digit', month: '2-digit'})}</div>
+                                            </>
+                                        ) : (
+                                            <div className="text-xs font-bold opacity-50">Nenhuma</div>
+                                        )}
+                                    </div>
                               </div>
 
                               {/* HOVER CARD POPUP (Fixed Position) */}
@@ -1169,9 +1271,94 @@ export const DashboardLayout: React.FC<DashboardProps> = ({
                                   )}
                               </AnimatePresence>
                           </motion.div>
-                      ) : (
-                          // ... Other Tabs (Tasks / Holidays) ...
-                          <div /> 
+                      )}
+                      
+                      {rightTab === 'tasks' && (
+                          <motion.div 
+                              key="tasks"
+                              initial={{ opacity: 0, x: 20 }}
+                              animate={{ opacity: 1, x: 0 }}
+                              exit={{ opacity: 0, x: -20 }}
+                              className="h-full overflow-y-auto space-y-3 pb-4"
+                          >
+                              {isClassroomLinked ? (
+                                  classroomWork.length > 0 ? (
+                                    classroomWork.map((work, idx) => (
+                                        <div key={idx} className={`p-4 rounded-[1.5rem] border hover:scale-[1.02] transition-transform ${isDarkMode ? 'bg-white/5 border-white/10' : 'bg-white border-gray-100 shadow-sm'}`}>
+                                            <div className="flex justify-between items-start mb-2">
+                                                <div className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded ${isDarkMode ? 'bg-white/10 text-gray-300' : 'bg-gray-100 text-gray-600'}`}>
+                                                    {work.courseName}
+                                                </div>
+                                                <div className={`text-[10px] font-bold ${work.jsDate && work.jsDate < new Date() ? 'text-red-400' : `text-${primaryColor}-500`}`}>
+                                                    {work.jsDate?.toLocaleDateString('pt-BR')}
+                                                </div>
+                                            </div>
+                                            <h3 className={`text-sm font-bold leading-tight mb-2 ${frameText}`}>{work.title}</h3>
+                                            <a href={work.alternateLink} target="_blank" rel="noreferrer" className={`text-[10px] font-bold uppercase underline decoration-dashed ${isDarkMode ? 'text-gray-400 hover:text-white' : 'text-gray-500 hover:text-black'}`}>
+                                                Abrir no Classroom
+                                            </a>
+                                        </div>
+                                    ))
+                                  ) : (
+                                      <div className="flex flex-col items-center justify-center h-40 opacity-50">
+                                          <CheckSquare size={32} className="mb-2" />
+                                          <span className="text-xs font-bold uppercase">Tudo feito!</span>
+                                      </div>
+                                  )
+                              ) : (
+                                  <div className="flex flex-col items-center justify-center h-full text-center p-6 gap-4">
+                                      <div className={`w-16 h-16 rounded-full flex items-center justify-center ${isDarkMode ? 'bg-white/10' : 'bg-gray-100'}`}>
+                                          <Monitor size={24} className="opacity-50" />
+                                      </div>
+                                      <div>
+                                          <h3 className={`font-bold text-sm ${frameText}`}>Não Vinculado</h3>
+                                          <p className="text-xs opacity-60 mt-1">Conecte sua conta Google nas configurações.</p>
+                                      </div>
+                                      <button onClick={onOpenSettings} className={`px-4 py-2 rounded-xl text-xs font-bold uppercase ${isDarkMode ? 'bg-white text-black' : 'bg-black text-white'}`}>
+                                          Conectar
+                                      </button>
+                                  </div>
+                              )}
+                          </motion.div>
+                      )}
+
+                      {rightTab === 'holidays' && (
+                          <motion.div 
+                              key="holidays"
+                              initial={{ opacity: 0, x: 20 }}
+                              animate={{ opacity: 1, x: 0 }}
+                              exit={{ opacity: 0, x: -20 }}
+                              className="h-full overflow-y-auto space-y-3 pb-4"
+                          >
+                              {holidays.length > 0 ? (
+                                  holidays.map((h, idx) => {
+                                      const hDate = parseDateLocal(h.date);
+                                      const today = new Date();
+                                      today.setHours(0,0,0,0);
+                                      const isPast = hDate < today;
+                                      
+                                      if (isPast) return null; // Show only future holidays? Or sort them.
+
+                                      return (
+                                        <div key={idx} className={`p-4 rounded-[1.5rem] border flex items-center gap-4 ${isDarkMode ? 'bg-white/5 border-white/10' : 'bg-white border-gray-100 shadow-sm'}`}>
+                                            <div className={`flex flex-col items-center justify-center w-12 h-12 rounded-xl shrink-0 ${isDarkMode ? 'bg-indigo-500/20 text-indigo-400' : 'bg-indigo-50 text-indigo-600'}`}>
+                                                <span className="text-[10px] font-bold uppercase">{MONTH_NAMES[hDate.getMonth()].slice(0,3)}</span>
+                                                <span className="text-lg font-black leading-none">{hDate.getDate()}</span>
+                                            </div>
+                                            <div>
+                                                <h3 className={`text-sm font-bold leading-tight ${frameText}`}>{h.name}</h3>
+                                                <div className="text-[10px] font-bold opacity-50 uppercase tracking-wide mt-0.5">{DAYS_OF_WEEK[hDate.getDay()]}</div>
+                                            </div>
+                                        </div>
+                                      )
+                                  })
+                              ) : (
+                                  <div className="flex flex-col items-center justify-center h-40 opacity-50">
+                                      <Palmtree size={32} className="mb-2" />
+                                      <span className="text-xs font-bold uppercase">Sem feriados</span>
+                                  </div>
+                              )}
+                          </motion.div>
                       )}
                   </AnimatePresence>
                 </div>
