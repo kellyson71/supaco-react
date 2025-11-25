@@ -164,7 +164,7 @@ export const PomodoroWidget: React.FC<PomodoroWidgetProps> = ({ isDarkMode, prim
     <>
       {isOpen && (
         <div
-          className="fixed inset-0 z-[80] bg-black/30 backdrop-blur-[2px]"
+          className="fixed inset-0 z-[240] bg-black/30 backdrop-blur-[2px]"
           onClick={() => setIsOpen(false)}
         />
       )}
@@ -174,7 +174,7 @@ export const PomodoroWidget: React.FC<PomodoroWidgetProps> = ({ isDarkMode, prim
         initial={false}
         animate={{ width, height, borderRadius }}
         transition={{ type: 'spring', stiffness: 280, damping: 24 }}
-        className={`overflow-hidden flex flex-col z-[90]
+        className={`overflow-hidden flex flex-col z-[1000]
             ${isOpen && isMobile ? 'fixed inset-0 m-0' : 'relative'} 
             ${glassClass}
             ${!isOpen && isMobile ? 'rounded-full' : 'backdrop-blur-xl border'}
@@ -190,7 +190,7 @@ export const PomodoroWidget: React.FC<PomodoroWidgetProps> = ({ isDarkMode, prim
               className="flex-1 flex flex-col h-full relative"
             >
               {/* HEADER */}
-              <div className="flex items-center justify-between px-6 py-5 shrink-0">
+              <div className="flex items-center justify-between px-6 py-5 shrink-0 pt-safe-area-top">
                 {showSettings ? (
                     <button 
                         onClick={() => setShowSettings(false)}

@@ -1,4 +1,3 @@
-
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Sparkles, CornerDownLeft, Settings, MessageCircle } from 'lucide-react';
@@ -276,14 +275,14 @@ DIRETRIZES:
 
   return (
     <>
-      {isOpen && <div className="fixed inset-0 z-[80] bg-black/30 backdrop-blur-[2px]" onClick={() => setIsOpen(false)} />}
+      {isOpen && <div className="fixed inset-0 z-[240] bg-black/30 backdrop-blur-[2px]" onClick={() => setIsOpen(false)} />}
 
       <motion.div
         layout
         initial={false}
         animate={{ width, height, borderRadius }}
         transition={{ type: 'spring', stiffness: 280, damping: 24 }}
-        className={`overflow-hidden flex flex-col z-[90]
+        className={`overflow-hidden flex flex-col z-[1000]
           ${isOpen && isMobile ? 'fixed inset-0 m-0' : 'relative'} 
           ${glassClass}
           ${!isOpen && isMobile ? 'rounded-full' : 'backdrop-blur-xl border'}
@@ -300,7 +299,7 @@ DIRETRIZES:
               className="flex-1 flex flex-col h-full relative"
             >
               {/* Header */}
-              <div className={`flex items-center justify-between px-5 py-3 shrink-0 border-b ${isDarkMode ? 'border-white/5' : 'border-black/5'}`}>
+              <div className={`flex items-center justify-between px-5 py-3 shrink-0 border-b ${isDarkMode ? 'border-white/5' : 'border-black/5'} pt-safe-area-top`}>
                   <div className="flex items-center gap-2">
                       <MonochromeIcon accentColor={accentColor} />
                       <span className={`text-xs font-bold tracking-wider uppercase ${isDarkMode ? 'text-white/90' : `text-${accentColor}-900/80`}`}>
@@ -387,8 +386,8 @@ DIRETRIZES:
                 <div ref={messagesEndRef} />
               </div>
 
-              {/* Input Area */}
-              <div className="p-4 pt-0 pb-6 md:pb-4">
+              {/* Input Area - Adjusted Padding for Mobile Nav / Keyboard */}
+              <div className="p-4 pt-0 pb-8 md:pb-4 mb-14 md:mb-0">
                   <div className={`flex items-center gap-2 rounded-2xl p-1 pl-4 border transition-colors ${isDarkMode ? 'bg-black/40 border-white/10' : 'bg-white/40 border-white/20'}`}>
                       <input
                           ref={inputRef}

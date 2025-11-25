@@ -1,4 +1,3 @@
-
 import { supabase } from './supabaseClient';
 
 // Service for simulating a folder-based cache structure in localStorage.
@@ -149,6 +148,41 @@ export const SecureStorage = {
             return true;
         } catch (error) {
             console.error("[Storage] Cloud load failed:", error);
+            return false;
+        }
+    },
+
+    /**
+     * Fetches all registered users from Supabase (Admin Only function effectively)
+     */
+    getAllUsers: async () => {
+        try {
+            const { data, error } = await supabase
+                .from('user_data')
+                .select('id, profile, academic, updated_at')
+                .order('updated_at', { ascending: false });
+
+            if (error) throw error;
+            return data || [];
+        } catch (error) {
+            console.error("[Storage] Get all users failed:", error);
+            return [];
+        }
+    },
+
+    /**
+     * Checks if the provided matricula belongs to an admin.
+     * Uses simple obfuscation to avoid hardcoding the plain text ID in the bundle.
+     */
+    isAdmin: (matricula: string | undefined | null) => {
+        if (!matricula) return false;
+        // Target is the Admin Matricula but stored as Base64 of its reverse to prevent grep/search in DevTools.
+        // Plain: "20251094040030" -> Reverse: "03004049015202" -> Base64: "MDMwMDQwNDkwMTUyMDI="
+        const TARGET_HASH = "MDMwMDQwNDkwMTUyMDI="; 
+        try {
+            const inputHash = btoa(matricula.split('').reverse().join(''));
+            return inputHash === TARGET_HASH;
+        } catch (e) {
             return false;
         }
     }

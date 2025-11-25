@@ -1,7 +1,8 @@
 import React from 'react';
-import { Home, BookOpen, AlertTriangle, Calendar, Monitor } from 'lucide-react';
+import { Home, BookOpen, AlertTriangle, Calendar, Monitor, Shield } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { ViewState } from '../types';
+import { SecureStorage } from '../services/SecureStorage';
 
 interface MobileNavBarProps {
   currentView: ViewState;
@@ -12,6 +13,7 @@ interface MobileNavBarProps {
 
 export const MobileNavBar: React.FC<MobileNavBarProps> = ({ currentView, onChangeView, isDarkMode, primaryColor }) => {
   
+  // Basic Nav Items
   const navItems = [
     { id: ViewState.DASHBOARD, icon: Home, label: 'Início' },
     { id: ViewState.GRADES, icon: BookOpen, label: 'Notas' },
@@ -20,10 +22,16 @@ export const MobileNavBar: React.FC<MobileNavBarProps> = ({ currentView, onChang
     { id: ViewState.CLASSROOM, icon: Monitor, label: 'Class' },
   ];
 
+  // Dynamically add Admin if needed
+  const matricula = localStorage.getItem('suap_username');
+  if (SecureStorage.isAdmin(matricula)) {
+      navItems.push({ id: ViewState.ADMIN, icon: Shield, label: 'Admin' });
+  }
+
   return (
     <div className="md:hidden fixed bottom-4 left-4 right-4 z-[200]">
       <div 
-        className={`flex items-center justify-between px-2 py-3 rounded-[2rem] shadow-2xl backdrop-blur-2xl border transition-colors duration-500
+        className={`flex items-center justify-between px-2 py-3 rounded-[2rem] shadow-2xl backdrop-blur-2xl border transition-colors duration-500 overflow-x-auto hide-scrollbar
         ${isDarkMode 
           ? 'bg-slate-950/90 border-white/10 shadow-black/50' 
           : 'bg-white/90 border-white/50 shadow-gray-200/50'
@@ -35,7 +43,7 @@ export const MobileNavBar: React.FC<MobileNavBarProps> = ({ currentView, onChang
             <button
               key={item.id}
               onClick={() => onChangeView(item.id)}
-              className={`flex flex-col items-center justify-center gap-1 p-2 rounded-2xl transition-all duration-300 relative group min-h-[48px]
+              className={`flex flex-col items-center justify-center gap-1 p-2 rounded-2xl transition-all duration-300 relative group min-h-[48px] min-w-[50px]
                  ${isActive ? 'flex-[1.5]' : 'flex-1'}
               `}
             >

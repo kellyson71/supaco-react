@@ -7,7 +7,8 @@ export enum ViewState {
   SCHEDULE = 'SCHEDULE',
   CLASSROOM = 'CLASSROOM',
   PROFILE = 'PROFILE',
-  CONCLUSION = 'CONCLUSION'
+  CONCLUSION = 'CONCLUSION',
+  ADMIN = 'ADMIN'
 }
 
 export type ThemeVariant = 'default' | 'monochrome' | 'saturated' | 'dynamic' | 'sepia';
@@ -28,8 +29,14 @@ export interface Student {
 
 // Updated to match GET /api/ensino/periodos/
 export interface SuapPeriod {
-  id: number;
+  id: number; // calculated or from api
   semestre: string; // "2024.1"
+}
+
+// New Interface for GET /api/ensino/meus-periodos-letivos/
+export interface SuapMeusPeriodosLetivos {
+  ano_letivo: number;
+  periodo_letivo: number;
 }
 
 export interface SuapProfile {
@@ -112,6 +119,15 @@ export interface SuapDiarioDisciplina {
   descricao: string;
   sigla: string;
   situacao?: { rotulo: string; status: string };
+  ch_total_aula: number;
+  ch_total_relogio?: number;
+  ch_cumprida_aula: number;
+  qtd_faltas: number;
+  qtd_avaliacoes?: number;
+  frequencia: number;
+  // Generic arrays based on endpoint schema
+  notas?: any[]; 
+  medias?: any[];
 }
 
 export interface SuapDiario {
@@ -120,6 +136,7 @@ export interface SuapDiario {
   professores: SuapDiarioProfessor[];
   horarios: SuapDiarioHorario[];
   local: SuapDiarioLocal;
+  laboratorio?: SuapDiarioLocal;
   ambiente_virtual: string;
 }
 

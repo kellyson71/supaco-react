@@ -5,7 +5,7 @@ import { DashboardLayout } from './components/DashboardLayout';
 import { ContentView } from './components/ContentViews';
 import { LandingPage } from './components/LandingPage';
 import { MobileNavBar } from './components/MobileNavBar';
-import { ViewState, ThemeVariant, SuapProfile, SuapMeusDadosAluno, SuapPeriod, SuapBoletim, SuapDiarioResponse, ProcessedClass, GradeInfo, SuapCompletionData, Holiday, ClassroomWork, ClassroomCourse, PerformanceSettings } from './types';
+import { ViewState, ThemeVariant, SuapProfile, SuapMeusDadosAluno, SuapPeriod, SuapDiario, ProcessedClass, GradeInfo, SuapCompletionData, Holiday, ClassroomWork, ClassroomCourse, PerformanceSettings, SuapMeusPeriodosLetivos } from './types';
 import { AnimatePresence, motion } from 'framer-motion';
 import { SecureStorage } from './services/SecureStorage';
 import { WifiOff, RefreshCw } from 'lucide-react';
@@ -82,10 +82,15 @@ const App: React.FC = () => {
   const [isOffline, setIsOffline] = useState(!navigator.onLine);
   const [isSyncing, setIsSyncing] = useState(false);
   
-  // Data State (Will be populated by cache first, then API)
+  // Data State
   const [userData, setUserData] = useState<SuapProfile | null>(null);
   const [academicData, setAcademicData] = useState<SuapMeusDadosAluno | null>(null);
-  const [currentPeriod, setCurrentPeriod] = useState<SuapPeriod | null>(null);
+  const [currentPeriod, setCurrentPeriod] = useState<SuapPeriod | null>(null); // The actual current period (time-based)
+  const [periods, setPeriods] = useState<SuapPeriod[]>([]); // List of all periods
+  
+  // Viewing State (The period currently being viewed in Grades)
+  const [viewingPeriod, setViewingPeriod] = useState<SuapPeriod | null>(null);
+
   const [processedSchedule, setProcessedSchedule] = useState<ProcessedClass[]>([]);
   const [processedGrades, setProcessedGrades] = useState<GradeInfo[]>([]);
   const [completionData, setCompletionData] = useState<SuapCompletionData | null>(null);
@@ -140,7 +145,6 @@ const App: React.FC = () => {
   const syncTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
-      // If user is logged in and we have a matricula, perform a debounced sync whenever settings change
       if (isLoggedIn && userData?.matricula && !isOffline) {
           if (syncTimeoutRef.current) clearTimeout(syncTimeoutRef.current);
           
@@ -149,7 +153,7 @@ const App: React.FC = () => {
               console.log("[App] Auto-syncing settings to cloud...");
               await SecureStorage.syncToCloud(userData.matricula!);
               setIsSyncing(false);
-          }, 3000); // 3 second debounce
+          }, 3000); 
       }
   }, [currentWallpaper, customPhotoUrl, useCustomPhoto, themeVariant, isDarkMode, performanceSettings, isLoggedIn, userData?.matricula]);
 
@@ -207,7 +211,6 @@ const App: React.FC = () => {
                   setCurrentView(ViewState.PROFILE);
                   setProfileInitialTab('settings');
                   setAutoExpandClassroom(true);
-                  // Ensure landing is skipped if returning from OAuth
                   setShowLanding(false);
                   localStorage.setItem(CACHE_KEYS.WELCOME_SEEN, 'true');
               }, 100);
@@ -218,7 +221,7 @@ const App: React.FC = () => {
   // --- KEYBOARD SHORTCUTS ---
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-        if (showLanding) return; // Disable shortcuts on landing page
+        if (showLanding) return; 
 
         if (e.repeat) return; 
         if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
@@ -239,40 +242,52 @@ const App: React.FC = () => {
                 case 'i': e.preventDefault(); handleOpenSettings(); break;
             }
         }
-
-        if (e.altKey && !e.ctrlKey && !e.metaKey) {
-             switch(e.key) {
-                case '1': e.preventDefault(); setRightSidebarTab('overview'); break;
-                case '2': e.preventDefault(); setRightSidebarTab('tasks'); break;
-                case '3': e.preventDefault(); setRightSidebarTab('holidays'); break;
-             }
-        }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [showLanding]);
 
-  // --- PROCESSING LOGIC (Defined first to be available) ---
+  // --- PROCESSING LOGIC ---
 
-  const processGrades = (boletim: SuapBoletim[]) => {
-      return boletim.map(b => ({
-          subject: b.disciplina.replace(/\(.*\)/, '').trim(),
-          code: b.codigo_diario,
-          status: b.situacao,
-          n1: b.nota_etapa_1?.nota ?? '-',
-          n2: b.nota_etapa_2?.nota ?? '-',
-          n3: b.nota_etapa_3?.nota ?? '-',
-          n4: b.nota_etapa_4?.nota ?? '-',
-          finalGrade: b.nota_avaliacao_final?.nota ?? '-',
-          average: b.media_disciplina ?? b.media_final_disciplina ?? '-',
-          frequency: b.percentual_carga_horaria_frequentada,
-          absences: b.numero_faltas,
-          totalHours: b.carga_horaria,
-          limit: Math.floor(b.carga_horaria * 0.25)
-      }));
+  // Refactored to work with SuapDiario[] from /api/ensino/diarios/
+  const processGradesFromDiarios = (diarios: SuapDiario[]): GradeInfo[] => {
+      return diarios.map(d => {
+          // Attempt to extract grades from 'notas' or 'medias' if available
+          // Since structure can be generic, we use best-effort access
+          const notas = d.disciplina.notas || [];
+          const medias = d.disciplina.medias || [];
+          
+          // Helper to safely get a grade value
+          const getVal = (arr: any[], idx: number) => {
+              if (arr && arr[idx]) {
+                  return arr[idx].nota !== undefined ? arr[idx].nota : (arr[idx].media !== undefined ? arr[idx].media : '-');
+              }
+              return '-';
+          };
+
+          // Use media_final_disciplina or situacao.rotulo logic if available
+          // Usually diarios has `situacao` which helps determine status
+          
+          return {
+              subject: d.disciplina.descricao || 'Disciplina',
+              code: d.disciplina.sigla || String(d.id),
+              status: d.disciplina.situacao?.rotulo || d.disciplina.situacao?.status || 'Cursando',
+              n1: getVal(notas, 0), // Assumes sequential order if API returns array
+              n2: getVal(notas, 1),
+              n3: getVal(notas, 2),
+              n4: getVal(notas, 3),
+              finalGrade: '-', // Diaries usually don't separate final exam explicitly in top level, often inside evaluations
+              average: '-', // Will be filled if API provides explicit field in future or calculated from medias
+              frequency: d.disciplina.frequencia || 0,
+              absences: d.disciplina.qtd_faltas || 0,
+              totalHours: d.disciplina.ch_total_aula || 0,
+              // Calculation: 25% of total hours is the limit
+              limit: Math.floor((d.disciplina.ch_total_aula || 0) * 0.25)
+          };
+      });
   };
 
-  const processSchedule = (diarios: any[]): ProcessedClass[] => {
+  const processScheduleFromDiarios = (diarios: SuapDiario[]): ProcessedClass[] => {
       const dayMap: Record<string, number> = {
           'Segunda': 2, 'Terça': 3, 'Quarta': 4, 'Quinta': 5, 'Sexta': 6, 'Sábado': 7, 'Domingo': 1
       };
@@ -322,16 +337,24 @@ const App: React.FC = () => {
           const completion = SecureStorage.loadItem(matricula, 'completion');
           if (completion) setCompletionData(completion);
 
-          const period = SecureStorage.loadItem(matricula, 'current_period');
-          if (period) setCurrentPeriod(period);
+          const cachedPeriods = SecureStorage.loadItem(matricula, 'periods');
+          if (cachedPeriods) setPeriods(cachedPeriods);
 
-          const grades = SecureStorage.loadItem(matricula, 'grades');
-          if (grades) setProcessedGrades(grades);
+          const activeP = SecureStorage.loadItem(matricula, 'active_period');
+          if (activeP) {
+              setCurrentPeriod(activeP);
+              setViewingPeriod(activeP);
+              
+              // Load grades/schedule for the active period by default
+              // Note: We are now storing "diarios_raw" and processing them
+              // Or storing the processed result. Let's look for processed.
+              const grades = SecureStorage.loadItem(matricula, `grades_${activeP.semestre}`);
+              if (grades) setProcessedGrades(grades);
 
-          const schedule = SecureStorage.loadItem(matricula, 'schedule');
-          if (schedule) setProcessedSchedule(schedule);
+              const schedule = SecureStorage.loadItem(matricula, `schedule_${activeP.semestre}`);
+              if (schedule) setProcessedSchedule(schedule);
+          }
 
-          // Holidays are global, not per user, but we can just load from generic storage
           const cachedHolidays = localStorage.getItem('suap_cache_holidays');
           if (cachedHolidays) setHolidays(JSON.parse(cachedHolidays));
 
@@ -340,44 +363,35 @@ const App: React.FC = () => {
       }
   };
 
-  // --- API FETCHING & REFRESH ---
+  // --- API FETCHING ---
 
   const refreshSuapToken = async () => {
       if (!navigator.onLine) return false;
-      
       const refresh = localStorage.getItem('suap_refresh_token');
       if (!refresh) return false;
-
       try {
           const response = await fetch('https://suap.ifrn.edu.br/api/token/refresh/', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ refresh })
           });
-
           if (response.ok) {
               const data = await response.json();
               localStorage.setItem('suap_access_token', data.access);
               if (data.refresh) localStorage.setItem('suap_refresh_token', data.refresh);
               return true;
           }
-      } catch (e) {
-          console.error("Refresh token failed", e);
-      }
+      } catch (e) { console.error("Refresh token failed", e); }
       return false;
   };
 
   const fetchWithAuth = async (url: string) => {
     let token = localStorage.getItem('suap_access_token');
     if (!token) return null;
-    
-    // Immediate offline check to prevent request latency
-    if (!navigator.onLine) {
-        console.log("Offline mode: Skipping fetch for", url);
-        return null; 
-    }
+    if (!navigator.onLine) return null; 
 
     try {
+        console.log(`[App] Fetching API: ${url}`);
         let response = await fetch(url, {
             headers: {
                 'Authorization': `Bearer ${token}`,
@@ -386,27 +400,21 @@ const App: React.FC = () => {
         });
 
         if (response.status === 401) {
-            console.log("Access Token Expired. Attempting Refresh...");
             const refreshed = await refreshSuapToken();
-            
             if (refreshed) {
                 token = localStorage.getItem('suap_access_token');
                 response = await fetch(url, {
-                    headers: {
-                        'Authorization': `Bearer ${token}`,
-                        'Accept': 'application/json'
-                    }
+                    headers: { 'Authorization': `Bearer ${token}`, 'Accept': 'application/json' }
                 });
             } else {
                 handleLogout();
                 return null;
             }
         }
-
         if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
         return await response.json();
     } catch (error) {
-        console.warn(`Fetch failed for ${url} (likely offline)`, error);
+        console.warn(`Fetch failed for ${url}`, error);
         return null;
     }
   };
@@ -420,15 +428,12 @@ const App: React.FC = () => {
               setHolidays(data);
               localStorage.setItem('suap_cache_holidays', JSON.stringify(data));
           }
-      } catch (error) {
-          console.warn("Failed to update holidays (offline)", error);
-      }
+      } catch (error) { console.warn("Failed to update holidays (offline)", error); }
   };
 
   const fetchClassroomData = async () => {
     const token = localStorage.getItem('google_classroom_token');
     if (!token || !navigator.onLine) return;
-
     try {
         const coursesRes = await fetch('https://classroom.googleapis.com/v1/courses?courseStates=ACTIVE', {
             headers: { Authorization: `Bearer ${token}` }
@@ -436,7 +441,6 @@ const App: React.FC = () => {
         if (!coursesRes.ok) return;
         const coursesData = await coursesRes.json();
         const courses: ClassroomCourse[] = coursesData.courses || [];
-
         const workPromises = courses.map(async (course) => {
             const workRes = await fetch(`https://classroom.googleapis.com/v1/courses/${course.id}/courseWork?orderBy=dueDate desc`, {
                 headers: { Authorization: `Bearer ${token}` }
@@ -449,94 +453,172 @@ const App: React.FC = () => {
                 jsDate: w.dueDate ? new Date(w.dueDate.year, w.dueDate.month - 1, w.dueDate.day, w.dueTime?.hours || 23, w.dueTime?.minutes || 59) : undefined
             }));
         });
-
         const allWork = (await Promise.all(workPromises)).flat();
         const futureWork = allWork.filter(w => w.jsDate && w.jsDate >= new Date()).sort((a, b) => a.jsDate!.getTime() - b.jsDate!.getTime());
-        
         setClassroomWork(futureWork);
-    } catch (e) {
-        console.error("Failed to fetch classroom data", e);
-    }
+    } catch (e) { console.error("Failed to fetch classroom data", e); }
   };
 
   // --- BACKGROUND SYNC ENGINE ---
-  const fetchAllUserDataBackground = async (currentMatricula: string) => {
-    console.log("[App] Starting background data sync...");
+  const fetchAllUserDataBackground = async (currentMatricula: string, forceRefresh = false) => {
+    console.log(`[App] Syncing data for ${currentMatricula} (Force: ${forceRefresh})`);
+    
+    const shouldFetch = (key: string) => {
+        if (forceRefresh) return true;
+        const data = SecureStorage.loadItem(currentMatricula, key);
+        return !data; 
+    };
+
     try {
-        // 1. User Profile (Expanded with Birth Date, CPF etc implicitly)
-        const profile = await fetchWithAuth('https://suap.ifrn.edu.br/api/v2/minhas-informacoes/meus-dados/');
-        if (profile) {
-            setUserData(profile);
-            SecureStorage.saveItem(currentMatricula, 'profile', profile);
+        setIsSyncing(true);
+
+        if (shouldFetch('profile')) {
+            const profile = await fetchWithAuth('https://suap.ifrn.edu.br/api/v2/minhas-informacoes/meus-dados/');
+            if (profile) {
+                setUserData(profile);
+                SecureStorage.saveItem(currentMatricula, 'profile', profile);
+            }
         }
 
-        // 2. Academic Data (Includes CPF too)
-        const academic = await fetchWithAuth('https://suap.ifrn.edu.br/api/ensino/meus-dados-aluno/');
-        if (academic) {
-            setAcademicData(academic);
-            SecureStorage.saveItem(currentMatricula, 'academic', academic);
+        if (shouldFetch('academic')) {
+            const academic = await fetchWithAuth('https://suap.ifrn.edu.br/api/ensino/meus-dados-aluno/');
+            if (academic) {
+                setAcademicData(academic);
+                SecureStorage.saveItem(currentMatricula, 'academic', academic);
+            }
         }
 
-        // 3. Completion
-        const completion = await fetchWithAuth('https://suap.ifrn.edu.br/api/ensino/requisitos-conclusao/');
-        if (completion) {
-            setCompletionData(completion);
-            SecureStorage.saveItem(currentMatricula, 'completion', completion);
+        if (shouldFetch('completion')) {
+            const completion = await fetchWithAuth('https://suap.ifrn.edu.br/api/ensino/requisitos-conclusao/');
+            if (completion) {
+                setCompletionData(completion);
+                SecureStorage.saveItem(currentMatricula, 'completion', completion);
+            }
         }
 
-        // 4. Periods
-        const periods: SuapPeriod[] = await fetchWithAuth('https://suap.ifrn.edu.br/api/ensino/periodos/');
-        if (periods && periods.length > 0) {
-            // We don't need to encrypt periods list as it's generic, but we can save current period
-            const sortedPeriods = periods.sort((a, b) => b.semestre.localeCompare(a.semestre));
-            const activePeriod = sortedPeriods[0];
-            
-            setCurrentPeriod(activePeriod);
-            SecureStorage.saveItem(currentMatricula, 'current_period', activePeriod);
-            
-            // 5. Grades & Schedule (Requires Period)
-            if (activePeriod) {
+        // --- PERIODS LOGIC (Using meus-periodos-letivos) ---
+        let periodList = SecureStorage.loadItem(currentMatricula, 'periods');
+        let activePeriod = SecureStorage.loadItem(currentMatricula, 'active_period');
+
+        if (!periodList || forceRefresh) {
+            // Using the user-requested endpoint
+            const data = await fetchWithAuth('https://suap.ifrn.edu.br/api/ensino/meus-periodos-letivos/');
+            if (data && data.results) {
+                const mappedPeriods: SuapPeriod[] = data.results.map((p: SuapMeusPeriodosLetivos) => ({
+                    id: p.ano_letivo * 10 + p.periodo_letivo, 
+                    semestre: `${p.ano_letivo}.${p.periodo_letivo}`
+                }));
+
+                // Sort descending (newest first)
+                mappedPeriods.sort((a, b) => b.semestre.localeCompare(a.semestre));
+                
+                periodList = mappedPeriods;
+                setPeriods(mappedPeriods);
+                SecureStorage.saveItem(currentMatricula, 'periods', mappedPeriods);
+
+                // Set Active Period (latest one)
+                if (mappedPeriods.length > 0) {
+                    activePeriod = mappedPeriods[0];
+                    setCurrentPeriod(activePeriod);
+                    SecureStorage.saveItem(currentMatricula, 'active_period', activePeriod);
+                    
+                    if (!viewingPeriod) setViewingPeriod(activePeriod);
+                }
+            } else {
+                 // Fallback to standard if needed, but primary is above
+                 // Keeping fallback empty for now to strictly follow "use the endpoint"
+            }
+        } else {
+             setPeriods(periodList);
+             setCurrentPeriod(activePeriod);
+             if (!viewingPeriod) setViewingPeriod(activePeriod);
+        }
+
+        // --- FETCH DIARIES (For Grades & Schedule) ---
+        if (activePeriod) {
+            const cacheKeyGrades = `grades_${activePeriod.semestre}`;
+            const cacheKeySchedule = `schedule_${activePeriod.semestre}`;
+
+            if (shouldFetch(cacheKeyGrades) || shouldFetch(cacheKeySchedule) || forceRefresh) {
                 await fetchAcademicDetails(activePeriod.semestre, currentMatricula);
             }
         }
         
         await fetchClassroomData();
 
-        // 6. Supabase Sync (Cloud Backup) - Triggered immediately on first load/login
-        console.log("[App] Attempting cloud backup...");
-        await SecureStorage.syncToCloud(currentMatricula);
-
-        console.log("[App] Background sync complete.");
+        if (forceRefresh) {
+             await SecureStorage.syncToCloud(currentMatricula);
+        }
 
     } catch (error) {
         console.error("[App] Error in background sync:", error);
+    } finally {
+        setIsSyncing(false);
     }
   };
 
   const fetchAcademicDetails = async (semestre: string, matricula: string) => {
-      const [ano, periodo] = semestre.split('.');
+      console.log(`[App] Fetching DIARIES for ${semestre}`);
+
+      // We ONLY use the diaries endpoint now for both grades and schedule
+      // GET /api/ensino/diarios/{semestre}/
+      const diariesResponse = await fetchWithAuth(`https://suap.ifrn.edu.br/api/ensino/diarios/${semestre}/`);
       
-      // Boletim
-      const boletim = await fetchWithAuth(`https://suap.ifrn.edu.br/api/v2/minhas-informacoes/boletim/${ano}/${periodo}/`);
-      if (boletim) {
-          const processed = processGrades(boletim);
-          SecureStorage.saveItem(matricula, 'grades', processed);
-          setProcessedGrades(processed);
-      }
+      let diariesList: SuapDiario[] = [];
+      if (Array.isArray(diariesResponse)) diariesList = diariesResponse;
+      else if (diariesResponse?.results) diariesList = diariesResponse.results;
 
-      // Diarios
-      const diariosResponse: SuapDiarioResponse = await fetchWithAuth(`https://suap.ifrn.edu.br/api/ensino/diarios/${semestre}/`);
-      let diariosList = [];
-      if (Array.isArray(diariosResponse)) {
-          diariosList = diariosResponse;
-      } else if (diariosResponse && Array.isArray(diariosResponse.results)) {
-          diariosList = diariosResponse.results;
-      }
+      if (diariesList.length > 0) {
+          // 1. Process Grades from Diaries
+          const processedGradesData = processGradesFromDiarios(diariesList);
+          SecureStorage.saveItem(matricula, `grades_${semestre}`, processedGradesData);
+          setProcessedGrades(prev => {
+              // Only update if viewing this semester
+              if (viewingPeriod?.semestre === semestre) return processedGradesData;
+              return prev;
+          });
 
-      if (diariosList.length > 0) {
-          const processed = processSchedule(diariosList);
-          SecureStorage.saveItem(matricula, 'schedule', processed);
-          setProcessedSchedule(processed);
+          // 2. Process Schedule from Diaries
+          const processedScheduleData = processScheduleFromDiarios(diariesList);
+          SecureStorage.saveItem(matricula, `schedule_${semestre}`, processedScheduleData);
+          setProcessedSchedule(prev => {
+              if (viewingPeriod?.semestre === semestre) return processedScheduleData;
+              return prev;
+          });
+      }
+  };
+
+  const handlePeriodChange = async (semestre: string) => {
+      const targetPeriod = periods.find(p => p.semestre === semestre);
+      if (!targetPeriod) return;
+
+      setViewingPeriod(targetPeriod);
+      const matricula = localStorage.getItem('suap_username');
+      if (!matricula) return;
+
+      // 1. Try Load from Cache
+      const cachedGrades = SecureStorage.loadItem(matricula, `grades_${semestre}`);
+      const cachedSchedule = SecureStorage.loadItem(matricula, `schedule_${semestre}`);
+
+      if (cachedGrades) setProcessedGrades(cachedGrades);
+      else setProcessedGrades([]); // Clear while loading
+
+      if (cachedSchedule) setProcessedSchedule(cachedSchedule);
+      else setProcessedSchedule([]);
+
+      // 2. Fetch fresh if needed (or if cache missing)
+      if (!cachedGrades || !cachedSchedule) {
+           setIsSyncing(true);
+           try {
+               await fetchAcademicDetails(semestre, matricula);
+               // Re-load to ensure state sync
+               const freshGrades = SecureStorage.loadItem(matricula, `grades_${semestre}`);
+               const freshSchedule = SecureStorage.loadItem(matricula, `schedule_${semestre}`);
+               if(freshGrades) setProcessedGrades(freshGrades);
+               if(freshSchedule) setProcessedSchedule(freshSchedule);
+           } finally {
+               setIsSyncing(false);
+           }
       }
   };
 
@@ -544,20 +626,24 @@ const App: React.FC = () => {
   
   useEffect(() => {
     fetchHolidays(); 
-
     const token = localStorage.getItem('suap_access_token');
     const matricula = localStorage.getItem('suap_username');
 
     if (token && matricula) {
       setIsLoggedIn(true);
-      // 1. Load Encrypted Cache immediately
       loadUserCache(matricula);
-      // 2. Trigger background refresh if online
       if (navigator.onLine) {
-        fetchAllUserDataBackground(matricula);
+        fetchAllUserDataBackground(matricula, false);
       }
     }
   }, []);
+
+  const handleManualRefresh = () => {
+    const matricula = localStorage.getItem('suap_username');
+    if (matricula && navigator.onLine) {
+        fetchAllUserDataBackground(matricula, true);
+    }
+  };
 
   const handleViewChange = (view: ViewState) => {
     setCurrentView(view);
@@ -581,19 +667,16 @@ const App: React.FC = () => {
       const matricula = localStorage.getItem('suap_username');
       if (matricula) {
           setIsLoggedIn(true);
-          // Initial background fetch after login
-          fetchAllUserDataBackground(matricula);
+          fetchAllUserDataBackground(matricula, true);
       }
   };
 
   const handleLogout = () => {
-      localStorage.removeItem('suap_access_token');
-      localStorage.removeItem('suap_refresh_token');
-      localStorage.removeItem('suap_username');
-      localStorage.removeItem('google_classroom_token');
-      localStorage.removeItem('suap_custom_photo');
-      localStorage.removeItem('suap_use_custom_photo');
-
+      localStorage.clear(); 
+      // In a real app we might want to keep some settings, but for this 'hard logout' clear all is safer to remove suap data
+      // Re-initialize defaults
+      localStorage.setItem(CACHE_KEYS.WALLPAPER, DEFAULT_WALLPAPER);
+      
       setUserData(null);
       setAcademicData(null);
       setProcessedSchedule([]);
@@ -601,6 +684,8 @@ const App: React.FC = () => {
       setCompletionData(null);
       setCurrentPeriod(null);
       setClassroomWork([]);
+      setPeriods([]);
+      setViewingPeriod(null);
       
       setIsLoggedIn(false);
       setCurrentView(ViewState.DASHBOARD);
@@ -624,7 +709,6 @@ const App: React.FC = () => {
   return (
     <div className={`font-sans antialiased transition-colors duration-500 ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
       
-      {/* Performance Styles Overrides */}
       <style>
         {`
             ${performanceSettings.disableBlur ? `
@@ -658,7 +742,6 @@ const App: React.FC = () => {
         `}
       </style>
 
-      {/* Syncing Indicator */}
       <AnimatePresence>
         {isSyncing && (
             <motion.div
@@ -674,7 +757,6 @@ const App: React.FC = () => {
         )}
       </AnimatePresence>
 
-      {/* Offline Indicator - Discreet */}
       <AnimatePresence>
         {isOffline && isLoggedIn && (
             <motion.div
@@ -691,10 +773,8 @@ const App: React.FC = () => {
         )}
       </AnimatePresence>
 
-      {/* Dashboard is always rendered to allow the "curtain" effect of the Landing Page */}
       <div className={showLanding ? 'fixed inset-0' : ''}>
         
-        {/* Special Filter Overlay for Sepia Mode */}
         {themeVariant === 'sepia' && (
             <div className="fixed inset-0 z-[1] pointer-events-none opacity-[0.12] mix-blend-overlay" 
                  style={{backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E")`}} 
@@ -725,7 +805,8 @@ const App: React.FC = () => {
                 rightTab={rightSidebarTab}
                 onRightTabChange={setRightSidebarTab}
                 onOpenSettings={handleOpenSettings}
-                userPhoto={activeUserPhoto} // Pass resolved photo here
+                userPhoto={activeUserPhoto} 
+                onRefresh={handleManualRefresh}
             />
 
             <AnimatePresence>
@@ -755,16 +836,18 @@ const App: React.FC = () => {
                     canInstall={!!deferredPrompt}
                     performanceSettings={performanceSettings}
                     onUpdatePerformance={setPerformanceSettings}
-                    // Profile Photo Props
                     customPhotoUrl={customPhotoUrl}
                     onUpdateCustomPhoto={handleUpdateCustomPhoto}
                     useCustomPhoto={useCustomPhoto}
                     onToggleCustomPhoto={handleToggleCustomPhoto}
+                    // New Props for Period Selection
+                    periods={periods}
+                    viewingPeriod={viewingPeriod}
+                    onPeriodChange={handlePeriodChange}
                 />
                 )}
             </AnimatePresence>
             
-            {/* New Persistent Mobile Navigation */}
             {isLoggedIn && !showLanding && (
                <MobileNavBar 
                  currentView={currentView}
@@ -776,7 +859,6 @@ const App: React.FC = () => {
         </div>
       </div>
 
-      {/* Landing Page as an Overlay */}
       <AnimatePresence>
         {showLanding && (
             <LandingPage 
