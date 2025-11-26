@@ -1,6 +1,7 @@
 
+
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { motion, AnimatePresence, PanInfo } from 'framer-motion';
+import { motion, AnimatePresence, PanInfo, useMotionValue, useTransform } from 'framer-motion';
 import { 
   Home, 
   BookOpen, 
@@ -42,10 +43,18 @@ import {
   Layers,
   ThumbsUp,
   Shield,
-  Link2
+  Link2,
+  Maximize2,
+  Minimize2,
+  Trophy,
+  Target,
+  Zap,
+  ShieldCheck,
+  Brain
 } from 'lucide-react';
 import { InvertedCorner } from './InvertedCorner';
-import { ViewState, ClassroomWork, SuapProfile, SuapPeriod, GradeInfo, ProcessedClass, SuapCompletionData, Holiday, TodoItem, SuapMeusDadosAluno } from '../types';
+import { ViewState, ClassroomWork, SuapProfile, SuapPeriod, GradeInfo, ProcessedClass, SuapCompletionData, Holiday, TodoItem, SuapMeusDadosAluno, Achievement } from '../types';
+import { ACHIEVEMENTS_LIST, getRarityColor, getRarityLabel } from '../achievements';
 import { AIChatWidget } from './AIChatWidget';
 import { PomodoroWidget } from './PomodoroWidget';
 import { SecureStorage } from '../services/SecureStorage';
@@ -77,8 +86,8 @@ interface DashboardProps {
   completionData?: SuapCompletionData | null;
   holidays?: Holiday[];
   classroomWork?: ClassroomWork[];
-  rightTab: 'overview' | 'tasks' | 'holidays';
-  onRightTabChange: (tab: 'overview' | 'tasks' | 'holidays') => void;
+  rightTab: 'overview' | 'tasks' | 'holidays' | 'achievements';
+  onRightTabChange: (tab: 'overview' | 'tasks' | 'holidays' | 'achievements') => void;
   onOpenSettings: () => void;
   userPhoto: string; // New Prop for resolved photo URL
   onRefresh?: () => void; // New prop for manual refresh
@@ -89,6 +98,212 @@ interface DashboardProps {
   onToggleTodo?: (id: string) => void;
   onRemoveTodo?: (id: string) => void;
 }
+
+// --- HOLOGRAPHIC CARD COMPONENT ---
+const HolographicCard = ({ children, primaryColor }: { children?: React.ReactNode, primaryColor: string }) => {
+    const x = useMotionValue(0);
+    const y = useMotionValue(0);
+    const rotateX = useTransform(y, [-100, 100], [10, -10]);
+    const rotateY = useTransform(x, [-100, 100], [-10, 10]);
+    const glareX = useTransform(x, [-100, 100], [0, 100]);
+    const glareY = useTransform(y, [-100, 100], [0, 100]);
+
+    const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
+        const rect = e.currentTarget.getBoundingClientRect();
+        const centerX = rect.left + rect.width / 2;
+        const centerY = rect.top + rect.height / 2;
+        x.set(e.clientX - centerX);
+        y.set(e.clientY - centerY);
+    };
+
+    const handleMouseLeave = () => {
+        x.set(0);
+        y.set(0);
+    };
+
+    return (
+        <div style={{ perspective: 1000 }} className="w-full h-full">
+            <motion.div
+                style={{ 
+                    transformStyle: "preserve-3d",
+                    rotateX,
+                    rotateY
+                }}
+                onMouseMove={handleMouseMove}
+                onMouseLeave={handleMouseLeave}
+                className="relative w-full h-full rounded-[2rem] transition-all duration-200 ease-out"
+            >
+                <div className="absolute inset-0 bg-white/10 backdrop-blur-md border border-white/20 rounded-[2rem] shadow-xl overflow-hidden">
+                    {/* Glare Effect */}
+                    <motion.div 
+                        style={{
+                            background: 'linear-gradient(105deg, transparent 20%, rgba(255,255,255,0.2) 40%, rgba(255,255,255,0.4) 45%, rgba(255,255,255,0.2) 50%, transparent 54%)',
+                            backgroundSize: '200% 200%',
+                            backgroundPositionX: glareX + '%',
+                            backgroundPositionY: glareY + '%',
+                            opacity: 0.7,
+                            pointerEvents: 'none'
+                        }}
+                        className="absolute inset-0 z-20 mix-blend-overlay"
+                    />
+                    {/* Content */}
+                    <div className="relative z-10 p-5 md:p-6 h-full flex flex-col justify-between">
+                        {children}
+                    </div>
+                </div>
+            </motion.div>
+        </div>
+    );
+};
+
+// --- ACHIEVEMENT NOTIFICATION COMPONENT ---
+const AchievementNotification = ({ achievement, onClose, isDarkMode }: { achievement: Achievement, onClose: () => void, isDarkMode: boolean }) => {
+    useEffect(() => {
+        const timer = setTimeout(onClose, 5000); // Auto close after 5s
+        return () => clearTimeout(timer);
+    }, [onClose]);
+
+    const color = getRarityColor(achievement.rarity);
+    
+    // Rarity styles
+    const rarityStyles = {
+        common: 'from-slate-400 via-gray-500 to-slate-600 shadow-gray-500/30',
+        rare: 'from-cyan-400 via-blue-500 to-indigo-600 shadow-blue-500/30',
+        epic: 'from-fuchsia-400 via-purple-500 to-violet-600 shadow-purple-500/30',
+        legendary: 'from-yellow-300 via-amber-500 to-orange-600 shadow-amber-500/40'
+    };
+
+    const gradient = rarityStyles[achievement.rarity];
+
+    return (
+        <motion.div 
+            initial={{ y: -100, opacity: 0, scale: 0.8 }}
+            animate={{ y: 0, opacity: 1, scale: 1 }}
+            exit={{ y: -100, opacity: 0, scale: 0.8 }}
+            transition={{ type: "spring", stiffness: 300, damping: 20 }}
+            className="fixed top-6 left-1/2 -translate-x-1/2 z-[300] cursor-pointer"
+            onClick={onClose}
+        >
+            <div className={`p-1.5 rounded-[2rem] bg-gradient-to-r ${gradient} shadow-2xl`}>
+                <div className={`px-6 py-4 rounded-[1.7rem] flex items-center gap-4 ${isDarkMode ? 'bg-black' : 'bg-white'}`}>
+                    <div className={`w-12 h-12 rounded-xl flex items-center justify-center shrink-0 bg-${color}-500/20 text-${color}-500 relative`}>
+                        <achievement.icon size={24} />
+                        {achievement.rarity === 'legendary' && (
+                            <div className="absolute inset-0 rounded-xl bg-amber-400/20 animate-pulse" />
+                        )}
+                    </div>
+                    <div>
+                        <div className={`text-[10px] font-black uppercase tracking-widest text-transparent bg-clip-text bg-gradient-to-r ${gradient} mb-0.5`}>
+                            {getRarityLabel(achievement.rarity)} Desbloqueado!
+                        </div>
+                        <h3 className={`text-lg font-black leading-none ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>{achievement.title}</h3>
+                        <p className={`text-xs opacity-60 mt-1 max-w-[200px] ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>{achievement.description}</p>
+                    </div>
+                </div>
+            </div>
+        </motion.div>
+    )
+}
+
+// --- FOCUS MODE OVERLAY ---
+const FocusModeOverlay = ({ onClose, nextClass, isDarkMode, primaryColor }: any) => {
+    const [notes, setNotes] = useState(localStorage.getItem('focus_mode_notes') || '');
+    const [currentTime, setCurrentTime] = useState(new Date());
+    const [timeLeft, setTimeLeft] = useState('');
+
+    useEffect(() => {
+        const timer = setInterval(() => {
+            const now = new Date();
+            setCurrentTime(now);
+
+            // Calculate Time Left in Class
+            if (nextClass) {
+                const [endH, endM] = nextClass.endTime.split(':').map(Number);
+                const endDate = new Date();
+                endDate.setHours(endH, endM, 0);
+                
+                // Handle late night classes crossing midnight (edge case, simplified here)
+                const diff = endDate.getTime() - now.getTime();
+                if (diff > 0) {
+                    const m = Math.floor(diff / 60000);
+                    const s = Math.floor((diff % 60000) / 1000);
+                    setTimeLeft(`${m}m ${s}s`);
+                } else {
+                    setTimeLeft('Encerrada');
+                }
+            }
+        }, 1000);
+        return () => clearInterval(timer);
+    }, [nextClass]);
+
+    const handleNotesChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+        setNotes(e.target.value);
+        localStorage.setItem('focus_mode_notes', e.target.value);
+    };
+
+    return (
+        <motion.div 
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.95 }}
+            className={`fixed inset-0 z-[300] flex flex-col items-center justify-center p-6 ${isDarkMode ? 'bg-black' : 'bg-white'}`}
+        >
+            <button onClick={onClose} className={`absolute top-6 right-6 p-4 rounded-full ${isDarkMode ? 'bg-white/10 hover:bg-white/20' : 'bg-black/5 hover:bg-black/10'}`}>
+                <Minimize2 size={24} className={isDarkMode ? 'text-white' : 'text-black'} />
+            </button>
+
+            <div className="max-w-4xl w-full flex flex-col md:flex-row gap-12 items-center justify-center h-full">
+                
+                {/* Clock & Status */}
+                <div className="flex-1 text-center md:text-left space-y-8">
+                    <div>
+                        <h2 className={`text-sm font-bold uppercase tracking-[0.3em] mb-2 ${isDarkMode ? 'text-gray-500' : 'text-gray-400'}`}>Modo Foco</h2>
+                        <div className={`text-9xl font-black font-mono tabular-nums leading-none tracking-tighter ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                            {currentTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                        </div>
+                        <div className={`text-xl font-bold mt-2 ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                            {currentTime.toLocaleDateString([], { weekday: 'long', day: 'numeric', month: 'long' })}
+                        </div>
+                    </div>
+
+                    {nextClass ? (
+                        <div className={`p-8 rounded-[2rem] border ${isDarkMode ? `bg-${primaryColor}-500/10 border-${primaryColor}-500/20` : `bg-${primaryColor}-50 border-${primaryColor}-100`}`}>
+                             <div className="flex justify-between items-start mb-2">
+                                <div className={`text-xs font-bold uppercase tracking-widest ${isDarkMode ? `text-${primaryColor}-400` : `text-${primaryColor}-600`}`}>Aula Atual</div>
+                                <div className={`px-2 py-1 rounded bg-black/10 dark:bg-white/10 text-xs font-mono font-bold ${isDarkMode ? 'text-white' : 'text-black'}`}>{timeLeft} restantes</div>
+                             </div>
+                             <h3 className={`text-4xl font-black leading-tight mb-4 ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>{nextClass.name}</h3>
+                             <div className="flex items-center gap-6 opacity-80">
+                                 <div className="flex items-center gap-2"><Clock size={20} /> <span className="text-xl font-bold">{nextClass.startTime} - {nextClass.endTime}</span></div>
+                                 <div className="flex items-center gap-2"><MapPin size={20} /> <span className="text-xl font-bold">{nextClass.room}</span></div>
+                             </div>
+                        </div>
+                    ) : (
+                        <div className="opacity-50 text-xl font-bold p-8 border border-dashed border-gray-500/30 rounded-[2rem]">
+                            Nenhuma aula agora. Aproveite para estudar.
+                        </div>
+                    )}
+                </div>
+
+                {/* Quick Notes */}
+                <div className="w-full md:w-1/3 h-[400px] flex flex-col">
+                    <label className={`text-xs font-bold uppercase tracking-widest mb-4 flex items-center gap-2 ${isDarkMode ? 'text-gray-500' : 'text-gray-400'}`}>
+                        <CheckSquare size={16} /> Anotações Rápidas
+                    </label>
+                    <textarea
+                        value={notes}
+                        onChange={handleNotesChange}
+                        placeholder="Rascunho da aula..."
+                        className={`flex-1 w-full rounded-[2rem] p-6 text-lg font-medium resize-none outline-none border transition-all
+                            ${isDarkMode ? 'bg-white/5 border-white/10 focus:border-white/30 text-gray-200 placeholder:text-gray-700' : 'bg-gray-50 border-gray-200 focus:border-gray-400 text-gray-800 placeholder:text-gray-300'}
+                        `}
+                    />
+                </div>
+
+            </div>
+        </motion.div>
+    );
+};
 
 // --- CALENDAR HELPERS ---
 const DAYS_OF_WEEK = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'];
@@ -125,7 +340,12 @@ export const DashboardLayout: React.FC<DashboardProps> = ({
 }) => {
   const [activeNav, setActiveNav] = useState<ViewState>(ViewState.DASHBOARD);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [isFocusMode, setIsFocusMode] = useState(false);
   
+  // Achievement State
+  const [unlockedAchievements, setUnlockedAchievements] = useState<string[]>([]);
+  const [showAchievementNotification, setShowAchievementNotification] = useState<Achievement | null>(null);
+
   // ToDo Input State
   const [todoInput, setTodoInput] = useState('');
 
@@ -148,6 +368,40 @@ export const DashboardLayout: React.FC<DashboardProps> = ({
     setActiveNav(currentView);
   }, [currentView]);
 
+  // --- ACHIEVEMENT LOGIC ---
+  useEffect(() => {
+    if (grades.length > 0 && userData && isLoggedIn) {
+        const storedAchievements = SecureStorage.loadItem(userData.matricula || '', 'achievements') || [];
+        const newUnlocks: string[] = [];
+        let lastUnlock: Achievement | null = null;
+
+        ACHIEVEMENTS_LIST.forEach(ach => {
+            if (!storedAchievements.includes(ach.id)) {
+                if (ach.condition(grades, userData)) {
+                    newUnlocks.push(ach.id);
+                    lastUnlock = ach;
+                }
+            }
+        });
+
+        if (newUnlocks.length > 0) {
+            const updated = [...storedAchievements, ...newUnlocks];
+            SecureStorage.saveItem(userData.matricula || '', 'achievements', updated);
+            setUnlockedAchievements(updated);
+            
+            // Trigger Sync
+            SecureStorage.syncToCloud(userData.matricula || '');
+
+            // Trigger Notification for the last one (simplification)
+            if (lastUnlock) {
+                setShowAchievementNotification(lastUnlock);
+            }
+        } else {
+            setUnlockedAchievements(storedAchievements);
+        }
+    }
+  }, [grades, userData, isLoggedIn]);
+
   const handleRefreshClick = () => {
     if (onRefresh) {
       setIsRefreshing(true);
@@ -163,8 +417,6 @@ export const DashboardLayout: React.FC<DashboardProps> = ({
     let average = '-';
     
     if (academicData?.ira) {
-        // IRA usually comes as "84,50", we replace to "84.50" for display consistency if desired, or keep as is.
-        // Let's keep it clean:
         average = academicData.ira.replace(',', '.');
     } else if (grades && grades.length > 0) {
         // Fallback: Calculate from visible grades
@@ -392,7 +644,6 @@ export const DashboardLayout: React.FC<DashboardProps> = ({
   };
 
   const renderSlideContent = (index: number) => {
-    // ... (content same as previous, omitting for brevity in diff but assuming full logic)
     if (index === 0) {
         // STATUS CARD + TODAY'S SCHEDULE
         const todayInt = new Date().getDay() + 1;
@@ -420,12 +671,15 @@ export const DashboardLayout: React.FC<DashboardProps> = ({
                     {/* Primary Status (Next Class Risk or General Status) */}
                     <div className="shrink-0 mb-3">
                         {nextClassGrade ? (
-                            <div className="bg-gradient-to-br from-transparent to-white/5 rounded-2xl p-0.5">
+                            <div className="bg-gradient-to-br from-transparent to-white/5 rounded-2xl p-0.5 group cursor-pointer" onClick={() => setIsFocusMode(true)}>
                                 <div className="flex items-center justify-between mb-1.5 px-1">
                                     <div className={`text-[10px] font-bold uppercase tracking-wider truncate max-w-[160px] ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
                                         {nextClass?.name}
                                     </div>
-                                    <div className="text-[10px] font-mono opacity-60 bg-black/5 dark:bg-white/5 px-1.5 py-0.5 rounded text-[9px]">{nextClass?.startTime}</div>
+                                    <div className="flex items-center gap-1">
+                                         <Maximize2 size={10} className="opacity-0 group-hover:opacity-50 transition-opacity" />
+                                         <div className="text-[10px] font-mono opacity-60 bg-black/5 dark:bg-white/5 px-1.5 py-0.5 rounded text-[9px]">{nextClass?.startTime}</div>
+                                    </div>
                                 </div>
                                 
                                 {(() => {
@@ -513,7 +767,7 @@ export const DashboardLayout: React.FC<DashboardProps> = ({
             </div>
         );
     } else if (index === 1) {
-        // HOLIDAY CARD
+        // HOLIDAY CARD (Unchanged)
         return (
             <div className="h-full flex flex-col gap-4">
                 <div className={`absolute -right-4 -top-4 w-24 h-24 rounded-full blur-xl ${isDarkMode ? 'bg-indigo-500/20' : 'bg-indigo-200/50'}`} />
@@ -549,8 +803,7 @@ export const DashboardLayout: React.FC<DashboardProps> = ({
             </div>
         );
     } else {
-        // TASKS CARD
-        // Check if Linked
+        // TASKS CARD (Unchanged)
         if (!isClassroomLinked) {
             return (
                 <div className="h-full flex flex-col items-center justify-center text-center gap-4 p-4">
@@ -622,6 +875,29 @@ export const DashboardLayout: React.FC<DashboardProps> = ({
   return (
     <div className={`relative w-full h-[100dvh] md:h-screen overflow-hidden flex flex-col md:flex-row font-sans transition-colors duration-500 ${isDarkMode ? 'bg-black' : 'bg-gray-900'}`}>
       
+      {/* --- ACHIEVEMENT NOTIFICATION --- */}
+      <AnimatePresence>
+          {showAchievementNotification && (
+              <AchievementNotification 
+                  achievement={showAchievementNotification} 
+                  onClose={() => setShowAchievementNotification(null)}
+                  isDarkMode={isDarkMode}
+              />
+          )}
+      </AnimatePresence>
+
+      {/* --- FOCUS MODE OVERLAY --- */}
+      <AnimatePresence>
+          {isFocusMode && (
+              <FocusModeOverlay 
+                  onClose={() => setIsFocusMode(false)}
+                  nextClass={nextClass}
+                  isDarkMode={isDarkMode}
+                  primaryColor={primaryColor}
+              />
+          )}
+      </AnimatePresence>
+
       {/* --- LOGIN OVERLAY --- */}
       <AnimatePresence>
         {!isLoggedIn && (
@@ -711,7 +987,6 @@ export const DashboardLayout: React.FC<DashboardProps> = ({
         {/* Main Content Scrollable Container for Mobile */}
         <div className="flex-1 overflow-y-auto overflow-x-hidden md:overflow-visible pb-24 md:pb-0 w-full">
 
-            {/* ... (Existing Content: Holiday Notification, Top Notch, etc.) ... */}
             {/* Top Navigation Notch */}
             <div className="relative w-full flex justify-center z-[60]">
                 <motion.div 
@@ -772,6 +1047,7 @@ export const DashboardLayout: React.FC<DashboardProps> = ({
                         label={nextClass ? `PRÓX: ${nextClass.name.split(' ').slice(0,2).join(' ')}` : "Livre"}
                         rightIcon={<ChevronRight size={14} />}
                         isDark={isDarkMode}
+                        onClick={() => nextClass && setIsFocusMode(true)}
                     >
                         <div className={`p-4 min-w-[220px] ${isDarkMode ? 'text-gray-200' : 'text-gray-800'}`}>
                            {nextClass ? (
@@ -784,6 +1060,9 @@ export const DashboardLayout: React.FC<DashboardProps> = ({
                                    <div className="flex items-center gap-2 text-xs text-gray-500 mt-1">
                                        <MapPin size={12} /> {nextClass.room}
                                    </div>
+                                   <button onClick={() => setIsFocusMode(true)} className={`mt-2 w-full py-1.5 rounded-md text-[10px] font-bold uppercase tracking-wide ${isDarkMode ? 'bg-white/10 hover:bg-white/20' : 'bg-black/5 hover:bg-black/10'}`}>
+                                       Modo Foco
+                                   </button>
                                </>
                            ) : (
                                <div className="text-center py-2 text-gray-500 text-xs font-bold">Nenhuma aula próxima.</div>
@@ -809,17 +1088,16 @@ export const DashboardLayout: React.FC<DashboardProps> = ({
             {/* Main Content Body */}
             <div className="flex flex-col md:block min-h-[80vh] w-full px-4 md:px-0 mt-6 md:mt-0 pb-32 md:pb-0">
                 
-                {/* Main Student ID Card - RAISED POSITION */}
+                {/* Main Student ID Card - REPLACED WITH HOLOGRAPHIC COMPONENT */}
                 <div className="relative md:absolute md:bottom-[380px] md:left-0 md:pl-6 z-20 w-full md:w-auto flex justify-center md:justify-start mb-6 md:mb-0">
                         <motion.div 
                             initial={{ opacity: 0, x: -50 }}
                             animate={{ opacity: isLoggedIn ? 1 : 0, x: isLoggedIn ? 0 : -50 }}
                             transition={{ type: 'spring', stiffness: 50, damping: 15, delay: isLoggedIn ? 0.4 : 0 }}
-                            className="relative inline-block p-5 md:p-6 pr-6 rounded-[2rem] overflow-hidden w-full max-w-[320px] md:w-[298px]"
+                            className="relative w-full max-w-[320px] md:w-[298px] h-[220px]"
                         >
-                            <div className="absolute inset-0 bg-white/10 backdrop-blur-md border border-white/20 rounded-[2rem]" />
-                            <div className="relative z-10">
-                                <div className="mb-4">
+                            <HolographicCard primaryColor={primaryColor}>
+                                <div>
                                     <span className="text-xs font-bold text-white/80 uppercase tracking-widest mb-1 block">
                                         {userData?.nome_usual || "Estudante"}
                                     </span>
@@ -868,7 +1146,7 @@ export const DashboardLayout: React.FC<DashboardProps> = ({
                                         </span>
                                     </div>
                                 </div>
-                            </div>
+                            </HolographicCard>
                         </motion.div>
                 </div>
 
@@ -1055,7 +1333,7 @@ export const DashboardLayout: React.FC<DashboardProps> = ({
                           className="flex flex-col"
                       >
                           <h2 className={`text-2xl font-bold leading-none ${frameText}`}>
-                              {rightTab === 'overview' ? 'Hoje' : rightTab === 'tasks' ? 'Tarefas' : 'Feriados'}
+                              {rightTab === 'overview' ? 'Hoje' : rightTab === 'tasks' ? 'Tarefas' : rightTab === 'holidays' ? 'Feriados' : 'Conquistas'}
                           </h2>
                           <div className="flex items-center gap-1 text-gray-400 text-xs mt-2">
                               <Clock size={12} /> <span>{new Date().toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' })}</span>
@@ -1065,13 +1343,16 @@ export const DashboardLayout: React.FC<DashboardProps> = ({
 
                   {/* Tab Switcher */}
                   <div className={`relative flex items-center p-1 rounded-full border ${isDarkMode ? 'bg-white/5 border-white/5' : 'bg-white border-gray-200 shadow-sm'}`}>
-                      {(['overview', 'tasks', 'holidays'] as const).map((tab) => (
+                      {(['overview', 'tasks', 'holidays', 'achievements'] as const).map((tab) => (
                           <button 
                             key={tab}
                             onClick={() => onRightTabChange(tab)}
-                            className={`relative z-10 px-3 py-1.5 rounded-full text-[10px] font-bold uppercase transition-colors ${rightTab === tab ? (isDarkMode ? 'text-white' : 'text-black') : 'text-gray-400 hover:text-gray-500'}`}
+                            className={`relative z-10 px-3 py-1.5 rounded-full text-[10px] font-bold uppercase transition-colors flex items-center justify-center ${rightTab === tab ? (isDarkMode ? 'text-white' : 'text-black') : 'text-gray-400 hover:text-gray-500'}`}
+                            title={tab}
                         >
-                            {tab === 'overview' ? 'Hoje' : tab === 'tasks' ? 'Tarefas' : 'Feriados'}
+                            {tab === 'achievements' ? <Trophy size={14} /> : (
+                                tab === 'overview' ? 'Hoje' : tab === 'tasks' ? 'Tarefas' : 'Feriados'
+                            )}
                             {rightTab === tab && (
                                 <motion.div 
                                     layoutId="right-tab"
@@ -1407,6 +1688,42 @@ export const DashboardLayout: React.FC<DashboardProps> = ({
                               )}
                           </motion.div>
                       )}
+
+                      {rightTab === 'achievements' && (
+                          <motion.div 
+                              key="achievements"
+                              initial={{ opacity: 0, x: 20 }}
+                              animate={{ opacity: 1, x: 0 }}
+                              exit={{ opacity: 0, x: -20 }}
+                              className="h-full overflow-y-auto grid grid-cols-1 gap-4 pb-4"
+                          >
+                              {ACHIEVEMENTS_LIST.map((ach) => {
+                                  const unlocked = unlockedAchievements.includes(ach.id);
+                                  const color = getRarityColor(ach.rarity);
+                                  const rarityLabel = getRarityLabel(ach.rarity);
+                                  
+                                  return (
+                                      <div key={ach.id} className={`p-4 rounded-[1.5rem] border flex items-center gap-4 transition-all relative overflow-hidden group ${unlocked ? (isDarkMode ? 'bg-white/5 border-white/10' : 'bg-white border-gray-100 shadow-sm') : 'opacity-40 grayscale border-transparent bg-gray-100 dark:bg-white/5'}`}>
+                                          <div className={`w-12 h-12 rounded-xl flex items-center justify-center shrink-0 relative ${unlocked ? (isDarkMode ? `bg-${color}-500/20 text-${color}-400` : `bg-${color}-100 text-${color}-600`) : 'bg-gray-300 dark:bg-white/10 text-gray-500'}`}>
+                                              <ach.icon size={20} />
+                                              {ach.rarity === 'legendary' && unlocked && (
+                                                <div className="absolute inset-0 rounded-xl bg-amber-400/20 animate-pulse" />
+                                              )}
+                                          </div>
+                                          <div>
+                                              <h3 className={`text-sm font-black ${frameText} flex items-center gap-2`}>
+                                                  {ach.title}
+                                                  {unlocked && ach.rarity === 'legendary' && (
+                                                      <span className="text-[8px] font-bold uppercase px-1.5 py-0.5 rounded bg-amber-500 text-white animate-pulse">Lendário</span>
+                                                  )}
+                                              </h3>
+                                              <p className="text-[10px] opacity-60 leading-tight mt-0.5">{unlocked ? ach.description : (ach.secret ? "Conquista Secreta" : ach.description)}</p>
+                                          </div>
+                                      </div>
+                                  )
+                              })}
+                          </motion.div>
+                      )}
                   </AnimatePresence>
                 </div>
              </motion.div>
@@ -1432,7 +1749,7 @@ export const DashboardLayout: React.FC<DashboardProps> = ({
 };
 
 // Simple helper components (omitted for brevity as they are unchanged)
-const TopBarItem = ({ children, icon, rightIcon, label, indicator, indicatorColor, isDark }: any) => {
+const TopBarItem = ({ children, icon, rightIcon, label, indicator, indicatorColor, isDark, onClick }: any) => {
     // ... same as before
     const [hover, setHover] = useState(false);
     return (
@@ -1440,6 +1757,7 @@ const TopBarItem = ({ children, icon, rightIcon, label, indicator, indicatorColo
             className="relative group"
             onMouseEnter={() => setHover(true)}
             onMouseLeave={() => setHover(false)}
+            onClick={onClick}
         >
             <button className={`h-8 px-3 rounded-full flex items-center gap-2 transition-all ${isDark ? 'bg-white/5 hover:bg-white/10 text-white' : 'bg-gray-50 hover:bg-gray-100 text-gray-600'}`}>
                 {icon && <span className="opacity-70">{icon}</span>}

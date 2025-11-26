@@ -1,6 +1,7 @@
+
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Sparkles, CornerDownLeft, Settings, MessageCircle } from 'lucide-react';
+import { X, Sparkles, CornerDownLeft, Settings, MessageCircle, FileText, BarChart2 } from 'lucide-react';
 import { GoogleGenAI, FunctionDeclaration, Type } from "@google/genai";
 import ReactMarkdown from 'react-markdown';
 import { GradeInfo, ProcessedClass, SuapProfile, Holiday } from '../types';
@@ -90,6 +91,7 @@ DIRETRIZES:
 1. Se perguntarem sobre "minhas notas", use a ferramenta 'get_grades' para ver os detalhes antes de responder.
 2. Se perguntarem sobre "posso faltar", verifique as faltas atuais e o limite.
 3. Mantenha o tom de um assistente futurista e prestativo.
+4. Se perguntarem por "Relatório de Desempenho", faça uma análise completa das notas, parabenize conquistas (médias > 85), alerte sobre perigos e sugira uma estratégia de estudos. Use a lista de notas que será fornecida no prompt do usuário.
 `;
   };
 
@@ -140,8 +142,9 @@ DIRETRIZES:
       }
   };
 
-  const handleSend = async () => {
-    if (!input.trim()) return;
+  const handleSend = async (overrideText?: string) => {
+    const userText = overrideText || input;
+    if (!userText.trim()) return;
 
     // CHECK FOR API KEY FIRST
     const apiKey = localStorage.getItem('gemini_api_key') || process.env.API_KEY;
@@ -159,7 +162,6 @@ DIRETRIZES:
         return;
     }
     
-    const userText = input;
     setInput(''); 
     const userMsg: Message = { id: Date.now().toString(), role: 'user', text: userText };
     setMessages(prev => [...prev, userMsg]);
@@ -170,11 +172,17 @@ DIRETRIZES:
     try {
       const ai = new GoogleGenAI({ apiKey });
       
+      // Inject context for report requests to ensure high quality without extra tool calls
+      let promptText = userText;
+      if (userText.includes("Relatório")) {
+          promptText = `${userText}\n\nDados Atuais:\n${JSON.stringify(grades, null, 2)}`;
+      }
+
       // 1. Initial Request with Tools
       const modelParams = {
         model: 'gemini-2.5-flash',
         contents: [
-            { role: 'user', parts: [{ text: userText }] } // Simplified history for this demo (stateless + system prompt)
+            { role: 'user', parts: [{ text: promptText }] }
         ],
         config: {
             systemInstruction: getSystemPrompt(),
@@ -201,7 +209,7 @@ DIRETRIZES:
           const finalResponse = await ai.models.generateContent({
               ...modelParams,
               contents: [
-                  { role: 'user', parts: [{ text: userText }] },
+                  { role: 'user', parts: [{ text: promptText }] },
                   { role: 'model', parts: [{ functionCall: functionCall }] }, // Model's decision to call
                   { role: 'user', parts: [toolResponsePart] } // The result
               ]
@@ -252,15 +260,16 @@ DIRETRIZES:
     }
   };
 
+  const handleReportRequest = () => {
+      handleSend("Gere um Relatório de Desempenho acadêmico detalhado e estratégico. Analise minhas notas, faltas e identifique onde estou indo bem e onde preciso focar.");
+  };
+
   // --- Styles ---
   const glassClass = isDarkMode 
     ? 'bg-slate-900/95 border-white/10 shadow-2xl shadow-black/80' 
     : `bg-white/95 border-white/20 shadow-2xl shadow-${accentColor}-500/20`;
 
   // Animation Variables
-  // Mobile: Closed = 48x48 circle, Open = 100vw x 100vh
-  // Desktop: Closed = 140x42 capsule, Open = 500x450 box
-  
   const width = isOpen 
     ? (isMobile ? '100vw' : 500) 
     : (isMobile ? 48 : 140);
@@ -329,8 +338,29 @@ DIRETRIZES:
 
               {/* Messages Area */}
               <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4 custom-scroll">
+                
+                {/* SUGGESTION CHIP */}
                 {messages.length === 0 && (
-                  <div className="h-full flex flex-col items-center justify-center opacity-50 gap-3 select-none">
+                     <div className="w-full mb-4">
+                         <button 
+                            onClick={handleReportRequest}
+                            className={`w-full p-3 rounded-xl flex items-center gap-3 transition-colors text-left group
+                                ${isDarkMode ? 'bg-white/5 hover:bg-white/10 text-white' : 'bg-gray-100 hover:bg-gray-200 text-gray-800'}
+                            `}
+                         >
+                             <div className={`p-2 rounded-lg ${isDarkMode ? `bg-${accentColor}-500/20 text-${accentColor}-400` : `bg-${accentColor}-100 text-${accentColor}-600`}`}>
+                                 <BarChart2 size={18} />
+                             </div>
+                             <div>
+                                 <div className="text-xs font-bold uppercase tracking-wider opacity-70 mb-0.5">Sugestão</div>
+                                 <div className="text-sm font-bold">Analisar meu Semestre (Relatório)</div>
+                             </div>
+                         </button>
+                     </div>
+                )}
+
+                {messages.length === 0 && (
+                  <div className="h-full flex flex-col items-center justify-center opacity-50 gap-3 select-none py-10">
                       <MonochromeIcon size={32} pulse accentColor={accentColor} />
                       <p className={`text-[10px] font-bold uppercase tracking-widest ${isDarkMode ? 'text-white' : 'text-black'}`}>
                           Como posso ajudar?
@@ -398,7 +428,7 @@ DIRETRIZES:
                           className={`flex-1 bg-transparent outline-none text-sm font-medium placeholder:font-medium ${isDarkMode ? 'text-white placeholder:text-white/20' : 'text-gray-800 placeholder:text-gray-500/40'}`}
                       />
                       <button 
-                          onClick={handleSend}
+                          onClick={() => handleSend()}
                           disabled={!input.trim()}
                           className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all ${
                               input.trim() 

@@ -78,6 +78,7 @@ export const SecureStorage = {
             const grades = SecureStorage.loadItem(matricula, 'grades');
             const schedule = SecureStorage.loadItem(matricula, 'schedule');
             const todos = SecureStorage.loadItem(matricula, 'todos');
+            const achievements = SecureStorage.loadItem(matricula, 'achievements'); // New
             
             // Collect settings from root localStorage
             const settings = {
@@ -98,6 +99,7 @@ export const SecureStorage = {
                 schedule,
                 settings,
                 todos,
+                achievements, // Add to payload
                 updated_at: new Date().toISOString()
             };
 
@@ -146,6 +148,7 @@ export const SecureStorage = {
             if (data.grades) SecureStorage.saveItem(matricula, 'grades', data.grades);
             if (data.schedule) SecureStorage.saveItem(matricula, 'schedule', data.schedule);
             if (data.todos) SecureStorage.saveItem(matricula, 'todos', data.todos);
+            if (data.achievements) SecureStorage.saveItem(matricula, 'achievements', data.achievements); // New
             
             if (data.settings) {
                 if(data.settings.wallpaper) localStorage.setItem('suap_saved_wallpaper', data.settings.wallpaper);

@@ -112,7 +112,7 @@ const App: React.FC = () => {
   
   // UI State
   const [rightSidebarTab, setRightSidebarTab] = useState<'overview' | 'tasks' | 'holidays'>('overview');
-  const [profileInitialTab, setProfileInitialTab] = useState<'profile' | 'settings' | 'wallpaper' | 'performance'>('profile');
+  const [profileInitialTab, setProfileInitialTab] = useState<'profile' | 'settings' | 'wallpaper' | 'performance' | 'achievements'>('profile');
 
   // Auth State
   const [isLoggedIn, setIsLoggedIn] = useState(false);

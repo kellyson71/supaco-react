@@ -1,9 +1,13 @@
 
+
+
+
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence, PanInfo } from 'framer-motion';
-import { X, AlertTriangle, AlertCircle, CheckCircle, Clock, MapPin, Award, Briefcase, User, Calendar, GraduationCap, Settings, Monitor, Moon, Sun, ToggleLeft, ToggleRight, Link2, ExternalLink, Cpu, ShieldCheck, Eye, EyeOff, Key, Image as ImageIcon, Check, BookOpen, Palette, RefreshCw, Mail, Fingerprint, FileText, UserSquare2, Percent, Calculator, Flag, Target, CheckSquare, LogOut, ArrowRight, Copy, Clipboard, HelpCircle, Book, CalendarClock, ChevronRight, MoreHorizontal, Save, Download, Droplet, Coffee, Aperture, BookMarked, Users, Rocket, Zap, TrendingUp, TrendingDown, Minus, Sparkles, Camera, PenLine, Trash2, Cloud, UploadCloud, Search, Shield, ChevronDown } from 'lucide-react';
-import { ViewState, GradeInfo, ThemeVariant, SuapProfile, SuapMeusDadosAluno, ProcessedClass, SuapCompletionData, CompletionCategory, ClassroomCourse, ClassroomWork, PerformanceSettings, SuapPeriod } from '../types';
+import { X, AlertTriangle, AlertCircle, CheckCircle, Clock, MapPin, Award, Briefcase, User, Calendar, GraduationCap, Settings, Monitor, Moon, Sun, ToggleLeft, ToggleRight, Link2, ExternalLink, Cpu, ShieldCheck, Eye, EyeOff, Key, Image as ImageIcon, Check, BookOpen, Palette, RefreshCw, Mail, Fingerprint, FileText, UserSquare2, Percent, Calculator, Flag, Target, CheckSquare, LogOut, ArrowRight, Copy, Clipboard, HelpCircle, Book, CalendarClock, ChevronRight, MoreHorizontal, Save, Download, Droplet, Coffee, Aperture, BookMarked, Users, Rocket, Zap, TrendingUp, TrendingDown, Minus, Sparkles, Camera, PenLine, Trash2, Cloud, UploadCloud, Search, Shield, ChevronDown, Trophy, Medal, Brain, History } from 'lucide-react';
+import { ViewState, GradeInfo, ThemeVariant, SuapProfile, SuapMeusDadosAluno, ProcessedClass, SuapCompletionData, CompletionCategory, ClassroomCourse, ClassroomWork, PerformanceSettings, SuapPeriod, Achievement } from '../types';
 import { SecureStorage } from '../services/SecureStorage';
+import { ACHIEVEMENTS_LIST, getRarityColor, getRarityLabel } from '../achievements';
 
 interface OverlayViewProps {
   view: ViewState;
@@ -25,7 +29,7 @@ interface OverlayViewProps {
   onLogout: () => void;
   autoExpandClassroom: boolean;
   onAutoExpandClassroom: (v: boolean) => void;
-  initialProfileTab?: 'profile' | 'settings' | 'wallpaper' | 'performance';
+  initialProfileTab?: 'profile' | 'settings' | 'wallpaper' | 'performance' | 'achievements';
   onInstallPwa?: () => void;
   canInstall?: boolean;
   performanceSettings?: PerformanceSettings;
@@ -60,6 +64,88 @@ const VIEW_ORDER = [
   ViewState.CONCLUSION,
   ViewState.ADMIN,
   ViewState.PROFILE
+];
+
+// --- VERSION HISTORY DATA ---
+const CURRENT_VERSION = "1.1.8";
+const CHANGELOG = [
+  {
+    version: "1.1.8",
+    date: "25 Nov 2025",
+    title: "Dados Acadêmicos & Estabilidade",
+    desc: "Melhoria na integração de dados acadêmicos no dashboard e tratamento de erros de sincronização.",
+    features: ["Dados acadêmicos no dashboard", "Melhoria de logs de erro", "Cálculos estatísticos aprimorados"]
+  },
+  {
+    version: "1.1.7",
+    date: "25 Nov 2025",
+    title: "Tutorial Interativo",
+    desc: "Introdução guiada para novos usuários conhecerem as funcionalidades principais.",
+    features: ["Overlay de tutorial", "Destaque de navegação", "Onboarding simplificado"]
+  },
+  {
+    version: "1.1.6",
+    date: "25 Nov 2025",
+    title: "Lista de Tarefas",
+    desc: "Nova ferramenta de To-Do para gerenciamento pessoal de atividades.",
+    features: ["Criação de tarefas", "Persistência local/nuvem", "Widget no dashboard"]
+  },
+  {
+    version: "1.1.5",
+    date: "25 Nov 2025",
+    title: "SEO & Admin",
+    desc: "Melhorias de metadados para SEO e nova visualização administrativa.",
+    features: ["Metatags SEO", "Painel Admin (Restrito)", "Novos ícones de UI"]
+  },
+  {
+    version: "1.1.4",
+    date: "24 Nov 2025",
+    title: "Nuvem & Performance",
+    desc: "Integração completa com Supabase e configurações de otimização.",
+    features: ["Backup na nuvem", "Modo Econômico", "Sincronização de temas"]
+  },
+  {
+    version: "1.1.3",
+    date: "23 Nov 2025",
+    title: "Refatoração de Layout",
+    desc: "Otimização da estrutura de componentes e importações.",
+    features: ["Código modularizado", "Carregamento mais rápido"]
+  },
+  {
+    version: "1.1.2",
+    date: "23 Nov 2025",
+    title: "Pomodoro & Lazy Loading",
+    desc: "Ferramenta de foco e melhorias significativas no tempo de carregamento.",
+    features: ["Widget Pomodoro", "Lazy Loading de componentes", "Tema Sépia"]
+  },
+  {
+    version: "1.1.1",
+    date: "23 Nov 2025",
+    title: "PWA & Offline",
+    desc: "Transformação em Progressive Web App com suporte offline.",
+    features: ["Instalação PWA", "Cache Offline", "Manifest atualizado"]
+  },
+  {
+    version: "1.1.0",
+    date: "21 Nov 2025",
+    title: "Landing Page & Settings",
+    desc: "Nova tela de boas-vindas e painel de configurações unificado.",
+    features: ["Landing Page", "Chat IA Mobile", "Configurações integradas"]
+  },
+  {
+    version: "1.0.4",
+    date: "20 Nov 2025",
+    title: "Abas & Token Refresh",
+    desc: "Gerenciamento manual de abas no dashboard e sistema de refresh de token.",
+    features: ["Seleção de abas", "Persistência de sessão"]
+  },
+  {
+    version: "1.0.0",
+    date: "Nov 2025",
+    title: "Lançamento Inicial",
+    desc: "Primeira versão estável do Supaco.",
+    features: ["Integração SUAP", "Google Classroom", "IA Gemini", "Temas"]
+  }
 ];
 
 export const ContentView: React.FC<OverlayViewProps> = ({ view, onClose, onChangeView, isDarkMode, onToggleTheme, currentWallpaper, onWallpaperChange, themeVariant, onThemeVariantChange, primaryColor, secondaryColor, userData, academicData, grades, schedule, completionData, onLogout, autoExpandClassroom, onAutoExpandClassroom, initialProfileTab, onInstallPwa, canInstall, performanceSettings, onUpdatePerformance, customPhotoUrl = '', onUpdateCustomPhoto, useCustomPhoto = false, onToggleCustomPhoto, periods, viewingPeriod, onPeriodChange }) => {
@@ -623,22 +709,81 @@ const ConclusionContent = ({ isDark, accentColor, secondaryColor, data }: { isDa
 };
 
 const GradesContent = ({ isDark, primaryColor, secondaryColor, grades }: any) => {
-    const validGrades = grades.filter((g: any) => g.average !== '-' && !isNaN(parseFloat(g.average)));
+    // Grade Simulator State
+    const [isSimulating, setIsSimulating] = useState(false);
+    const [simulatedGrades, setSimulatedGrades] = useState<GradeInfo[]>([]);
+
+    useEffect(() => {
+        if (!isSimulating) {
+            setSimulatedGrades(grades);
+        }
+    }, [grades, isSimulating]);
+
+    const handleInputChange = (code: string, field: 'n1' | 'n2' | 'n3' | 'n4', value: string) => {
+        setSimulatedGrades(prev => prev.map(g => {
+            if (g.code === code) {
+                const newGrade = { ...g, [field]: value };
+                
+                // Recalculate Average (Formula: (2*N1 + 2*N2 + 3*N3 + 3*N4) / 10)
+                const n1 = parseFloat(String(newGrade.n1)) || 0;
+                const n2 = parseFloat(String(newGrade.n2)) || 0;
+                const n3 = parseFloat(String(newGrade.n3)) || 0;
+                const n4 = parseFloat(String(newGrade.n4)) || 0;
+
+                const newAverage = ((2*n1 + 2*n2 + 3*n3 + 3*n4) / 10).toFixed(0); // IFRN typically rounds
+                return { ...newGrade, average: newAverage };
+            }
+            return g;
+        }));
+    };
+
+    const displayGrades = isSimulating ? simulatedGrades : grades;
+
+    // Calculate Average
+    const validGrades = displayGrades.filter((g: any) => g.average !== '-' && !isNaN(parseFloat(g.average)));
     const periodAverage = validGrades.length > 0 
         ? (validGrades.reduce((acc: number, g: any) => acc + parseFloat(g.average), 0) / validGrades.length).toFixed(1)
         : '-';
     
-    const approvedCount = grades.filter((g: any) => g.status?.includes('Aprovado')).length;
+    // Approval Status (Simulator Logic)
+    const getSimulatedStatus = (g: GradeInfo) => {
+        const avg = parseFloat(String(g.average));
+        if (isNaN(avg)) return 'Cursando';
+        if (avg >= 60) return 'Aprovado';
+        if (avg < 20) return 'Reprovado';
+        return 'Prova Final';
+    };
+
+    const approvedCount = displayGrades.filter((g: any) => {
+        if (isSimulating) return getSimulatedStatus(g) === 'Aprovado';
+        return g.status?.includes('Aprovado');
+    }).length;
 
     return (
         <div className="space-y-8 max-w-5xl mx-auto">
+            {/* SIMULATOR TOGGLE */}
+            <div className="flex justify-between items-center">
+                 <h2 className={`text-sm font-bold uppercase tracking-widest ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                    {isSimulating ? 'Simulador de Notas' : 'Boletim Oficial'}
+                 </h2>
+                 <button 
+                    onClick={() => setIsSimulating(!isSimulating)}
+                    className={`px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-wide transition-all border flex items-center gap-2
+                        ${isSimulating ? `bg-${primaryColor}-500 text-white border-${primaryColor}-600` : `${isDark ? 'bg-white/10 text-white border-white/10' : 'bg-white text-gray-700 border-gray-200'}`}
+                    `}
+                 >
+                     <Calculator size={14} />
+                     {isSimulating ? 'Sair da Simulação' : 'Simular (E se...?)'}
+                 </button>
+            </div>
+
             {/* SUMMARY HUD */}
             <motion.div variants={itemAnim} className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div className={`p-6 rounded-[2rem] border relative overflow-hidden ${isDark ? `bg-${primaryColor}-500/10 border-${primaryColor}-500/20` : `bg-${primaryColor}-50 border-${primaryColor}-100`}`}>
                      <div className="relative z-10">
                         <div className={`text-[10px] font-bold uppercase tracking-widest mb-1 ${isDark ? `text-${primaryColor}-400` : `text-${primaryColor}-600`}`}>Média do Semestre</div>
                         <div className={`text-4xl font-black ${isDark ? 'text-white' : 'text-gray-900'}`}>{periodAverage}</div>
-                        <div className="text-[10px] opacity-60 mt-2 font-medium">Calculado das notas lançadas</div>
+                        <div className="text-[10px] opacity-60 mt-2 font-medium">{isSimulating ? 'Calculado via simulação' : 'Calculado das notas lançadas'}</div>
                      </div>
                      <TrendingUp className={`absolute -right-4 -bottom-4 opacity-10 text-${primaryColor}-500`} size={80} />
                 </div>
@@ -656,23 +801,24 @@ const GradesContent = ({ isDark, primaryColor, secondaryColor, grades }: any) =>
                      <div className="relative z-10">
                         <div className="text-[10px] font-bold uppercase tracking-widest mb-1 text-gray-500">Aprovações</div>
                         <div className={`text-4xl font-black ${isDark ? 'text-white' : 'text-gray-900'}`}>{approvedCount}</div>
-                        <div className="text-[10px] opacity-60 mt-2 font-medium">Disciplinas finalizadas</div>
+                        <div className="text-[10px] opacity-60 mt-2 font-medium">{isSimulating ? 'Projetadas' : 'Disciplinas finalizadas'}</div>
                      </div>
                      <CheckCircle className="absolute -right-4 -bottom-4 opacity-5 text-gray-500" size={80} />
                 </div>
             </motion.div>
 
             {/* GRADES GRID */}
-            {grades.length === 0 ? (
+            {displayGrades.length === 0 ? (
                 <div className="py-20 flex flex-col items-center justify-center opacity-40">
                     <BookOpen size={40} className="mb-4" />
                     <span className="text-sm font-bold uppercase">Nenhuma nota encontrada para este período.</span>
                 </div>
             ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {grades.map((g: any) => {
-                        const avg = parseFloat(g.average);
+                    {displayGrades.map((g: any) => {
+                        const avg = parseFloat(String(g.average));
                         const progress = isNaN(avg) ? 0 : avg;
+                        const status = isSimulating ? getSimulatedStatus(g) : (g.status || 'Cursando');
                         
                         return (
                             <motion.div variants={itemAnim} key={g.code} className={`p-6 rounded-[2rem] border flex flex-col justify-between group hover:shadow-lg transition-all duration-300 relative overflow-hidden ${isDark ? 'bg-white/5 border-white/10 hover:bg-white/10' : 'bg-white border-gray-100'}`}>
@@ -683,22 +829,35 @@ const GradesContent = ({ isDark, primaryColor, secondaryColor, grades }: any) =>
                                         <div className="text-[10px] font-bold text-gray-500 uppercase tracking-wide">CH: {g.totalHours}h • Faltas: {g.absences}</div>
                                     </div>
                                     <div className={`px-3 py-1 rounded-xl text-[10px] font-bold uppercase tracking-wide border
-                                        ${g.status?.includes('Aprovado') ? `bg-${primaryColor}-500/10 text-${primaryColor}-500 border-${primaryColor}-500/20` : 
-                                        g.status?.includes('Reprovado') ? `bg-${secondaryColor}-500/10 text-${secondaryColor}-500 border-${secondaryColor}-500/20` : 
+                                        ${status.includes('Aprovado') ? `bg-${primaryColor}-500/10 text-${primaryColor}-500 border-${primaryColor}-500/20` : 
+                                        status.includes('Reprovado') ? `bg-${secondaryColor}-500/10 text-${secondaryColor}-500 border-${secondaryColor}-500/20` : 
                                         `bg-gray-100 text-gray-500 border-gray-200 dark:bg-white/5 dark:border-white/10`
                                         }`}
                                     >
-                                        {g.status || 'Cursando'}
+                                        {status}
                                     </div>
                                 </div>
 
                                 <div className="grid grid-cols-4 gap-2 mb-6 z-10 relative">
-                                    {[g.n1, g.n2, g.n3, g.n4].map((note: any, idx: number) => (
-                                        <div key={idx} className={`flex flex-col items-center justify-center p-2 rounded-xl border ${isDark ? 'bg-black/20 border-white/5' : 'bg-gray-50 border-gray-100'}`}>
-                                            <span className="text-[9px] font-bold text-gray-500 uppercase mb-0.5">N{idx + 1}</span>
-                                            <span className={`font-black ${note !== '-' ? (isDark ? 'text-white' : 'text-gray-800') : 'text-gray-400 opacity-50'}`}>{note}</span>
-                                        </div>
-                                    ))}
+                                    {['n1', 'n2', 'n3', 'n4'].map((field, idx) => {
+                                        const noteVal = g[field];
+                                        return (
+                                            <div key={idx} className={`flex flex-col items-center justify-center p-2 rounded-xl border ${isDark ? 'bg-black/20 border-white/5' : 'bg-gray-50 border-gray-100'}`}>
+                                                <span className="text-[9px] font-bold text-gray-500 uppercase mb-0.5">{field.toUpperCase()}</span>
+                                                {isSimulating ? (
+                                                     <input 
+                                                        type="number" 
+                                                        value={noteVal === '-' ? '' : noteVal} 
+                                                        onChange={(e) => handleInputChange(g.code, field as any, e.target.value)}
+                                                        className={`w-full text-center bg-transparent outline-none font-black ${isDark ? 'text-white border-b border-white/20 focus:border-white' : 'text-gray-900 border-b border-gray-300 focus:border-black'}`}
+                                                        placeholder="-"
+                                                     />
+                                                ) : (
+                                                    <span className={`font-black ${noteVal !== '-' ? (isDark ? 'text-white' : 'text-gray-800') : 'text-gray-400 opacity-50'}`}>{noteVal}</span>
+                                                )}
+                                            </div>
+                                        );
+                                    })}
                                 </div>
 
                                 <div className="mt-auto z-10 relative">
@@ -730,7 +889,6 @@ const AbsencesContent = ({ isDark, primaryColor, secondaryColor, grades }: { isD
         const remaining = g.limit - g.absences;
         return remaining <= 4 && remaining >= 0;
     });
-    const failedSubjects = grades.filter(g => g.absences > g.limit);
     
     const activeSubjects = grades.filter(g => g.absences <= g.limit);
     activeSubjects.sort((a, b) => (a.limit - a.absences) - (b.limit - b.absences));
@@ -861,7 +1019,7 @@ const ProfileContent = ({ isDark, onToggleTheme, currentWallpaper, onWallpaperCh
     onLogout: () => void,
     autoExpandClassroom: boolean,
     onResetAutoExpand: () => void,
-    initialTab?: 'profile' | 'settings' | 'wallpaper' | 'performance',
+    initialTab?: 'profile' | 'settings' | 'wallpaper' | 'performance' | 'achievements',
     onInstallPwa?: () => void,
     canInstall?: boolean,
     performanceSettings?: PerformanceSettings,
@@ -871,13 +1029,14 @@ const ProfileContent = ({ isDark, onToggleTheme, currentWallpaper, onWallpaperCh
     useCustomPhoto?: boolean,
     onToggleCustomPhoto?: (enable: boolean) => void
 }) => {
-    const [activeTab, setActiveTab] = useState<'profile' | 'settings' | 'wallpaper' | 'performance'>('profile');
+    const [activeTab, setActiveTab] = useState<'profile' | 'settings' | 'wallpaper' | 'performance' | 'achievements'>('profile');
     
     const [showPhotoInput, setShowPhotoInput] = useState(false);
     const [localPhotoInput, setLocalPhotoInput] = useState(customPhotoUrl || '');
     const [imgError, setImgError] = useState(false);
 
     const [customWpInput, setCustomWpInput] = useState('');
+    const [showChangelog, setShowChangelog] = useState(false);
 
     useEffect(() => {
         setLocalPhotoInput(customPhotoUrl || '');
@@ -1051,9 +1210,66 @@ const ProfileContent = ({ isDark, onToggleTheme, currentWallpaper, onWallpaperCh
     useEffect(() => setImgError(false), [useCustomPhoto, customPhotoUrl]);
 
     return (
-        <div className="h-full flex flex-col">
+        <div className="h-full flex flex-col relative">
+            {/* CHANGELOG MODAL OVERLAY */}
+            <AnimatePresence>
+                {showChangelog && (
+                    <motion.div
+                        initial={{ opacity: 0, scale: 0.95 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        exit={{ opacity: 0, scale: 0.95 }}
+                        className={`absolute inset-0 z-50 p-6 flex flex-col ${isDark ? 'bg-slate-950' : 'bg-white'}`}
+                    >
+                        <div className="flex items-center justify-between mb-6 shrink-0">
+                            <div className="flex items-center gap-3">
+                                <div className={`p-2 rounded-xl ${isDark ? `bg-${accentColor}-500/20 text-${accentColor}-400` : `bg-${accentColor}-100 text-${accentColor}-600`}`}>
+                                    <History size={20} />
+                                </div>
+                                <div>
+                                    <h2 className={`text-lg font-black ${textMain}`}>Histórico de Versões</h2>
+                                    <p className="text-xs opacity-60">Evolução do projeto</p>
+                                </div>
+                            </div>
+                            <button 
+                                onClick={() => setShowChangelog(false)}
+                                className={`p-2 rounded-full transition-colors ${isDark ? 'hover:bg-white/10' : 'hover:bg-gray-100'}`}
+                            >
+                                <X size={20} className={isDark ? 'text-white' : 'text-black'} />
+                            </button>
+                        </div>
+                        
+                        <div className="flex-1 overflow-y-auto custom-scroll space-y-6 pb-8">
+                            {CHANGELOG.map((log, i) => (
+                                <div key={i} className={`relative pl-6 border-l-2 ${i === 0 ? `border-${accentColor}-500` : (isDark ? 'border-white/10' : 'border-gray-200')}`}>
+                                    <div className={`absolute -left-[5px] top-0 w-2.5 h-2.5 rounded-full border-2 ${isDark ? 'bg-slate-950' : 'bg-white'} ${i === 0 ? `border-${accentColor}-500` : (isDark ? 'border-white/20' : 'border-gray-300')}`} />
+                                    
+                                    <div className="flex items-center gap-3 mb-1">
+                                        <span className={`text-sm font-black ${i === 0 ? `text-${accentColor}-500` : (isDark ? 'text-white' : 'text-gray-900')}`}>v{log.version}</span>
+                                        <span className="text-[10px] font-bold opacity-40 uppercase tracking-wide">{log.date}</span>
+                                        {i === 0 && <span className={`text-[8px] font-bold px-1.5 py-0.5 rounded uppercase ${isDark ? `bg-${accentColor}-500/20 text-${accentColor}-400` : `bg-${accentColor}-100 text-${accentColor}-600`}`}>Atual</span>}
+                                    </div>
+                                    
+                                    <h3 className={`text-sm font-bold mb-1 ${isDark ? 'text-gray-200' : 'text-gray-800'}`}>{log.title}</h3>
+                                    <p className={`text-xs opacity-60 mb-3 leading-relaxed`}>{log.desc}</p>
+                                    
+                                    <div className="space-y-1">
+                                        {log.features.map((feat, j) => (
+                                            <div key={j} className={`text-[10px] font-medium flex items-center gap-2 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+                                                <div className={`w-1 h-1 rounded-full ${isDark ? 'bg-gray-600' : 'bg-gray-400'}`} />
+                                                {feat}
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
+
             <div className="flex gap-3 mb-8 shrink-0 overflow-x-auto pb-2 hide-scrollbar">
                 <TabButton id="profile" label="Perfil" icon={User} />
+                <TabButton id="achievements" label="Conquistas" icon={Trophy} />
                 <TabButton id="settings" label="Configurações" icon={Settings} />
                 <TabButton id="wallpaper" label="Papéis de Parede" icon={ImageIcon} />
                 <TabButton id="performance" label="Desempenho" icon={Zap} />
@@ -1124,6 +1340,61 @@ const ProfileContent = ({ isDark, onToggleTheme, currentWallpaper, onWallpaperCh
                                 </div>
                             </div>
                         </div>
+
+                         {/* VERSION FOOTER */}
+                        <div className="mt-8 mb-4 text-center">
+                            <button 
+                                onClick={() => setShowChangelog(true)}
+                                className={`group flex flex-col items-center justify-center gap-1 mx-auto transition-all hover:opacity-100 opacity-40`}
+                            >
+                                <span className={`text-[10px] font-bold uppercase tracking-[0.2em] ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                                    Versão {CURRENT_VERSION}
+                                </span>
+                                <span className={`h-[1px] w-0 group-hover:w-full transition-all duration-300 ${isDark ? 'bg-white' : 'bg-gray-900'}`} />
+                            </button>
+                        </div>
+                    </motion.div>
+                ) : activeTab === 'achievements' ? (
+                    <motion.div 
+                        key="achievements"
+                        variants={itemAnim}
+                        initial="hidden"
+                        animate="show"
+                        exit={{ opacity: 0 }}
+                        className="h-full overflow-y-auto"
+                    >
+                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pb-12">
+                             {ACHIEVEMENTS_LIST.map((ach) => {
+                                 const unlocked = ach.condition(grades, userData);
+                                 const color = getRarityColor(ach.rarity);
+                                 const rarityLabel = getRarityLabel(ach.rarity);
+                                 
+                                 return (
+                                     <div key={ach.id} className={`p-5 rounded-[2rem] border flex items-center gap-4 transition-all relative overflow-hidden ${unlocked ? (isDark ? 'bg-white/5 border-white/10' : 'bg-white border-gray-100 shadow-sm') : 'opacity-40 grayscale border-transparent bg-gray-100 dark:bg-white/5'}`}>
+                                          <div className={`w-16 h-16 rounded-2xl flex items-center justify-center shrink-0 relative ${unlocked ? (isDark ? `bg-${color}-500/20 text-${color}-400` : `bg-${color}-100 text-${color}-600`) : 'bg-gray-200 dark:bg-white/5 text-gray-400'}`}>
+                                              <ach.icon size={32} />
+                                              {unlocked && ach.rarity === 'legendary' && (
+                                                <div className="absolute inset-0 rounded-2xl bg-amber-400/20 animate-pulse" />
+                                              )}
+                                          </div>
+                                          <div className="flex-1">
+                                              <div className="flex items-center gap-2 mb-0.5">
+                                                  <span className={`text-[8px] font-bold uppercase px-1.5 py-0.5 rounded ${unlocked ? `bg-${color}-500 text-white` : 'bg-gray-400 text-white'}`}>
+                                                      {rarityLabel}
+                                                  </span>
+                                                  {unlocked && (
+                                                      <span className="text-[8px] font-bold uppercase tracking-wide text-green-500">Desbloqueado</span>
+                                                  )}
+                                              </div>
+                                              <h3 className={`text-base font-black ${textMain}`}>{ach.title}</h3>
+                                              <p className="text-xs opacity-60 leading-tight mt-1">
+                                                  {unlocked ? ach.description : (ach.secret ? "Conquista Secreta" : ach.description)}
+                                              </p>
+                                          </div>
+                                     </div>
+                                 )
+                             })}
+                         </div>
                     </motion.div>
                 ) : activeTab === 'wallpaper' ? (
                     <motion.div key="wallpaper" variants={itemAnim} initial="hidden" animate="show" exit={{ opacity: 0 }} className="h-full overflow-y-auto">

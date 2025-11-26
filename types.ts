@@ -19,6 +19,18 @@ export interface PerformanceSettings {
   disableGlow: boolean;
 }
 
+export type AchievementRarity = 'common' | 'rare' | 'epic' | 'legendary';
+
+export interface Achievement {
+    id: string;
+    icon: any; // Lucide Icon component
+    title: string;
+    description: string;
+    rarity: AchievementRarity;
+    condition: (grades: GradeInfo[], profile: SuapProfile | null) => boolean;
+    secret?: boolean; // If true, description is hidden until unlocked
+}
+
 export interface Student {
   name: string;
   avatar: string;
