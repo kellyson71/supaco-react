@@ -45,7 +45,7 @@ import {
   Link2
 } from 'lucide-react';
 import { InvertedCorner } from './InvertedCorner';
-import { ViewState, ClassroomWork, SuapProfile, SuapPeriod, GradeInfo, ProcessedClass, SuapCompletionData, Holiday, TodoItem } from '../types';
+import { ViewState, ClassroomWork, SuapProfile, SuapPeriod, GradeInfo, ProcessedClass, SuapCompletionData, Holiday, TodoItem, SuapMeusDadosAluno } from '../types';
 import { AIChatWidget } from './AIChatWidget';
 import { PomodoroWidget } from './PomodoroWidget';
 import { SecureStorage } from '../services/SecureStorage';
@@ -70,6 +70,7 @@ interface DashboardProps {
   isLoggedIn: boolean;
   onLogin: () => void;
   userData: SuapProfile | null;
+  academicData?: SuapMeusDadosAluno | null;
   currentPeriod: SuapPeriod | null;
   grades: GradeInfo[];
   schedule: ProcessedClass[];
@@ -104,6 +105,7 @@ export const DashboardLayout: React.FC<DashboardProps> = ({
   isLoggedIn,
   onLogin,
   userData,
+  academicData,
   currentPeriod,
   grades,
   schedule,
@@ -154,6 +156,50 @@ export const DashboardLayout: React.FC<DashboardProps> = ({
       setTimeout(() => setIsRefreshing(false), 2000);
     }
   };
+
+  // Calculate Overall Stats (Average & Frequency)
+  const stats = useMemo(() => {
+    // 1. Calculate Average (Prioritize IRA from academicData)
+    let average = '-';
+    
+    if (academicData?.ira) {
+        // IRA usually comes as "84,50", we replace to "84.50" for display consistency if desired, or keep as is.
+        // Let's keep it clean:
+        average = academicData.ira.replace(',', '.');
+    } else if (grades && grades.length > 0) {
+        // Fallback: Calculate from visible grades
+        const validGrades = grades.filter(g => 
+            g.average !== '-' && 
+            g.average !== null && 
+            g.average !== undefined &&
+            !isNaN(Number(g.average))
+        );
+        if (validGrades.length > 0) {
+             average = (validGrades.reduce((acc, g) => acc + Number(g.average), 0) / validGrades.length).toFixed(1);
+        }
+    }
+
+    // 2. Calculate Frequency (Weighted by totalHours from grades)
+    let frequency = '-';
+    if (grades && grades.length > 0) {
+        const gradesWithHours = grades.filter(g => g.totalHours > 0);
+        const totalHours = gradesWithHours.reduce((acc, g) => acc + g.totalHours, 0);
+        
+        if (totalHours > 0) {
+            // Weighted Average: (Sum(freq * hours) / TotalHours)
+            const weightedSum = gradesWithHours.reduce((acc, g) => acc + (g.frequency * g.totalHours), 0);
+            frequency = Math.round(weightedSum / totalHours) + '%';
+        } else {
+             // Fallback: Simple average of frequency field
+             const validFreqs = grades.filter(g => typeof g.frequency === 'number');
+             if (validFreqs.length > 0) {
+                 frequency = Math.round(validFreqs.reduce((acc, g) => acc + g.frequency, 0) / validFreqs.length) + '%';
+             }
+        }
+    }
+
+    return { average, frequency };
+  }, [grades, academicData]);
 
   // Calculate "Pode Faltar" Logic and Schedule
   useEffect(() => {
@@ -811,14 +857,14 @@ export const DashboardLayout: React.FC<DashboardProps> = ({
                                     <div className="px-2">
                                         <span className="text-[9px] text-white/60 uppercase font-bold block mb-0.5">Média Geral</span>
                                         <span className="text-lg font-black text-white">
-                                            {userData?.vinculo?.matricula ? "7.5" : "-"}
+                                            {stats.average}
                                         </span>
                                     </div>
                                     <div className="w-[1px] h-8 bg-white/10"></div>
                                     <div className="px-2">
                                         <span className="text-[9px] text-white/60 uppercase font-bold block mb-0.5">Frequência</span>
                                         <span className={`text-lg font-black text-${primaryColor}-400`}>
-                                            90%
+                                            {stats.frequency}
                                         </span>
                                     </div>
                                 </div>

@@ -905,6 +905,7 @@ const App: React.FC = () => {
                 isLoggedIn={isLoggedIn}
                 onLogin={handleLogin}
                 userData={userData}
+                academicData={academicData}
                 currentPeriod={currentPeriod}
                 grades={processedGrades}
                 schedule={processedSchedule}

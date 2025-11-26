@@ -105,11 +105,16 @@ export const SecureStorage = {
                 .from('user_data')
                 .upsert(payload);
 
-            if (error) throw error;
+            if (error) {
+                console.error("[Storage] Supabase detailed error:", JSON.stringify(error));
+                throw error;
+            }
+
             console.log(`[Storage] Cloud sync successful for ${matricula}`);
             return true;
-        } catch (error) {
-            console.error("[Storage] Cloud sync failed:", error);
+        } catch (error: any) {
+            const errorMessage = error?.message || error?.error_description || (typeof error === 'object' ? JSON.stringify(error) : String(error));
+            console.error(`[Storage] Cloud sync failed: ${errorMessage}`);
             return false;
         }
     },
@@ -126,7 +131,10 @@ export const SecureStorage = {
                 .eq('id', matricula)
                 .single();
 
-            if (error) throw error;
+            if (error) {
+                console.error("[Storage] Supabase load error:", JSON.stringify(error));
+                throw error;
+            }
             if (!data) {
                 console.log("[Storage] No cloud data found.");
                 return false;
@@ -150,8 +158,9 @@ export const SecureStorage = {
 
             console.log(`[Storage] Cloud load successful for ${matricula}`);
             return true;
-        } catch (error) {
-            console.error("[Storage] Cloud load failed:", error);
+        } catch (error: any) {
+            const errorMessage = error?.message || error?.error_description || (typeof error === 'object' ? JSON.stringify(error) : String(error));
+            console.error(`[Storage] Cloud load failed: ${errorMessage}`);
             return false;
         }
     },
