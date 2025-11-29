@@ -1,7 +1,7 @@
 
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ArrowRight, Github, GraduationCap, Monitor, ShieldCheck, Lock, User, AlertTriangle, Sparkles, Database, ArrowLeft, School, Check } from 'lucide-react';
+import { ArrowRight, Github, GraduationCap, Monitor, ShieldCheck, Lock, User, AlertTriangle, Sparkles, Database, ArrowLeft, School, Check, ExternalLink } from 'lucide-react';
 
 interface LandingPageProps {
   onComplete: () => void;
@@ -26,6 +26,16 @@ export const LandingPage: React.FC<LandingPageProps> = ({
   const [pass, setPass] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
+
+  // SUAP OAuth Config
+  const CLIENT_ID = 'mtwXt4wCesctJiKA6BbRQ7DMROTJeNosSpQUc7dm';
+  // Nota: Em produção real, o Redirect URI deve ser dinâmico ou fixo na URL de produção
+  const REDIRECT_URI = window.location.hostname === 'localhost' ? 'http://localhost:5173/' : 'https://supaco.vercel.app/'; 
+
+  const handleSuapOAuthLogin = () => {
+    const authUrl = `https://suap.ifrn.edu.br/o/authorize/?response_type=code&client_id=${CLIENT_ID}&redirect_uri=${REDIRECT_URI}`;
+    window.location.href = authUrl;
+  };
 
   const handleLoginSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -218,7 +228,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                     onClick={() => setShowLogin(true)}
                     className={`group w-full py-4 rounded-2xl bg-white text-black font-black text-base uppercase tracking-widest flex items-center justify-center gap-4 transition-all hover:scale-[1.02] active:scale-[0.98] shadow-2xl shadow-white/20`}
                  >
-                    <span>Entrar com SUAP</span>
+                    <span>Acessar Supaco</span>
                     <ArrowRight size={20} className="group-hover:translate-x-1 transition-transform" />
                  </button>
                  <div className="mt-4 text-center">
@@ -244,7 +254,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                     <div className="absolute inset-0" onClick={() => setShowLogin(false)} />
 
                     <div className={`relative w-full max-w-md p-8 md:p-10 rounded-[2.5rem] border shadow-2xl backdrop-blur-2xl ${isDarkMode ? 'bg-slate-900/90 border-white/20' : 'bg-white/90 border-white/40 text-gray-900'}`}>
-                        <div className="flex justify-between items-center mb-8">
+                        <div className="flex justify-between items-center mb-6">
                              <button 
                                 onClick={() => setShowLogin(false)}
                                 className={`p-3 rounded-xl transition-colors ${isDarkMode ? 'bg-white/5 hover:bg-white/10 text-white' : 'bg-black/5 hover:bg-black/10 text-black'}`}
@@ -256,9 +266,30 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                             </div>
                         </div>
 
-                        <div className="text-center mb-8">
+                        <div className="text-center mb-6">
                              <h2 className={`text-3xl font-black mb-2 ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>Login</h2>
-                             <p className={`text-sm opacity-60 ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>Use sua matrícula e senha do SUAP.</p>
+                             <p className={`text-sm opacity-60 ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>Use sua conta oficial do SUAP.</p>
+                        </div>
+
+                        {/* OAUTH BUTTON */}
+                        <div className="mb-6">
+                            <button
+                                onClick={handleSuapOAuthLogin}
+                                className={`w-full py-4 rounded-2xl font-bold text-sm uppercase tracking-wide flex items-center justify-center gap-3 transition-all hover:scale-[1.02] shadow-xl group
+                                    ${isDarkMode ? `bg-green-600 hover:bg-green-500 text-white shadow-green-600/20` : `bg-green-600 hover:bg-green-500 text-white shadow-green-600/20`}
+                                `}
+                            >
+                                <div className="p-1 bg-white rounded-md text-green-600">
+                                    <School size={16} />
+                                </div>
+                                <span>Entrar com SUAP (SSO)</span>
+                                <ExternalLink size={16} className="opacity-70 group-hover:translate-x-0.5 transition-transform" />
+                            </button>
+                            <div className="flex items-center gap-4 my-4 opacity-50">
+                                <div className={`h-[1px] flex-1 ${isDarkMode ? 'bg-white/20' : 'bg-black/20'}`} />
+                                <span className="text-[10px] font-bold uppercase tracking-wider">Ou digite</span>
+                                <div className={`h-[1px] flex-1 ${isDarkMode ? 'bg-white/20' : 'bg-black/20'}`} />
+                            </div>
                         </div>
 
                         <form onSubmit={handleLoginSubmit} className="space-y-4">
@@ -269,7 +300,6 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                                     value={mat}
                                     onChange={(e) => setMat(e.target.value)}
                                     placeholder="Matrícula"
-                                    autoFocus
                                     className={`bg-transparent outline-none text-lg font-medium flex-1 w-full ${isDarkMode ? 'text-white placeholder:text-gray-600' : 'text-gray-900 placeholder:text-gray-400'}`}
                                 />
                             </div>
@@ -294,14 +324,14 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                             <button 
                                 type="submit"
                                 disabled={!mat || !pass || isLoading}
-                                className={`w-full py-5 rounded-2xl font-black text-sm uppercase tracking-wide flex items-center justify-center gap-3 transition-all mt-4
+                                className={`w-full py-4 rounded-2xl font-bold text-sm uppercase tracking-wide flex items-center justify-center gap-3 transition-all mt-4
                                     ${!mat || !pass ? 'opacity-50 cursor-not-allowed bg-gray-500 text-white' : `bg-${primaryColor}-500 text-white hover:scale-[1.02] shadow-xl hover:shadow-${primaryColor}-500/30`}`}
                             >
                                 {isLoading ? (
                                     <div className="w-6 h-6 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                                 ) : (
                                     <>
-                                        <span>Entrar</span>
+                                        <span>Entrar Manualmente</span>
                                         <ArrowRight size={18} />
                                     </>
                                 )}

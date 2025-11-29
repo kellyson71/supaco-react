@@ -258,6 +258,63 @@ const App: React.FC = () => {
     }
   };
 
+  // --- SUAP OAUTH TOKEN EXCHANGE ---
+  const exchangeSuapCodeForToken = async (code: string) => {
+      const CLIENT_ID = 'mtwXt4wCesctJiKA6BbRQ7DMROTJeNosSpQUc7dm';
+      const CLIENT_SECRET = 'zPYe7h1xr3Vv1yE38N8ziV56oAcmlJVMQIZP3BCFbuftEyu6whAbvoj7e8oKXU6jcbv9RVosL63fs4SBNnsESnPvozo2bodmvbp7dABOk566Dz88S3UMwKDTwwe6wL2G';
+      const REDIRECT_URI = window.location.hostname === 'localhost' ? 'http://localhost:5173/' : 'https://supaco.vercel.app/';
+
+      try {
+          const response = await fetch('https://suap.ifrn.edu.br/o/token/', {
+              method: 'POST',
+              headers: {
+                  'Content-Type': 'application/x-www-form-urlencoded',
+              },
+              body: new URLSearchParams({
+                  grant_type: 'authorization_code',
+                  code: code,
+                  client_id: CLIENT_ID,
+                  client_secret: CLIENT_SECRET,
+                  redirect_uri: REDIRECT_URI
+              })
+          });
+
+          if (response.ok) {
+              const data = await response.json();
+              if (data.access_token) {
+                  localStorage.setItem('suap_access_token', data.access_token);
+                  if (data.refresh_token) localStorage.setItem('suap_refresh_token', data.refresh_token);
+                  
+                  // Clean URL
+                  window.history.replaceState({}, document.title, window.location.pathname);
+                  
+                  // Fetch Profile to get username (matricula) since OAuth doesn't return it directly in token response usually
+                  const profileRes = await fetch('https://suap.ifrn.edu.br/api/v2/minhas-informacoes/meus-dados/', {
+                      headers: {
+                          'Authorization': `Bearer ${data.access_token}`
+                      }
+                  });
+                  
+                  if (profileRes.ok) {
+                      const profile = await profileRes.json();
+                      if (profile.matricula) {
+                          localStorage.setItem('suap_username', profile.matricula);
+                          setUserData(profile);
+                          setIsLoggedIn(true);
+                          setShowLanding(false);
+                          localStorage.setItem(CACHE_KEYS.WELCOME_SEEN, 'true');
+                          fetchAllUserDataBackground(profile.matricula, true);
+                      }
+                  }
+              }
+          } else {
+              console.error("Failed to exchange token", await response.text());
+          }
+      } catch (error) {
+          console.error("OAuth Exchange Error", error);
+      }
+  };
+
   // --- OAUTH CALLBACK HANDLER ---
   useEffect(() => {
       const checkClassroomToken = () => {
@@ -268,6 +325,14 @@ const App: React.FC = () => {
       checkClassroomToken();
       window.addEventListener('storage', checkClassroomToken);
 
+      // Handle SUAP OAuth Callback (?code=...)
+      const searchParams = new URLSearchParams(window.location.search);
+      const suapCode = searchParams.get('code');
+      if (suapCode) {
+          exchangeSuapCodeForToken(suapCode);
+      }
+
+      // Handle Google OAuth Callback (#access_token=...)
       const hash = window.location.hash;
       if (hash && hash.includes('access_token')) {
           const params = new URLSearchParams(hash.substring(1));
@@ -324,9 +389,11 @@ const App: React.FC = () => {
   // This endpoint provides accurate absence counts compared to diarios
   const processGradesFromBoletim = (boletim: SuapBoletim[]): GradeInfo[] => {
       return boletim.map(b => {
-          // Sometimes discipline names come with codes like "1234 - Math". Clean it for UI.
-          // Fallback to original string if regex fails.
-          const cleanSubject = b.disciplina.replace(/(^\d+ - )|( - .+$)/g, '') || b.disciplina;
+          // Fix based on user feedback: The name is after " - ". 
+          // Previous regex was removing the name for non-numeric codes like "TEC.1007 - Name".
+          const cleanSubject = b.disciplina.includes(' - ') 
+              ? b.disciplina.split(' - ').slice(1).join(' - ') 
+              : b.disciplina;
 
           return {
               subject: cleanSubject,
