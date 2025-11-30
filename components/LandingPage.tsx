@@ -149,7 +149,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                    </div>
                    
                    <div className="absolute bottom-8 text-[10px] text-white/30 font-mono">
-                        v1.1.8 • ELECTRON
+                        v2.1.8 • WEB
                    </div>
 
                </motion.div>
