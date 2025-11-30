@@ -29,7 +29,6 @@ import { TopNavBar } from './dashboard/TopNavBar';
 
 // -- Constants --
 const CURRENT_VERSION = "2.0.0";
-const MONTH_NAMES = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
 
 // Theme Colors
 const LIGHT_FRAME = 'bg-white';
@@ -68,6 +67,9 @@ interface DashboardProps {
   classroomStatus?: 'connected' | 'disconnected' | 'expired';
   onLinkClassroom?: () => void;
 }
+
+// --- CALENDAR HELPERS ---
+const MONTH_NAMES = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
 
 export const DashboardLayout: React.FC<DashboardProps> = ({ 
   currentView, onChangeView, isDarkMode, onToggleTheme, currentWallpaper,
@@ -255,6 +257,36 @@ export const DashboardLayout: React.FC<DashboardProps> = ({
     if (info.offset.x < -50) handleNextSlide();
     else if (info.offset.x > 50) handlePrevSlide();
   };
+
+  // Calendar Event Logic
+  const getEventsForDate = (date: Date) => {
+      if (!date) return { classes: [], holiday: null, tasks: [] };
+      const year = date.getFullYear();
+      const month = String(date.getMonth() + 1).padStart(2, '0');
+      const day = String(date.getDate()).padStart(2, '0');
+      const dateStr = `${year}-${month}-${day}`;
+      const holiday = holidays.find(h => h.date === dateStr);
+      const dayOfWeekInt = date.getDay() + 1;
+      const classes = schedule.filter(s => s.dayInt === dayOfWeekInt);
+      const tasks = classroomWork.filter(w => 
+          w.jsDate && w.jsDate.getDate() === date.getDate() &&
+          w.jsDate.getMonth() === date.getMonth() && w.jsDate.getFullYear() === date.getFullYear()
+      );
+      return { classes, holiday, tasks };
+  };
+
+  const getDaysInMonth = (date: Date) => {
+    const year = date.getFullYear();
+    const month = date.getMonth();
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+    const firstDay = new Date(year, month, 1).getDay();
+    const days = [];
+    for (let i = 0; i < firstDay; i++) days.push(null);
+    for (let i = 1; i <= daysInMonth; i++) days.push(new Date(year, month, i));
+    return days;
+  };
+
+  const calendarDays = getDaysInMonth(currentDate);
 
   // Status Card Config Helper
   const getStatusConfig = (grade: GradeInfo | null) => {
@@ -584,6 +616,8 @@ export const DashboardLayout: React.FC<DashboardProps> = ({
         unlockedAchievements={unlockedAchievements}
         onOpenProfile={() => handleNavClick(ViewState.PROFILE)}
         schedule={schedule}
+        getEventsForDate={getEventsForDate}
+        days={calendarDays}
         MONTH_NAMES={MONTH_NAMES}
         CURRENT_VERSION={CURRENT_VERSION}
         setShowChangelog={setShowChangelog}

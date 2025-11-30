@@ -5,7 +5,7 @@ import {
   ListTodo, Plus, ArrowRight, Check, Trash2, Book, CalendarDays 
 } from 'lucide-react';
 import { InvertedCorner } from '../InvertedCorner';
-import { TodoItem, ClassroomWork, Holiday } from '../../types';
+import { TodoItem, ClassroomWork, Holiday, Achievement } from '../../types';
 
 interface RightSidebarProps {
   rightTab: 'overview' | 'tasks' | 'holidays' | 'achievements';
@@ -16,6 +16,7 @@ interface RightSidebarProps {
   cornerColor: string;
   primaryColor: string;
   showContent: boolean;
+  // Data Props
   currentDate: Date;
   setCurrentDate: (date: Date) => void;
   holidays: Holiday[];
@@ -26,7 +27,10 @@ interface RightSidebarProps {
   onRemoveTodo: (id: string) => void;
   unlockedAchievements: string[];
   onOpenProfile: () => void;
-  schedule: any[];
+  schedule: any[]; // ProcessedClass[]
+  // Calendar Logic passed down or implemented here? Let's implement rendering logic here using props
+  getEventsForDate: (date: Date) => { classes: any[], holiday: any, tasks: any[] };
+  days: (Date | null)[];
   MONTH_NAMES: string[];
   CURRENT_VERSION: string;
   setShowChangelog: (v: boolean) => void;
@@ -35,7 +39,7 @@ interface RightSidebarProps {
 export const RightSidebar: React.FC<RightSidebarProps> = ({
   rightTab, onRightTabChange, isDarkMode, frameBg, frameText, cornerColor, primaryColor, showContent,
   currentDate, setCurrentDate, holidays, classroomWork, todos, onAddTodo, onToggleTodo, onRemoveTodo,
-  unlockedAchievements, onOpenProfile, schedule, MONTH_NAMES, CURRENT_VERSION, setShowChangelog
+  unlockedAchievements, onOpenProfile, days, getEventsForDate, MONTH_NAMES, CURRENT_VERSION, setShowChangelog
 }) => {
   const [todoInput, setTodoInput] = useState('');
   const [hoveredDate, setHoveredDate] = useState<any>(null);
@@ -49,36 +53,6 @@ export const RightSidebar: React.FC<RightSidebarProps> = ({
   const handleKeyDownTodo = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter') handleAddTodoClick();
   };
-
-  // Internal Calendar Helper
-  const getEventsForDate = (date: Date) => {
-      if (!date) return { classes: [], holiday: null, tasks: [] };
-      const year = date.getFullYear();
-      const month = String(date.getMonth() + 1).padStart(2, '0');
-      const day = String(date.getDate()).padStart(2, '0');
-      const dateStr = `${year}-${month}-${day}`;
-      const holiday = holidays.find(h => h.date === dateStr);
-      const dayOfWeekInt = date.getDay() + 1;
-      const classes = schedule.filter(s => s.dayInt === dayOfWeekInt);
-      const tasks = classroomWork.filter(w => 
-          w.jsDate && w.jsDate.getDate() === date.getDate() &&
-          w.jsDate.getMonth() === date.getMonth() && w.jsDate.getFullYear() === date.getFullYear()
-      );
-      return { classes, holiday, tasks };
-  };
-
-  const getDaysInMonth = (date: Date) => {
-    const year = date.getFullYear();
-    const month = date.getMonth();
-    const daysInMonth = new Date(year, month + 1, 0).getDate();
-    const firstDay = new Date(year, month, 1).getDay();
-    const days = [];
-    for (let i = 0; i < firstDay; i++) days.push(null);
-    for (let i = 1; i <= daysInMonth; i++) days.push(new Date(year, month, i));
-    return days;
-  };
-
-  const days = getDaysInMonth(currentDate);
 
   return (
     <div className={`hidden md:flex relative z-50 h-[calc(100vh-2rem)] my-4 w-[360px] flex-col p-8 transition-colors duration-500 ${frameBg}`}>

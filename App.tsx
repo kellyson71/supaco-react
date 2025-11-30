@@ -1,5 +1,3 @@
-
-
 import React, { useState, useMemo, useEffect, useRef, Suspense } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { SecureStorage } from './services/SecureStorage';
@@ -8,6 +6,7 @@ import { WifiOff, RefreshCw, AlertTriangle, X } from 'lucide-react';
 
 import { SplashScreen } from './components/SplashScreen';
 import { ViewState, ThemeVariant, SuapProfile, SuapMeusDadosAluno, SuapPeriod, SuapDiario, SuapBoletim, ProcessedClass, GradeInfo, SuapCompletionData, Holiday, ClassroomWork, ClassroomCourse, PerformanceSettings, SuapMeusPeriodosLetivos, TodoItem, GoogleTokens } from './types';
+import { googleCredentials } from './google_credentials';
 
 // --- DYNAMIC IMPORTS (Code Splitting) ---
 // We handle named exports by destructuring the module in the promise result.
@@ -29,8 +28,8 @@ const SUPACO_INTERNAL_KEY = process.env.API_KEY || "AIzaSyD-PREMIUM-PLACEHOLDER-
 // --- GOOGLE OAUTH CONFIG ---
 // IMPORTANT: You must add your Client ID and Client Secret here.
 // For production, these should be environment variables.
-const GOOGLE_CLIENT_ID = 'YOUR_GOOGLE_CLIENT_ID'; 
-const GOOGLE_CLIENT_SECRET = 'YOUR_GOOGLE_CLIENT_SECRET'; 
+const GOOGLE_CLIENT_ID = googleCredentials.web.client_id; 
+const GOOGLE_CLIENT_SECRET = googleCredentials.web.client_secret; 
 const REDIRECT_URI = window.location.hostname === 'localhost' ? 'http://localhost:5173/' : 'https://supaco.vercel.app/';
 
 // Cache Keys (Settings only - Data is now in SecureStorage)

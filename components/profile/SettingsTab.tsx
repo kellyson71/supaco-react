@@ -127,7 +127,7 @@ export const SettingsTabContent = ({ isDark, accentColor, performanceSettings, o
                                 </div>
                                 <div className="grid grid-cols-5 gap-2">
                                     {PROFILE_PRESETS.map((url, i) => (
-                                        <button key={i} onClick={() => onUpdateCustomPhoto(url)} className={`relative aspect-square rounded-xl bg-cover bg-center overflow-hidden transition-transform hover:scale-105 ${customPhotoUrl === url ? `ring-2 ring-${accentColor}-500 ring-offset-2 ${isDark ? 'ring-offset-black' : 'ring-offset-white'}` : ''}`} style={{ backgroundImage: `url(${url})` }} />
+                                        <button key={i} onClick={() => onUpdateCustomPhoto(url)} className={`relative aspect-square rounded-xl bg-cover bg-center overflow-hidden transition-transform hover:scale-105 active:scale-95 ${customPhotoUrl === url ? `ring-2 ring-${accentColor}-500 ring-offset-2 ${isDark ? 'ring-offset-black' : 'ring-offset-white'}` : ''}`} style={{ backgroundImage: `url(${url})` }} />
                                     ))}
                                 </div>
                             </div>
