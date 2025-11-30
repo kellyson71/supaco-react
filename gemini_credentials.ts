@@ -1,3 +1,3 @@
 export const geminiCredentials = {
-  "apiKey": ""
+  "apiKey": "AIzaSyCl9IeXhatDHf50hZi40AY-Z7YcIMkkmuM"
 };

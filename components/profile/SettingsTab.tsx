@@ -2,7 +2,7 @@ import React from 'react';
 import { motion } from 'framer-motion';
 import { 
   ArrowRight, Crown, Check, Monitor, Zap, ImageIcon, Link2, 
-  HardDrive, Download, Trash2 
+  HardDrive, Download, Trash2, Fingerprint 
 } from 'lucide-react';
 import { PerformanceSettings } from '../../types';
 import { SecureStorage } from '../../services/SecureStorage';
@@ -72,6 +72,25 @@ export const SettingsTabContent = ({ isDark, accentColor, performanceSettings, o
             <div>
                 <SectionHeader icon={Monitor} title="Integrações" color={accentColor} />
                 <div className={`rounded-[2rem] border overflow-hidden ${isDark ? 'bg-white/5 border-white/5' : 'bg-white border-gray-100 shadow-sm'}`}>
+                    
+                    {/* SUAP Integration Info */}
+                    <div className={`p-5 flex items-center justify-between border-b ${isDark ? 'border-white/5' : 'border-gray-50'}`}>
+                        <div className="flex items-center gap-4">
+                            <div className={`p-2.5 rounded-xl ${isDark ? `bg-${accentColor}-500/20 text-${accentColor}-500` : `bg-${accentColor}-100 text-${accentColor}-600`}`}>
+                                <Fingerprint size={18} />
+                            </div>
+                            <div>
+                                <div className={`text-sm font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>Conta SUAP</div>
+                                <div className="text-[10px] font-medium opacity-60">
+                                    {userData?.email_academico || userData?.email_secundario || "Email não disponível"}
+                                </div>
+                            </div>
+                        </div>
+                        <div className={`px-3 py-1 rounded-lg text-[10px] font-bold uppercase ${isDark ? 'bg-green-500/20 text-green-400' : 'bg-green-100 text-green-600'}`}>
+                            Conectado
+                        </div>
+                    </div>
+
                     <div className={`p-5 flex items-center justify-between`}>
                         <div className="flex items-center gap-4">
                             <div className={`p-2.5 rounded-xl ${classroomStatus === 'connected' ? 'bg-green-500/20 text-green-500' : (classroomStatus === 'expired' ? 'bg-red-500/20 text-red-500' : (isDark ? 'bg-white/5 text-gray-400' : 'bg-gray-100 text-gray-500'))}`}>
@@ -127,7 +146,7 @@ export const SettingsTabContent = ({ isDark, accentColor, performanceSettings, o
                                 </div>
                                 <div className="grid grid-cols-5 gap-2">
                                     {PROFILE_PRESETS.map((url, i) => (
-                                        <button key={i} onClick={() => onUpdateCustomPhoto(url)} className={`relative aspect-square rounded-xl bg-cover bg-center overflow-hidden transition-transform hover:scale-105 active:scale-95 ${customPhotoUrl === url ? `ring-2 ring-${accentColor}-500 ring-offset-2 ${isDark ? 'ring-offset-black' : 'ring-offset-white'}` : ''}`} style={{ backgroundImage: `url(${url})` }} />
+                                        <button key={i} onClick={() => onUpdateCustomPhoto(url)} className={`relative aspect-square rounded-xl bg-cover bg-center overflow-hidden transition-transform hover:scale-105 ${customPhotoUrl === url ? `ring-2 ring-${accentColor}-500 ring-offset-2 ${isDark ? 'ring-offset-black' : 'ring-offset-white'}` : ''}`} style={{ backgroundImage: `url(${url})` }} />
                                     ))}
                                 </div>
                             </div>
