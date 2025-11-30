@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence, PanInfo } from 'framer-motion';
-import { X, AlertTriangle, AlertCircle, CheckCircle, Clock, MapPin, Award, Briefcase, User, Calendar, GraduationCap, Settings, Monitor, Moon, Sun, ToggleLeft, ToggleRight, Link2, ExternalLink, Cpu, ShieldCheck, Eye, EyeOff, Key, Image as ImageIcon, Check, BookOpen, Palette, RefreshCw, Mail, Fingerprint, FileText, UserSquare2, Percent, Calculator, Flag, Target, CheckSquare, LogOut, ArrowRight, Copy, Clipboard, HelpCircle, Book, CalendarClock, ChevronRight, MoreHorizontal, Save, Download, Droplet, Coffee, Aperture, BookMarked, Users, Rocket, Zap, TrendingUp, TrendingDown, Minus, Sparkles, Camera, PenLine, Trash2, Cloud, UploadCloud, Search, Shield, ChevronDown, Trophy, Medal, Brain, History, Crown, CreditCard, Laptop, Smartphone, LayoutTemplate, HardDrive, Heart } from 'lucide-react';
+import { X, AlertTriangle, AlertCircle, CheckCircle, Clock, MapPin, Award, Briefcase, User, Calendar, GraduationCap, Settings, Monitor, Moon, Sun, ToggleLeft, ToggleRight, Link2, ExternalLink, Cpu, ShieldCheck, Eye, EyeOff, Key, Image as ImageIcon, Check, BookOpen, Palette, RefreshCw, Mail, Fingerprint, FileText, UserSquare2, Percent, Calculator, Flag, Target, CheckSquare, LogOut, ArrowRight, Copy, Clipboard, HelpCircle, Book, CalendarClock, ChevronRight, MoreHorizontal, Save, Download, Droplet, Coffee, Aperture, BookMarked, Users, Rocket, Zap, TrendingUp, TrendingDown, Minus, Sparkles, Camera, PenLine, Trash2, Cloud, UploadCloud, Search, Shield, ChevronDown, Trophy, Medal, Brain, History, Crown, CreditCard, Laptop, Smartphone, LayoutTemplate, HardDrive, Heart, Bell } from 'lucide-react';
 import { ViewState, GradeInfo, ThemeVariant, SuapProfile, SuapMeusDadosAluno, ProcessedClass, SuapCompletionData, CompletionCategory, ClassroomCourse, ClassroomWork, PerformanceSettings, SuapPeriod, Achievement } from '../types';
 import { SecureStorage } from '../services/SecureStorage';
 import { ACHIEVEMENTS_LIST, getRarityColor, getRarityLabel } from '../achievements';
@@ -55,6 +55,13 @@ interface OverlayViewProps {
   isClassroomLinked?: boolean;
   onLinkClassroom?: () => void;
   classroomStatus?: 'connected' | 'disconnected' | 'expired';
+  // New Settings Props
+  privacyMode?: boolean;
+  onTogglePrivacyMode?: (v: boolean) => void;
+  startView?: ViewState;
+  onUpdateStartView?: (v: ViewState) => void;
+  notificationsEnabled?: boolean;
+  onToggleNotifications?: (v: boolean) => void;
 }
 
 const WALLPAPERS = [
@@ -118,7 +125,7 @@ const SectionHeader = ({ icon: Icon, title, color }: any) => (
     </div>
 );
 
-export const ContentView: React.FC<OverlayViewProps> = ({ view, onClose, onChangeView, isDarkMode, onToggleTheme, currentWallpaper, onWallpaperChange, themeVariant, onThemeVariantChange, primaryColor, secondaryColor, userData, academicData, grades, schedule, completionData, onLogout, autoExpandClassroom, onAutoExpandClassroom, initialProfileTab, onInstallPwa, canInstall, performanceSettings, onUpdatePerformance, customPhotoUrl = '', onUpdateCustomPhoto, useCustomPhoto = false, onToggleCustomPhoto, periods, viewingPeriod, onPeriodChange, isPremium, onOpenPremiumModal, classroomWork = [], isClassroomLinked = false, onLinkClassroom, classroomStatus }) => {
+export const ContentView: React.FC<OverlayViewProps> = ({ view, onClose, onChangeView, isDarkMode, onToggleTheme, currentWallpaper, onWallpaperChange, themeVariant, onThemeVariantChange, primaryColor, secondaryColor, userData, academicData, grades, schedule, completionData, onLogout, autoExpandClassroom, onAutoExpandClassroom, initialProfileTab, onInstallPwa, canInstall, performanceSettings, onUpdatePerformance, customPhotoUrl = '', onUpdateCustomPhoto, useCustomPhoto = false, onToggleCustomPhoto, periods, viewingPeriod, onPeriodChange, isPremium, onOpenPremiumModal, classroomWork = [], isClassroomLinked = false, onLinkClassroom, classroomStatus, privacyMode, onTogglePrivacyMode, startView, onUpdateStartView, notificationsEnabled, onToggleNotifications }) => {
   if (view === ViewState.DASHBOARD) return null;
 
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
@@ -298,6 +305,13 @@ export const ContentView: React.FC<OverlayViewProps> = ({ view, onClose, onChang
                     onLinkClassroom={onLinkClassroom}
                     isClassroomLinked={isClassroomLinked}
                     classroomStatus={classroomStatus}
+                    // New Props
+                    privacyMode={privacyMode}
+                    onTogglePrivacyMode={onTogglePrivacyMode}
+                    startView={startView}
+                    onUpdateStartView={onUpdateStartView}
+                    notificationsEnabled={notificationsEnabled}
+                    onToggleNotifications={onToggleNotifications}
                 />
             )}
         </div>
@@ -306,7 +320,6 @@ export const ContentView: React.FC<OverlayViewProps> = ({ view, onClose, onChang
   );
 };
 
-// ... (Rest of the file containing ProfileContent, SettingsTabContent, etc. remains unchanged) ...
 const ProfileContent = ({ 
     isDark, 
     onToggleTheme, 
@@ -334,7 +347,8 @@ const ProfileContent = ({
     onClose,
     onLinkClassroom,
     isClassroomLinked,
-    classroomStatus
+    classroomStatus,
+    privacyMode, onTogglePrivacyMode, startView, onUpdateStartView, notificationsEnabled, onToggleNotifications
 }: any) => {
     const [activeTab, setActiveTab] = useState(initialTab || 'profile');
     const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
@@ -474,6 +488,13 @@ const ProfileContent = ({
                             onLinkClassroom={onLinkClassroom}
                             isClassroomLinked={isClassroomLinked}
                             classroomStatus={classroomStatus}
+                            // New Props
+                            privacyMode={privacyMode}
+                            onTogglePrivacyMode={onTogglePrivacyMode}
+                            startView={startView}
+                            onUpdateStartView={onUpdateStartView}
+                            notificationsEnabled={notificationsEnabled}
+                            onToggleNotifications={onToggleNotifications}
                         />
                     )}
                     {activeTab === 'wallpaper' && (
@@ -611,7 +632,7 @@ const ProfileTabContent = ({ isDark, accentColor, userData, academicData, profil
     );
 };
 
-const SettingsTabContent = ({ isDark, accentColor, performanceSettings, onUpdatePerformance, customPhotoUrl, onUpdateCustomPhoto, useCustomPhoto, onToggleCustomPhoto, onInstallPwa, canInstall, isPremium, onOpenPremiumModal, userData, onLinkClassroom, isClassroomLinked, classroomStatus }: any) => {
+const SettingsTabContent = ({ isDark, accentColor, performanceSettings, onUpdatePerformance, customPhotoUrl, onUpdateCustomPhoto, useCustomPhoto, onToggleCustomPhoto, onInstallPwa, canInstall, isPremium, onOpenPremiumModal, userData, onLinkClassroom, isClassroomLinked, classroomStatus, privacyMode, onTogglePrivacyMode, startView, onUpdateStartView, notificationsEnabled, onToggleNotifications }: any) => {
     return (
         <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="max-w-3xl mx-auto space-y-8 pb-10">
             {!isPremium ? (
@@ -684,6 +705,62 @@ const SettingsTabContent = ({ isDark, accentColor, performanceSettings, onUpdate
                     ))}
                 </div>
             </div>
+
+            {/* NEW: PRIVACY AND NOTIFICATIONS */}
+            <div>
+                <SectionHeader icon={Shield} title="Privacidade e Notificações" color={accentColor} />
+                <div className={`rounded-[2rem] border overflow-hidden ${isDark ? 'bg-white/5 border-white/5' : 'bg-white border-gray-100 shadow-sm'}`}>
+                     
+                     <div className={`p-5 flex items-center justify-between border-b ${isDark ? 'border-white/5 hover:bg-white/5' : 'border-gray-50 hover:bg-gray-50'} transition-colors`}>
+                        <div className="flex items-center gap-4">
+                            <div className={`p-2.5 rounded-xl ${privacyMode ? `bg-${accentColor}-500/20 text-${accentColor}-500` : (isDark ? 'bg-white/5 text-gray-400' : 'bg-gray-100 text-gray-500')}`}>
+                                {privacyMode ? <EyeOff size={18} /> : <Eye size={18} />}
+                            </div>
+                            <div>
+                                <div className={`text-sm font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>Modo Privacidade</div>
+                                <div className="text-[10px] font-medium opacity-60">Borra notas e médias na tela inicial.</div>
+                            </div>
+                        </div>
+                        <ToggleSwitch checked={privacyMode} onChange={() => onTogglePrivacyMode(!privacyMode)} color={accentColor} />
+                     </div>
+
+                     <div className={`p-5 flex items-center justify-between border-b ${isDark ? 'border-white/5 hover:bg-white/5' : 'border-gray-50 hover:bg-gray-50'} transition-colors`}>
+                        <div className="flex items-center gap-4">
+                            <div className={`p-2.5 rounded-xl ${notificationsEnabled ? `bg-${accentColor}-500/20 text-${accentColor}-500` : (isDark ? 'bg-white/5 text-gray-400' : 'bg-gray-100 text-gray-500')}`}>
+                                <Bell size={18} />
+                            </div>
+                            <div>
+                                <div className={`text-sm font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>Notificações</div>
+                                <div className="text-[10px] font-medium opacity-60">Alertas de faltas e notas.</div>
+                            </div>
+                        </div>
+                        <ToggleSwitch checked={notificationsEnabled} onChange={() => onToggleNotifications(!notificationsEnabled)} color={accentColor} />
+                     </div>
+
+                </div>
+            </div>
+
+            <div>
+                 <SectionHeader icon={LayoutTemplate} title="Comportamento" color={accentColor} />
+                 <div className={`rounded-[2rem] border overflow-hidden ${isDark ? 'bg-white/5 border-white/5' : 'bg-white border-gray-100 shadow-sm'}`}>
+                      <div className={`p-5 flex items-center justify-between`}>
+                           <div>
+                                <div className={`text-sm font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>Tela Inicial</div>
+                                <div className="text-[10px] font-medium opacity-60">Escolha a visão padrão ao abrir o app.</div>
+                           </div>
+                           <select 
+                                value={startView}
+                                onChange={(e) => onUpdateStartView(e.target.value as ViewState)}
+                                className={`px-3 py-2 rounded-xl text-xs font-bold outline-none border cursor-pointer ${isDark ? 'bg-black/40 text-white border-white/10' : 'bg-gray-50 text-gray-900 border-gray-200'}`}
+                           >
+                                <option value={ViewState.DASHBOARD}>Dashboard</option>
+                                <option value={ViewState.GRADES}>Notas</option>
+                                <option value={ViewState.SCHEDULE}>Horário</option>
+                           </select>
+                      </div>
+                 </div>
+            </div>
+
             <div>
                 <SectionHeader icon={ImageIcon} title="Personalização" color={accentColor} />
                 <div className={`rounded-[2rem] border overflow-hidden ${isDark ? 'bg-white/5 border-white/5' : 'bg-white border-gray-100 shadow-sm'}`}>
