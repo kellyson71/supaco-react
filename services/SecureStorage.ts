@@ -1,4 +1,3 @@
-
 import { supabase } from './supabaseClient';
 
 // Service for simulating a folder-based cache structure in localStorage.
@@ -103,20 +102,47 @@ export const SecureStorage = {
             const todos = SecureStorage.loadItem(matricula, 'todos');
             const achievements = SecureStorage.loadItem(matricula, 'achievements');
             
-            // Load tokens to embed in settings
+            // Collect settings from root localStorage and map to the specific JSON structure
             const google_tokens = SecureStorage.loadItem(matricula, 'google_tokens');
             
-            // Collect settings from root localStorage
-            // Explicitly getting all visual preferences to ensure they persist
-            const settings = {
-                wallpaper: localStorage.getItem('suap_saved_wallpaper'),
-                theme_variant: localStorage.getItem('suap_saved_theme_variant'),
-                theme_mode: localStorage.getItem('suap_saved_theme_mode'),
-                performance: JSON.parse(localStorage.getItem('suap_performance_settings') || 'null'),
-                custom_photo: localStorage.getItem('suap_custom_photo'),
-                use_custom_photo: localStorage.getItem('suap_use_custom_photo'),
-                // Embed tokens here to avoid schema missing column error
-                google_tokens: google_tokens 
+            // Default Pomodoro Settings
+            const defaultPomodoro = { long: 15, focus: 25, short: 5, sound: true, notification: true };
+            const localPomodoro = JSON.parse(localStorage.getItem('supaco_pomodoro_settings') || 'null');
+
+            // Default Performance Settings
+            const defaultPerformance = { disableBlur: false, disableGlow: false, reduceMotion: false };
+            const localPerformance = JSON.parse(localStorage.getItem('suap_performance_settings') || 'null');
+
+            const preferences = {
+                visual: {
+                    themeMode: localStorage.getItem('suap_saved_theme_mode') || 'dark',
+                    wallpaper: localStorage.getItem('suap_saved_wallpaper') || "https://images2.alphacoders.com/134/thumb-1920-1345658.png",
+                    themeVariant: localStorage.getItem('suap_saved_theme_variant') || 'dynamic',
+                    customPhotoUrl: localStorage.getItem('suap_custom_photo') || '',
+                    useCustomPhoto: localStorage.getItem('suap_use_custom_photo') === 'true'
+                },
+                privacy: {
+                    privacyMode: false 
+                },
+                widgets: {
+                    pomodoro: localPomodoro || defaultPomodoro
+                },
+                behavior: {
+                    startView: "DASHBOARD",
+                    autoExpandClassroom: false
+                },
+                performance: localPerformance || defaultPerformance,
+                notifications: {
+                    enabled: true,
+                    gradeAlerts: true,
+                    absenceAlerts: true
+                },
+                // We keep google_tokens here to persist auth across devices, 
+                // even if not strictly "preferences", it is part of user config.
+                // Assuming the backend 'preferences' column is JSONB and allows arbitrary fields.
+                _system: {
+                    google_tokens
+                }
             };
 
             const payload = {
@@ -126,7 +152,7 @@ export const SecureStorage = {
                 completion,
                 grades,
                 schedule,
-                settings, // Now includes all user preferences AND tokens
+                preferences, // Matches the requested column name/structure
                 todos,
                 achievements,
                 updated_at: new Date().toISOString()
@@ -152,7 +178,7 @@ export const SecureStorage = {
 
     /**
      * Loads data from Supabase and updates local storage.
-     * Returns object with data status and settings for immediate UI update.
+     * Returns object with data status and preferences for immediate UI update.
      */
     syncFromCloud: async (matricula: string) => {
         try {
@@ -181,24 +207,43 @@ export const SecureStorage = {
             if (data.todos) SecureStorage.saveItem(matricula, 'todos', data.todos);
             if (data.achievements) SecureStorage.saveItem(matricula, 'achievements', data.achievements);
             
-            // Restore Settings (Preferences) to localStorage
-            if (data.settings) {
-                if(data.settings.wallpaper) localStorage.setItem('suap_saved_wallpaper', data.settings.wallpaper);
-                if(data.settings.theme_variant) localStorage.setItem('suap_saved_theme_variant', data.settings.theme_variant);
-                if(data.settings.theme_mode) localStorage.setItem('suap_saved_theme_mode', data.settings.theme_mode);
-                if(data.settings.performance) localStorage.setItem('suap_performance_settings', JSON.stringify(data.settings.performance));
-                if(data.settings.custom_photo) localStorage.setItem('suap_custom_photo', data.settings.custom_photo);
-                if(data.settings.use_custom_photo) localStorage.setItem('suap_use_custom_photo', data.settings.use_custom_photo);
+            // Restore Preferences to localStorage
+            const prefs = data.preferences || data.settings; // Fallback to 'settings' if 'preferences' is null (migration)
+            
+            if (prefs) {
+                // Visual
+                if (prefs.visual) {
+                    if (prefs.visual.wallpaper) localStorage.setItem('suap_saved_wallpaper', prefs.visual.wallpaper);
+                    if (prefs.visual.themeVariant) localStorage.setItem('suap_saved_theme_variant', prefs.visual.themeVariant);
+                    if (prefs.visual.themeMode) localStorage.setItem('suap_saved_theme_mode', prefs.visual.themeMode);
+                    if (prefs.visual.customPhotoUrl) localStorage.setItem('suap_custom_photo', prefs.visual.customPhotoUrl);
+                    if (prefs.visual.useCustomPhoto !== undefined) localStorage.setItem('suap_use_custom_photo', String(prefs.visual.useCustomPhoto));
+                }
                 
-                // RESTORE TOKENS from settings
-                if(data.settings.google_tokens) {
-                    SecureStorage.saveItem(matricula, 'google_tokens', data.settings.google_tokens);
+                // Performance
+                if (prefs.performance) {
+                    localStorage.setItem('suap_performance_settings', JSON.stringify(prefs.performance));
+                }
+
+                // Widgets
+                if (prefs.widgets && prefs.widgets.pomodoro) {
+                    localStorage.setItem('supaco_pomodoro_settings', JSON.stringify(prefs.widgets.pomodoro));
+                }
+
+                // Tokens (System)
+                if (prefs._system && prefs._system.google_tokens) {
+                     SecureStorage.saveItem(matricula, 'google_tokens', prefs._system.google_tokens);
+                } else if (prefs.google_tokens) {
+                     // Fallback for old structure
+                     SecureStorage.saveItem(matricula, 'google_tokens', prefs.google_tokens);
                 }
             }
 
             console.log(`[Storage] Cloud load successful for ${matricula}`);
-            // Return settings object so the UI can update state immediately
-            return { hasData: true, settings: data.settings };
+            // Return preferences object so the UI can update state immediately. 
+            // App.tsx checks for 'settings' property in previous logic, so we map 'preferences' to it or App.tsx needs update. 
+            // We'll return both for compatibility.
+            return { hasData: true, settings: prefs, preferences: prefs };
         } catch (error: any) {
             const errorMessage = error?.message || error?.error_description || (typeof error === 'object' ? JSON.stringify(error) : String(error));
             console.error(`[Storage] Cloud load failed: ${errorMessage}`);
