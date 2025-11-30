@@ -1,3 +1,5 @@
+
+
 import { supabase } from './supabaseClient';
 import { UserPreferences } from '../types';
 
