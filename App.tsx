@@ -26,11 +26,12 @@ const DEFAULT_PROFILE_IMG = "https://i.pinimg.com/736x/9c/63/e1/9c63e1cf0546ecd4
 const SUPACO_INTERNAL_KEY = process.env.API_KEY || "AIzaSyD-PREMIUM-PLACEHOLDER-KEY-FOR-SUPACO-APP";
 
 // --- GOOGLE OAUTH CONFIG ---
-// IMPORTANT: You must add your Client ID and Client Secret here.
-// For production, these should be environment variables.
-const GOOGLE_CLIENT_ID = googleCredentials.web.client_id; 
-const GOOGLE_CLIENT_SECRET = googleCredentials.web.client_secret; 
-const REDIRECT_URI = window.location.hostname === 'localhost' ? 'http://localhost:5173/' : 'https://supaco.vercel.app/';
+const GOOGLE_CLIENT_ID = googleCredentials.web.client_id;
+const GOOGLE_CLIENT_SECRET = googleCredentials.web.client_secret;
+
+// FIX: Always use /callback for consistency, regardless of environment.
+// Ensure your Google Cloud Console has "http://localhost:PORT/callback" added to Authorized Redirect URIs.
+const REDIRECT_URI = `${window.location.origin}/callback`;
 
 // Cache Keys (Settings only - Data is now in SecureStorage)
 const CACHE_KEYS = {
@@ -457,7 +458,7 @@ const App: React.FC = () => {
   const exchangeSuapCodeForToken = async (code: string) => {
       const CLIENT_ID = 'mtwXt4wCesctJiKA6BbRQ7DMROTJeNosSpQUc7dm';
       const CLIENT_SECRET = 'zPYe7h1xr3Vv1yE38N8ziV56oAcmlJVMQIZP3BCFbuftEyu6whAbvoj7e8oKXU6jcbv9RVosL63fs4SBNnsESnPvozo2bodmvbp7dABOk566Dz88S3UMwKDTwwe6wL2G';
-      const SUAP_REDIRECT_URI = REDIRECT_URI; 
+      const SUAP_REDIRECT_URI = window.location.hostname === 'localhost' ? 'http://localhost:5173/' : 'https://supaco.vercel.app/'; 
 
       try {
           const response = await fetch('https://suap.ifrn.edu.br/o/token/', {
@@ -528,6 +529,7 @@ const App: React.FC = () => {
 
   const exchangeGoogleCode = async (code: string) => {
     try {
+        console.log("Exchanging Google Code with redirect_uri:", REDIRECT_URI);
         const response = await fetch('https://oauth2.googleapis.com/token', {
             method: 'POST',
             headers: {
@@ -561,8 +563,8 @@ const App: React.FC = () => {
                 setIsClassroomLinked(true);
                 setClassroomStatus('connected');
                 
-                // Clean URL
-                window.history.replaceState({}, document.title, window.location.pathname);
+                // Clean URL completely (remove /callback part if present)
+                window.history.replaceState({}, document.title, '/');
                 
                 // Fetch data immediately
                 fetchClassroomData(matricula);
@@ -626,6 +628,8 @@ const App: React.FC = () => {
 
   // --- OAUTH CALLBACK HANDLER ---
   useEffect(() => {
+      // Check current path to see if we are in a callback
+      const path = window.location.pathname;
       const searchParams = new URLSearchParams(window.location.search);
       const code = searchParams.get('code');
       const state = searchParams.get('state');
