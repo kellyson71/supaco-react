@@ -19,39 +19,6 @@ export interface PerformanceSettings {
   disableGlow: boolean;
 }
 
-// --- NEW PREFERENCES STRUCTURE ---
-export interface UserPreferences {
-    visual: {
-        themeMode: 'light' | 'dark';
-        themeVariant: ThemeVariant;
-        wallpaper: string;
-        customPhotoUrl: string;
-        useCustomPhoto: boolean;
-    };
-    performance: PerformanceSettings;
-    privacy: {
-        privacyMode: boolean; // Blurs grades/sensitive info
-    };
-    behavior: {
-        startView: ViewState;
-        autoExpandClassroom: boolean;
-    };
-    notifications: {
-        enabled: boolean;
-        gradeAlerts: boolean;
-        absenceAlerts: boolean;
-    };
-    widgets: {
-        pomodoro: {
-            focus: number;
-            short: number;
-            long: number;
-            sound: boolean;
-            notification: boolean;
-        };
-    };
-}
-
 export type AchievementRarity = 'common' | 'rare' | 'epic' | 'legendary';
 
 export interface Achievement {

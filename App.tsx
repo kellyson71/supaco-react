@@ -7,7 +7,7 @@ import { supabase } from './services/supabaseClient';
 import { WifiOff, RefreshCw, AlertTriangle, X } from 'lucide-react';
 
 import { SplashScreen } from './components/SplashScreen';
-import { ViewState, ThemeVariant, SuapProfile, SuapMeusDadosAluno, SuapPeriod, SuapDiario, SuapBoletim, ProcessedClass, GradeInfo, SuapCompletionData, Holiday, ClassroomWork, ClassroomCourse, PerformanceSettings, SuapMeusPeriodosLetivos, TodoItem, GoogleTokens, UserPreferences } from './types';
+import { ViewState, ThemeVariant, SuapProfile, SuapMeusDadosAluno, SuapPeriod, SuapDiario, SuapBoletim, ProcessedClass, GradeInfo, SuapCompletionData, Holiday, ClassroomWork, ClassroomCourse, PerformanceSettings, SuapMeusPeriodosLetivos, TodoItem, GoogleTokens } from './types';
 
 // --- DYNAMIC IMPORTS (Code Splitting) ---
 // We handle named exports by destructuring the module in the promise result.
@@ -29,8 +29,8 @@ const SUPACO_INTERNAL_KEY = process.env.API_KEY || "AIzaSyD-PREMIUM-PLACEHOLDER-
 // --- GOOGLE OAUTH CONFIG ---
 // IMPORTANT: You must add your Client ID and Client Secret here.
 // For production, these should be environment variables.
-const GOOGLE_CLIENT_ID = '493737247808-0rv9jbldtskqdg78l122foess6h1t7ll.apps.googleusercontent.com'; 
-const GOOGLE_CLIENT_SECRET = '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'; 
+const GOOGLE_CLIENT_ID = 'YOUR_GOOGLE_CLIENT_ID'; 
+const GOOGLE_CLIENT_SECRET = 'YOUR_GOOGLE_CLIENT_SECRET'; 
 const REDIRECT_URI = window.location.hostname === 'localhost' ? 'http://localhost:5173/' : 'https://supaco.vercel.app/';
 
 // Cache Keys (Settings only - Data is now in SecureStorage)
@@ -39,9 +39,6 @@ const CACHE_KEYS = {
     THEME_VARIANT: 'suap_saved_theme_variant',
     THEME_MODE: 'suap_saved_theme_mode',
     PERFORMANCE: 'suap_performance_settings',
-    PRIVACY_MODE: 'suap_privacy_mode',
-    START_VIEW: 'suap_start_view',
-    NOTIFICATIONS_ENABLED: 'suap_notifications_enabled',
     WELCOME_SEEN: 'suap_welcome_seen',
     TUTORIAL_SEEN: 'suap_tutorial_completed_v1',
     IS_PREMIUM: 'suap_user_is_premium' 
@@ -150,17 +147,6 @@ const App: React.FC = () => {
       return saved ? JSON.parse(saved) : DEFAULT_PERFORMANCE;
   });
 
-  // NEW PREFERENCES
-  const [privacyMode, setPrivacyMode] = useState(() => {
-      return localStorage.getItem(CACHE_KEYS.PRIVACY_MODE) === 'true';
-  });
-  const [startView, setStartView] = useState<ViewState>(() => {
-      return (localStorage.getItem(CACHE_KEYS.START_VIEW) as ViewState) || ViewState.DASHBOARD;
-  });
-  const [notificationsEnabled, setNotificationsEnabled] = useState(() => {
-      return localStorage.getItem(CACHE_KEYS.NOTIFICATIONS_ENABLED) !== 'false';
-  });
-
   // Premium State
   const [isPremium, setIsPremium] = useState(false); // Initial state false, will check DB
   const [showPremiumModal, setShowPremiumModal] = useState(false);
@@ -248,11 +234,6 @@ const App: React.FC = () => {
       await new Promise(resolve => setTimeout(resolve, 2000));
       
       setIsAppReady(true);
-      
-      // Apply start view if set
-      if (isLoggedIn && startView && startView !== ViewState.DASHBOARD) {
-          setCurrentView(startView);
-      }
     };
 
     initApp();
@@ -282,7 +263,7 @@ const App: React.FC = () => {
 
   // --- ATTENDANCE RISK CHECKER ---
   useEffect(() => {
-      if (notificationsEnabled && processedGrades.length > 0) {
+      if (processedGrades.length > 0) {
           processedGrades.forEach(grade => {
               if (grade.limit > 0) {
                   const percentage = grade.absences / grade.limit;
@@ -305,7 +286,7 @@ const App: React.FC = () => {
               }
           });
       }
-  }, [processedGrades, notificationsEnabled]);
+  }, [processedGrades]);
 
 
   // --- PERSISTENCE HELPERS ---
@@ -325,20 +306,6 @@ const App: React.FC = () => {
   useEffect(() => {
       localStorage.setItem(CACHE_KEYS.PERFORMANCE, JSON.stringify(performanceSettings));
   }, [performanceSettings]);
-  
-  // New persistence
-  useEffect(() => {
-      localStorage.setItem(CACHE_KEYS.PRIVACY_MODE, String(privacyMode));
-  }, [privacyMode]);
-
-  useEffect(() => {
-      localStorage.setItem(CACHE_KEYS.START_VIEW, startView);
-  }, [startView]);
-
-  useEffect(() => {
-      localStorage.setItem(CACHE_KEYS.NOTIFICATIONS_ENABLED, String(notificationsEnabled));
-  }, [notificationsEnabled]);
-
 
   // --- APPLY SETTINGS HELPER (New) ---
   const applySettingsFromCache = () => {
@@ -360,16 +327,6 @@ const App: React.FC = () => {
 
       const usePhoto = localStorage.getItem('suap_use_custom_photo');
       if (usePhoto) setUseCustomPhoto(usePhoto === 'true');
-
-      // New settings
-      const privacy = localStorage.getItem(CACHE_KEYS.PRIVACY_MODE);
-      if (privacy) setPrivacyMode(privacy === 'true');
-      
-      const start = localStorage.getItem(CACHE_KEYS.START_VIEW);
-      if (start) setStartView(start as ViewState);
-      
-      const notifs = localStorage.getItem(CACHE_KEYS.NOTIFICATIONS_ENABLED);
-      if (notifs) setNotificationsEnabled(notifs === 'true');
   };
 
   // Check Tutorial Status whenever Login or Landing changes
@@ -385,7 +342,7 @@ const App: React.FC = () => {
                     localStorage.setItem(CACHE_KEYS.TUTORIAL_SEEN, 'true');
                     setShowTutorial(false);
                     // Also apply settings if found
-                    if(result.preferences) applySettingsFromCache();
+                    if(result.settings) applySettingsFromCache();
                 } else {
                     // Normal flow for new/local users
                     const seen = localStorage.getItem(CACHE_KEYS.TUTORIAL_SEEN);
@@ -441,39 +398,11 @@ const App: React.FC = () => {
           setIsSyncing(true);
           syncTimeoutRef.current = setTimeout(async () => {
               console.log("[App] Auto-syncing settings to cloud...");
-              
-              // Construct current preferences to sync
-              const currentPrefs: UserPreferences = {
-                    visual: {
-                        themeMode: isDarkMode ? 'dark' : 'light',
-                        themeVariant: themeVariant,
-                        wallpaper: currentWallpaper,
-                        customPhotoUrl: customPhotoUrl,
-                        useCustomPhoto: useCustomPhoto,
-                    },
-                    performance: performanceSettings,
-                    privacy: {
-                        privacyMode: privacyMode
-                    },
-                    behavior: {
-                        startView: startView,
-                        autoExpandClassroom: autoExpandClassroom
-                    },
-                    notifications: {
-                        enabled: notificationsEnabled,
-                        gradeAlerts: true,
-                        absenceAlerts: true
-                    },
-                    widgets: {
-                        pomodoro: JSON.parse(localStorage.getItem('supaco_pomodoro_settings') || '{"focus":25,"short":5,"long":15,"sound":true,"notification":true}')
-                    }
-              };
-
-              await SecureStorage.syncToCloud(userData.matricula!, currentPrefs);
+              await SecureStorage.syncToCloud(userData.matricula!);
               setIsSyncing(false);
           }, 3000); 
       }
-  }, [currentView, currentWallpaper, customPhotoUrl, useCustomPhoto, themeVariant, isDarkMode, performanceSettings, privacyMode, startView, notificationsEnabled, isLoggedIn, userData?.matricula]);
+  }, [currentView, currentWallpaper, customPhotoUrl, useCustomPhoto, themeVariant, isDarkMode, performanceSettings, isLoggedIn, userData?.matricula]);
 
 
   // Calculate Active User Photo
@@ -1036,7 +965,7 @@ const App: React.FC = () => {
         setIsSyncing(true);
 
         const cloudResult = await SecureStorage.syncFromCloud(currentMatricula);
-        if (cloudResult && cloudResult.hasData && cloudResult.preferences) {
+        if (cloudResult && cloudResult.hasData && cloudResult.settings) {
             applySettingsFromCache(); 
         }
 
@@ -1344,15 +1273,6 @@ const App: React.FC = () => {
                     display: none !important;
                 }
             ` : ''}
-            
-            /* Privacy Mode Blur Class */
-            .privacy-blur {
-                filter: blur(5px);
-                transition: filter 0.2s;
-            }
-            .privacy-blur:hover {
-                filter: blur(0);
-            }
         `}
       </style>
 
@@ -1470,12 +1390,6 @@ const App: React.FC = () => {
                     onToggleTodo={handleToggleTodo}
                     onRemoveTodo={handleRemoveTodo}
                     classroomStatus={classroomStatus}
-                    // New Props for Privacy Mode
-                    // We can pass this as a prop if we update DashboardLayout interface,
-                    // or just use CSS classes since I added 'privacy-blur' global class
-                    // But typically we pass it down.
-                    // For now, I'll rely on the CSS class being available and the layout component checking it if updated.
-                    // Actually, let's update DashboardLayout to receive it to be clean.
                 />
             </Suspense>
 
@@ -1537,13 +1451,6 @@ const App: React.FC = () => {
                         isClassroomLinked={isClassroomLinked}
                         onLinkClassroom={initiateGoogleAuth}
                         classroomStatus={classroomStatus}
-                        // New Settings
-                        privacyMode={privacyMode}
-                        onTogglePrivacyMode={(v: boolean) => setPrivacyMode(v)}
-                        startView={startView}
-                        onUpdateStartView={setStartView}
-                        notificationsEnabled={notificationsEnabled}
-                        onToggleNotifications={setNotificationsEnabled}
                     />
                 </Suspense>
                 )}

@@ -443,19 +443,6 @@ export const DashboardLayout: React.FC<DashboardProps> = ({
 
   // ToDo Input State
   const [todoInput, setTodoInput] = useState('');
-  
-  // Privacy Mode State (Check local storage for initial render, also reacts to App changes via mount/unmount usually)
-  const [privacyMode, setPrivacyMode] = useState(localStorage.getItem('suap_privacy_mode') === 'true');
-
-  useEffect(() => {
-      // Listen for storage changes in privacy mode in case it's changed in Settings view and we come back
-      const checkPrivacy = () => {
-          setPrivacyMode(localStorage.getItem('suap_privacy_mode') === 'true');
-      };
-      window.addEventListener('storage', checkPrivacy);
-      // Also poll slightly or just check on mount
-      return () => window.removeEventListener('storage', checkPrivacy);
-  }, [currentView]); // Re-check when view changes back to Dashboard
 
   // Calculated States
   const [bestSubjectToSkip, setBestSubjectToSkip] = useState<GradeInfo | null>(null);
@@ -810,7 +797,7 @@ export const DashboardLayout: React.FC<DashboardProps> = ({
                                                 {conf.text}
                                             </div>
                                             <div className="flex flex-col items-end leading-none pr-1">
-                                                <span className={`text-sm font-black ${isDarkMode ? 'text-white' : 'text-gray-800'} ${privacyMode ? 'privacy-blur' : ''}`}>
+                                                <span className={`text-sm font-black ${isDarkMode ? 'text-white' : 'text-gray-800'}`}>
                                                     {remaining}
                                                 </span>
                                                 <span className="text-[7px] font-bold uppercase opacity-50">Restantes</span>
@@ -829,7 +816,7 @@ export const DashboardLayout: React.FC<DashboardProps> = ({
                                 </div>
                                 <div className={`text-[10px] font-bold flex items-center gap-1.5 ${isDarkMode ? `text-${primaryColor}-400` : `text-${primaryColor}-600`}`}>
                                     <ThumbsUp size={12} />
-                                    <span className={privacyMode ? 'privacy-blur' : ''}>{bestSubjectToSkip.limit - bestSubjectToSkip.absences} faltas disponíveis.</span>
+                                    <span>{bestSubjectToSkip.limit - bestSubjectToSkip.absences} faltas disponíveis.</span>
                                 </div>
                              </div>
                         ) : (
@@ -1316,14 +1303,14 @@ export const DashboardLayout: React.FC<DashboardProps> = ({
                                 <div className="flex items-center gap-3 border-t border-white/10 pt-4">
                                     <div className="px-2">
                                         <span className="text-[9px] text-white/60 uppercase font-bold block mb-0.5">Média Geral</span>
-                                        <span className={`text-lg font-black text-white ${privacyMode ? 'privacy-blur' : ''}`}>
+                                        <span className="text-lg font-black text-white">
                                             {stats.average}
                                         </span>
                                     </div>
                                     <div className="w-[1px] h-8 bg-white/10"></div>
                                     <div className="px-2">
                                         <span className="text-[9px] text-white/60 uppercase font-bold block mb-0.5">Frequência</span>
-                                        <span className={`text-lg font-black text-${primaryColor}-400 ${privacyMode ? 'privacy-blur' : ''}`}>
+                                        <span className={`text-lg font-black text-${primaryColor}-400`}>
                                             {stats.frequency}
                                         </span>
                                     </div>
@@ -1687,4 +1674,66 @@ export const DashboardLayout: React.FC<DashboardProps> = ({
                             className="h-full flex flex-col gap-3"
                           >
                             {holidays.filter(h => new Date(h.date) >= new Date()).slice(0, 10).map((h, i) => (
-                                <div key={i} className={`p-4 rounded-2
+                                <div key={i} className={`p-4 rounded-2xl border flex items-center gap-4 ${isDarkMode ? 'bg-white/5 border-white/5' : 'bg-white border-gray-100 shadow-sm'}`}>
+                                    <div className={`p-2 rounded-xl ${isDarkMode ? 'bg-white/10 text-white' : 'bg-gray-100 text-gray-600'}`}>
+                                        <CalendarDays size={18} />
+                                    </div>
+                                    <div>
+                                        <div className={`text-sm font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>{h.name}</div>
+                                        <div className="text-[10px] font-medium opacity-50">{new Date(h.date + 'T00:00:00').toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' })}</div>
+                                    </div>
+                                </div>
+                            ))}
+                            {holidays.length === 0 && <p className="text-center text-xs opacity-50 mt-10">Sem feriados próximos.</p>}
+                          </motion.div>
+                      )}
+
+                      {rightTab === 'achievements' && (
+                        <motion.div 
+                            key="achievements"
+                            initial={{ opacity: 0, x: 20 }}
+                            animate={{ opacity: 1, x: 0 }}
+                            exit={{ opacity: 0, x: -20 }}
+                            className="h-full flex flex-col gap-3"
+                        >
+                            <div className={`p-6 rounded-[2rem] border text-center ${isDarkMode ? `bg-${primaryColor}-500/10 border-${primaryColor}-500/20` : `bg-${primaryColor}-50 border-${primaryColor}-100`}`}>
+                                <Trophy size={32} className={`mx-auto mb-2 text-${primaryColor}-500`} />
+                                <div className="text-2xl font-black">{unlockedAchievements.length}</div>
+                                <div className="text-[10px] font-bold uppercase opacity-50">Conquistas Desbloqueadas</div>
+                            </div>
+                            
+                            <div className="text-center mt-4">
+                                <p className="text-xs opacity-50">Veja todas as conquistas no seu Perfil.</p>
+                                <button onClick={() => handleNavClick(ViewState.PROFILE)} className={`mt-2 px-4 py-2 rounded-xl text-xs font-bold uppercase ${isDarkMode ? 'bg-white/10 hover:bg-white/20' : 'bg-gray-100 hover:bg-gray-200'}`}>
+                                    Ir para Perfil
+                                </button>
+                            </div>
+                        </motion.div>
+                      )}
+                  </AnimatePresence>
+                </div>
+
+                {/* VERSION FOOTER */}
+                <div className="mt-4 pt-4 border-t border-dashed border-gray-500/10 flex justify-between items-center opacity-50 hover:opacity-100 transition-opacity">
+                    <button onClick={() => setShowChangelog(true)} className="flex items-center gap-2 text-[10px] font-mono font-bold hover:text-blue-500 transition-colors">
+                        <GitCommit size={12} />
+                        <span>v{CURRENT_VERSION}</span>
+                    </button>
+                    <div className="text-[10px] font-bold">Electron</div>
+                </div>
+
+             </motion.div>
+          ) : (
+            /* Not Logged In Sidebar State */
+             <div className="h-full flex flex-col items-center justify-center text-center opacity-40">
+                 <Shield size={48} className="mb-4" />
+                 <p className="text-sm font-bold max-w-[200px]">Faça login para ver seu resumo diário.</p>
+             </div>
+          )}
+      </div>
+
+      {/* 4. MOBILE NAVBAR is handled in App.tsx via separate component */}
+      
+    </div>
+  );
+};
