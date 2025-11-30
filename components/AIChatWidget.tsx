@@ -1,7 +1,8 @@
 
+
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Sparkles, CornerDownLeft, Settings, MessageCircle, FileText, BarChart2 } from 'lucide-react';
+import { X, Sparkles, CornerDownLeft, Settings, MessageCircle, FileText, BarChart2, Crown } from 'lucide-react';
 import { GoogleGenAI, FunctionDeclaration, Type } from "@google/genai";
 import ReactMarkdown from 'react-markdown';
 import { GradeInfo, ProcessedClass, SuapProfile, Holiday } from '../types';
@@ -14,6 +15,8 @@ interface AIChatWidgetProps {
   schedule: ProcessedClass[];
   holidays: Holiday[];
   onRequestSettings: () => void;
+  isPremium?: boolean;
+  internalApiKey?: string;
 }
 
 interface Message {
@@ -22,7 +25,7 @@ interface Message {
   text: string;
 }
 
-export const AIChatWidget: React.FC<AIChatWidgetProps> = ({ isDarkMode, accentColor, userData, grades, schedule, holidays, onRequestSettings }) => {
+export const AIChatWidget: React.FC<AIChatWidgetProps> = ({ isDarkMode, accentColor, userData, grades, schedule, holidays, onRequestSettings, isPremium, internalApiKey }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [input, setInput] = useState('');
   const [messages, setMessages] = useState<Message[]>([]);
@@ -146,8 +149,19 @@ DIRETRIZES:
     const userText = overrideText || input;
     if (!userText.trim()) return;
 
-    // CHECK FOR API KEY FIRST
-    const apiKey = localStorage.getItem('gemini_api_key') || process.env.API_KEY;
+    // CHECK FOR API KEY (Custom > Internal Premium)
+    let apiKey = localStorage.getItem('gemini_api_key');
+    
+    // If no custom key, check premium internal key
+    if (!apiKey && isPremium && internalApiKey) {
+        apiKey = internalApiKey;
+    }
+
+    // Fallback to Env if defined (e.g. self-hosting)
+    if (!apiKey && process.env.API_KEY) {
+        apiKey = process.env.API_KEY;
+    }
+
     if (!apiKey) {
         const systemMsg: Message = {
             id: Date.now().toString(),
@@ -314,6 +328,11 @@ DIRETRIZES:
                       <span className={`text-xs font-bold tracking-wider uppercase ${isDarkMode ? 'text-white/90' : `text-${accentColor}-900/80`}`}>
                           Assistente
                       </span>
+                      {isPremium && (
+                        <div className="flex items-center gap-1 bg-amber-500/20 text-amber-500 px-1.5 py-0.5 rounded text-[8px] font-bold uppercase border border-amber-500/30">
+                            <Crown size={8} fill="currentColor" /> Premium
+                        </div>
+                      )}
                   </div>
                   <div className="flex items-center gap-1">
                       <button 

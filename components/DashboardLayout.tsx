@@ -1,5 +1,4 @@
 
-
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { motion, AnimatePresence, PanInfo, useMotionValue, useTransform } from 'framer-motion';
 import { 
@@ -50,7 +49,8 @@ import {
   Target,
   Zap,
   ShieldCheck,
-  Brain
+  Brain,
+  GitCommit
 } from 'lucide-react';
 import { InvertedCorner } from './InvertedCorner';
 import { ViewState, ClassroomWork, SuapProfile, SuapPeriod, GradeInfo, ProcessedClass, SuapCompletionData, Holiday, TodoItem, SuapMeusDadosAluno, Achievement } from '../types';
@@ -58,9 +58,12 @@ import { ACHIEVEMENTS_LIST, getRarityColor, getRarityLabel } from '../achievemen
 import { AIChatWidget } from './AIChatWidget';
 import { PomodoroWidget } from './PomodoroWidget';
 import { SecureStorage } from '../services/SecureStorage';
+import { ChangelogModal } from './modals/ChangelogModal';
 
 // -- Constants --
 const DEFAULT_PROFILE_IMG = "https://i.pinimg.com/736x/9c/63/e1/9c63e1cf0546ecd4f83b7df067f440d2.jpg";
+const SUPACO_INTERNAL_KEY = process.env.API_KEY || "AIzaSyD-PREMIUM-PLACEHOLDER-KEY-FOR-SUPACO-APP";
+const CURRENT_VERSION = "2.0.0";
 
 // Theme Colors
 const LIGHT_FRAME = 'bg-white';
@@ -100,7 +103,7 @@ interface DashboardProps {
 }
 
 // --- HOLOGRAPHIC CARD COMPONENT ---
-const HolographicCard = ({ children, primaryColor }: { children?: React.ReactNode, primaryColor: string }) => {
+const HolographicCard = ({ children, primaryColor, isPremium }: { children?: React.ReactNode, primaryColor: string, isPremium?: boolean }) => {
     const x = useMotionValue(0);
     const y = useMotionValue(0);
     const rotateX = useTransform(y, [-100, 100], [10, -10]);
@@ -133,7 +136,9 @@ const HolographicCard = ({ children, primaryColor }: { children?: React.ReactNod
                 onMouseLeave={handleMouseLeave}
                 className="relative w-full h-full rounded-[2rem] transition-all duration-200 ease-out"
             >
-                <div className="absolute inset-0 bg-white/10 backdrop-blur-md border border-white/20 rounded-[2rem] shadow-xl overflow-hidden">
+                <div 
+                    className={`absolute inset-0 bg-white/10 backdrop-blur-md rounded-[2rem] shadow-xl overflow-hidden border-2 border-${primaryColor}-500/50`}
+                >
                     {/* Glare Effect */}
                     <motion.div 
                         style={{
@@ -305,6 +310,92 @@ const FocusModeOverlay = ({ onClose, nextClass, isDarkMode, primaryColor }: any)
     );
 };
 
+// --- NAVIGATION ITEM ---
+const NavItem = ({ icon, active, onClick, label, activeColor, isDark }: any) => (
+  <button 
+    onClick={onClick}
+    className={`w-12 h-12 rounded-2xl flex items-center justify-center transition-all duration-300 group relative
+      ${active 
+        ? `bg-${activeColor}-500 text-white shadow-lg shadow-${activeColor}-500/40 scale-110` 
+        : (isDark ? 'text-gray-400 hover:bg-white/10 hover:text-white' : 'text-gray-400 hover:bg-gray-100 hover:text-gray-600')
+      }
+    `}
+    title={label}
+  >
+    {React.cloneElement(icon, { size: 20 })}
+    {active && (
+      <motion.div 
+        layoutId="activeNavIndicator"
+        className="absolute -right-2 w-1 h-6 rounded-full bg-white"
+        transition={{ type: "spring", stiffness: 300, damping: 30 }}
+      />
+    )}
+  </button>
+);
+
+// --- TOP BAR ITEM ---
+const TopBarItem = ({ icon, label, onClick, active, indicator, indicatorColor, rightIcon, children, isDark }: any) => {
+    const [isHovered, setIsHovered] = useState(false);
+    
+    return (
+        <div 
+            className="relative"
+            onMouseEnter={() => setIsHovered(true)}
+            onMouseLeave={() => setIsHovered(false)}
+        >
+            <button 
+                onClick={onClick}
+                className={`h-8 md:h-10 px-3 md:px-4 rounded-full flex items-center gap-2 transition-all text-xs md:text-sm font-bold border
+                    ${active 
+                        ? (isDark ? 'bg-white text-black border-transparent' : 'bg-black text-white border-transparent')
+                        : (isDark ? 'bg-white/5 border-white/10 text-gray-300 hover:bg-white/10' : 'bg-gray-50 border-gray-200 text-gray-600 hover:bg-gray-100')
+                    }
+                `}
+            >
+                {indicator && (
+                    <span className={`w-2 h-2 rounded-full bg-${indicatorColor}-500 ${indicatorColor === 'green' ? 'animate-pulse' : ''}`} />
+                )}
+                {icon}
+                <span>{label}</span>
+                {rightIcon && <span className="opacity-50">{rightIcon}</span>}
+            </button>
+
+            {/* Dropdown / Tooltip Content */}
+            <AnimatePresence>
+                {isHovered && children && (
+                    <motion.div
+                        initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                        animate={{ opacity: 1, y: 0, scale: 1 }}
+                        exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                        transition={{ type: 'spring', stiffness: 400, damping: 30 }}
+                        className={`absolute top-full mt-2 left-0 z-50 rounded-2xl shadow-xl border overflow-hidden
+                            ${isDark ? 'bg-slate-900/90 border-white/20 backdrop-blur-xl' : 'bg-white/90 border-gray-200 backdrop-blur-xl'}
+                        `}
+                    >
+                        {children}
+                    </motion.div>
+                )}
+            </AnimatePresence>
+        </div>
+    )
+}
+
+// --- LOGIN MODAL ---
+const LoginModal = ({ isDarkMode, primaryColor, onLogin }: any) => {
+    // This is a simplified placeholder as login is handled in LandingPage usually
+    // But kept here if user logs out and needs to log back in without full reload
+    return (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/60 backdrop-blur-md">
+            <div className={`p-8 rounded-[2rem] shadow-2xl ${isDarkMode ? 'bg-slate-900 text-white' : 'bg-white text-gray-900'}`}>
+                <h2 className="text-2xl font-black mb-4">Bem-vindo de volta</h2>
+                <button onClick={onLogin} className={`w-full py-3 rounded-xl font-bold bg-${primaryColor}-500 text-white`}>
+                    Entrar
+                </button>
+            </div>
+        </div>
+    )
+}
+
 // --- CALENDAR HELPERS ---
 const DAYS_OF_WEEK = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'];
 const MONTH_NAMES = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
@@ -341,6 +432,7 @@ export const DashboardLayout: React.FC<DashboardProps> = ({
   const [activeNav, setActiveNav] = useState<ViewState>(ViewState.DASHBOARD);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isFocusMode, setIsFocusMode] = useState(false);
+  const [showChangelog, setShowChangelog] = useState(false);
   
   // Achievement State
   const [unlockedAchievements, setUnlockedAchievements] = useState<string[]>([]);
@@ -363,6 +455,9 @@ export const DashboardLayout: React.FC<DashboardProps> = ({
   // Calendar State
   const [currentDate, setCurrentDate] = useState(new Date());
   const [hoveredDate, setHoveredDate] = useState<{ date: Date, rect: DOMRect } | null>(null);
+  
+  // Premium check
+  const isPremium = localStorage.getItem('suap_user_is_premium') === 'true';
 
   useEffect(() => {
     setActiveNav(currentView);
@@ -872,6 +967,19 @@ export const DashboardLayout: React.FC<DashboardProps> = ({
   const frameText = isDarkMode ? 'text-white' : 'text-gray-900';
   const cornerColor = isDarkMode ? DARK_CORNER : LIGHT_CORNER;
 
+  // PREMIUM BORDER STYLE (Used for profile photos)
+  const premiumBorderLines = isPremium ? {
+     content: '""',
+     position: 'absolute' as const,
+     inset: 0,
+     borderRadius: '100%',
+     borderTop: '3px solid #ef4444',    // Red
+     borderLeft: '3px solid #eab308',   // Yellow
+     borderBottom: '3px solid #3b82f6', // Blue
+     borderRight: '1.5px solid #22c55e',// Green (Thinner)
+     pointerEvents: 'none' as const
+  } : {};
+
   return (
     <div className={`relative w-full h-[100dvh] md:h-screen overflow-hidden flex flex-col md:flex-row font-sans transition-colors duration-500 ${isDarkMode ? 'bg-black' : 'bg-gray-900'}`}>
       
@@ -893,6 +1001,17 @@ export const DashboardLayout: React.FC<DashboardProps> = ({
                   onClose={() => setIsFocusMode(false)}
                   nextClass={nextClass}
                   isDarkMode={isDarkMode}
+                  primaryColor={primaryColor}
+              />
+          )}
+      </AnimatePresence>
+      
+      {/* --- CHANGELOG MODAL --- */}
+      <AnimatePresence>
+          {showChangelog && (
+              <ChangelogModal 
+                  onClose={() => setShowChangelog(false)}
+                  isDark={isDarkMode}
                   primaryColor={primaryColor}
               />
           )}
@@ -967,13 +1086,28 @@ export const DashboardLayout: React.FC<DashboardProps> = ({
              </motion.div>
            </button>
 
-           <button 
-             id="tut-profile"
-             onClick={() => handleNavClick(ViewState.PROFILE)}
-             className={`w-10 h-10 rounded-full overflow-hidden border-2 p-0.5 hover:scale-110 transition-transform ${activeNav === ViewState.PROFILE ? `border-${primaryColor}-500 scale-110` : 'border-transparent'}`}
-            >
-              <img src={userPhoto} className="w-full h-full rounded-full object-cover" alt="Profile" />
-           </button>
+           <div className="relative w-12 h-12 flex items-center justify-center">
+               {/* Fixed Quadrant Border */}
+               {isPremium && (
+                 <div className="absolute inset-0 rounded-full" 
+                    style={{
+                        borderTop: '3px solid #ef4444',
+                        borderLeft: '3px solid #eab308',
+                        borderBottom: '3px solid #3b82f6',
+                        borderRight: '1.5px solid #22c55e'
+                    }} 
+                 />
+               )}
+               <button 
+                 id="tut-profile"
+                 onClick={() => handleNavClick(ViewState.PROFILE)}
+                 className={`w-10 h-10 rounded-full overflow-hidden p-0.5 hover:scale-110 transition-transform relative z-10 
+                   ${!isPremium && activeNav === ViewState.PROFILE ? `border-2 border-${primaryColor}-500 scale-110` : (!isPremium ? 'border-2 border-transparent' : '')}
+                 `}
+                >
+                  <img src={userPhoto} className="w-full h-full rounded-full object-cover" alt="Profile" />
+               </button>
+           </div>
         </div>
 
         <div className="absolute top-0 -right-[40px] w-[40px] h-[40px] z-50">
@@ -1078,9 +1212,26 @@ export const DashboardLayout: React.FC<DashboardProps> = ({
                         >
                             <RefreshCw size={14} className={isRefreshing ? 'animate-spin' : ''} />
                         </button>
-                        <button id="tut-profile-mobile" onClick={() => handleNavClick(ViewState.PROFILE)} className="w-8 h-8 rounded-full overflow-hidden border border-white/20">
-                            <img src={userPhoto} className="w-full h-full object-cover" alt="Profile" />
-                        </button>
+                        <div className="relative w-8 h-8 flex items-center justify-center">
+                             {/* Fixed Quadrant Border for Mobile */}
+                             {isPremium && (
+                               <div className="absolute inset-0 rounded-full" 
+                                  style={{
+                                      borderTop: '2.5px solid #ef4444',
+                                      borderLeft: '2.5px solid #eab308',
+                                      borderBottom: '2.5px solid #3b82f6',
+                                      borderRight: '1.5px solid #22c55e'
+                                  }} 
+                               />
+                             )}
+                            <button 
+                                id="tut-profile-mobile" 
+                                onClick={() => handleNavClick(ViewState.PROFILE)} 
+                                className={`w-7 h-7 rounded-full overflow-hidden relative z-10 ${!isPremium ? 'border border-white/20' : ''}`}
+                            >
+                                <img src={userPhoto} className="w-full h-full object-cover" alt="Profile" />
+                            </button>
+                        </div>
                     </div>
                 </motion.div>
             </div>
@@ -1096,7 +1247,7 @@ export const DashboardLayout: React.FC<DashboardProps> = ({
                             transition={{ type: 'spring', stiffness: 50, damping: 15, delay: isLoggedIn ? 0.4 : 0 }}
                             className="relative w-full max-w-[320px] md:w-[298px] h-[220px]"
                         >
-                            <HolographicCard primaryColor={primaryColor}>
+                            <HolographicCard primaryColor={primaryColor} isPremium={isPremium}>
                                 <div>
                                     <span className="text-xs font-bold text-white/80 uppercase tracking-widest mb-1 block">
                                         {userData?.nome_usual || "Estudante"}
@@ -1278,30 +1429,6 @@ export const DashboardLayout: React.FC<DashboardProps> = ({
 
            </div>
 
-           {/* WIDGET TOOLBAR (AI & POMODORO) - Mobile adjusted position */}
-           <AnimatePresence>
-            {isLoggedIn && (
-              // Changed from motion.div with opacity to a simpler div to avoid transform stacking context issues affecting fixed children
-              <div 
-                id="tut-widgets"
-                className="fixed md:absolute bottom-24 md:bottom-10 left-0 md:left-[322px] right-0 z-[250] flex justify-center items-end pointer-events-none px-4 md:px-0 transition-opacity duration-1000 opacity-100"
-              >
-                  <div className="pointer-events-auto flex items-end gap-4 w-full max-w-md md:w-auto justify-center md:justify-start">
-                      <PomodoroWidget isDarkMode={isDarkMode} primaryColor={primaryColor} />
-                      <AIChatWidget 
-                        isDarkMode={isDarkMode} 
-                        accentColor={primaryColor} 
-                        userData={userData}
-                        grades={grades}
-                        schedule={schedule}
-                        holidays={holidays}
-                        onRequestSettings={onOpenSettings}
-                      />
-                  </div>
-              </div>
-            )}
-           </AnimatePresence>
-
         </div>
       </div>
 
@@ -1479,7 +1606,7 @@ export const DashboardLayout: React.FC<DashboardProps> = ({
                                                   <span className={`text-xs font-medium flex-1 truncate transition-all ${todo.completed ? 'opacity-40 line-through' : (isDarkMode ? 'text-gray-300' : 'text-gray-700')}`}>
                                                       {todo.text}
                                                   </span>
-                                                  <button onClick={() => onRemoveTodo?.(todo.id)} className="opacity-0 group-hover:opacity-100 p-1.5 text-gray-400 hover:text-red-400 transition-all">
+                                                  <button onClick={() => onRemoveTodo?.(todo.id)} className="opacity-0 group-hover:opacity-100 transition-opacity p-1 hover:bg-red-500/10 hover:text-red-500 rounded">
                                                       <Trash2 size={12} />
                                                   </button>
                                               </div>
@@ -1487,321 +1614,108 @@ export const DashboardLayout: React.FC<DashboardProps> = ({
                                       )}
                                   </div>
                               </div>
-                              
-                              {/* Bottom Mini Cards */}
-                              <div className="grid grid-cols-2 gap-3 mt-auto">
-                                    {/* Next Holiday Mini */}
-                                    <div className={`p-4 rounded-[1.5rem] border flex flex-col justify-center ${isDarkMode ? 'bg-indigo-500/10 border-indigo-500/20' : 'bg-indigo-50 border-indigo-100'}`}>
-                                        <div className="text-[9px] font-bold uppercase tracking-wider text-indigo-500 mb-1">Próximo Feriado</div>
-                                        {upcomingHoliday ? (
-                                            <>
-                                                <div className={`text-sm font-black leading-tight mb-0.5 ${isDarkMode ? 'text-indigo-100' : 'text-indigo-900'}`}>{upcomingHoliday.name}</div>
-                                                <div className="text-[10px] opacity-70 font-bold text-indigo-400">{isTodayHoliday ? 'Hoje!' : `Faltam ${upcomingHoliday.diffDays} dias`}</div>
-                                            </>
-                                        ) : (
-                                            <div className="text-xs font-bold opacity-50">Nenhum</div>
-                                        )}
-                                    </div>
-
-                                    {/* Next Task Mini */}
-                                    <div className={`p-4 rounded-[1.5rem] border flex flex-col justify-center ${isDarkMode ? `bg-${primaryColor}-500/10 border-${primaryColor}-500/20` : `bg-${primaryColor}-50 border-${primaryColor}-100`}`}>
-                                        <div className={`text-[9px] font-bold uppercase tracking-wider mb-1 text-${primaryColor}-500`}>Entrega</div>
-                                        {nextTask ? (
-                                            <>
-                                                <div className={`text-sm font-black leading-tight mb-0.5 truncate ${isDarkMode ? `text-${primaryColor}-100` : `text-${primaryColor}-900`}`}>{nextTask.title}</div>
-                                                <div className={`text-[10px] opacity-70 font-bold text-${primaryColor}-400`}>{nextTask.jsDate?.toLocaleDateString('pt-BR', {day: '2-digit', month: '2-digit'})}</div>
-                                            </>
-                                        ) : (
-                                            <div className="text-xs font-bold opacity-50">Nenhuma</div>
-                                        )}
-                                    </div>
-                              </div>
-
-                              {/* HOVER CARD POPUP (Fixed Position) */}
-                              <AnimatePresence>
-                                  {hoveredDate && (
-                                      <motion.div 
-                                          initial={{ opacity: 0, scale: 0.8, y: -5 }}
-                                          animate={{ 
-                                              opacity: 1, 
-                                              scale: 1, 
-                                              top: hoveredDate.rect.top - 12, 
-                                              left: hoveredDate.rect.left + (hoveredDate.rect.width / 2),
-                                              y: '-100%', // Move above
-                                              x: '-50%' 
-                                          }}
-                                          exit={{ opacity: 0, scale: 0.8, transition: { duration: 0.1 } }}
-                                          transition={{ 
-                                              type: 'spring', 
-                                              damping: 25, 
-                                              stiffness: 300,
-                                              mass: 0.8
-                                          }}
-                                          style={{ position: 'fixed', zIndex: 100, pointerEvents: 'none' }}
-                                          className={`min-w-[200px] max-w-[240px] rounded-2xl p-4 shadow-xl border backdrop-blur-xl ${isDarkMode ? 'bg-slate-900/95 border-white/10' : 'bg-white/95 border-gray-200'}`}
-                                      >
-                                          {/* ... (Hover Content) ... */}
-                                           <div key={hoveredDate.date.toString()}>
-                                              <div className="flex justify-between items-start mb-2">
-                                                  <div>
-                                                      <div className="text-[10px] font-bold text-gray-400 uppercase">
-                                                          {DAYS_OF_WEEK[hoveredDate.date.getDay()]}
-                                                      </div>
-                                                      <div className={`text-lg font-black ${frameText}`}>
-                                                          {hoveredDate.date.getDate()} de {MONTH_NAMES[hoveredDate.date.getMonth()]}
-                                                      </div>
-                                                  </div>
-                                                  {getEventsForDate(hoveredDate.date).holiday ? (
-                                                      <div className="bg-red-500/10 text-red-500 p-1.5 rounded-lg">
-                                                          <PartyPopper size={16} />
-                                                      </div>
-                                                  ) : (
-                                                    <div className="flex gap-1">
-                                                      {getEventsForDate(hoveredDate.date).classes.length > 0 && (
-                                                          <div className={`bg-${primaryColor}-500/10 text-${primaryColor}-500 p-1.5 rounded-lg`}>
-                                                              <BookOpen size={16} />
-                                                          </div>
-                                                      )}
-                                                      {getEventsForDate(hoveredDate.date).tasks.length > 0 && (
-                                                          <div className={`bg-${primaryColor}-500/10 text-${primaryColor}-500 p-1.5 rounded-lg`}>
-                                                              <AlertCircle size={16} />
-                                                          </div>
-                                                      )}
-                                                    </div>
-                                                  )}
-                                              </div>
-
-                                              <div className="space-y-2">
-                                                  {/* Holiday Section */}
-                                                  {getEventsForDate(hoveredDate.date).holiday && (
-                                                      <div className="text-xs font-bold text-red-500 bg-red-500/5 p-2 rounded-lg">
-                                                          {getEventsForDate(hoveredDate.date).holiday?.name}
-                                                      </div>
-                                                  )}
-                                                  
-                                                  {/* Tasks Section */}
-                                                  {getEventsForDate(hoveredDate.date).tasks.length > 0 && (
-                                                    <div className="space-y-1 border-b border-dashed border-gray-500/20 pb-2 mb-2">
-                                                      <div className={`text-[9px] font-bold text-${primaryColor}-500 uppercase tracking-wider mb-1`}>Entregas</div>
-                                                      {getEventsForDate(hoveredDate.date).tasks.map((t, idx) => (
-                                                        <div key={idx} className="text-xs flex justify-between items-center">
-                                                          <span className={`${isDarkMode ? 'text-gray-300' : 'text-gray-700'} truncate max-w-[120px]`}>{t.title}</span>
-                                                          <span className={`font-mono text-[10px] text-${primaryColor}-500`}>
-                                                            {t.jsDate?.toLocaleTimeString('pt-BR', {hour:'2-digit', minute:'2-digit'})}
-                                                          </span>
-                                                        </div>
-                                                      ))}
-                                                    </div>
-                                                  )}
-                                              </div>
-                                           </div>
-                                      </motion.div>
-                                  )}
-                              </AnimatePresence>
                           </motion.div>
                       )}
-                      
+
                       {rightTab === 'tasks' && (
                           <motion.div 
-                              key="tasks"
-                              initial={{ opacity: 0, x: 20 }}
-                              animate={{ opacity: 1, x: 0 }}
-                              exit={{ opacity: 0, x: -20 }}
-                              className="h-full overflow-y-auto space-y-3 pb-4"
+                            key="tasks"
+                            initial={{ opacity: 0, x: 20 }}
+                            animate={{ opacity: 1, x: 0 }}
+                            exit={{ opacity: 0, x: -20 }}
+                            className="h-full flex flex-col gap-3"
                           >
-                              {isClassroomLinked ? (
-                                  classroomWork.length > 0 ? (
-                                    classroomWork.map((work, idx) => (
-                                        <div key={idx} className={`p-4 rounded-[1.5rem] border hover:scale-[1.02] transition-transform ${isDarkMode ? 'bg-white/5 border-white/10' : 'bg-white border-gray-100 shadow-sm'}`}>
-                                            <div className="flex justify-between items-start mb-2">
-                                                <div className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded ${isDarkMode ? 'bg-white/10 text-gray-300' : 'bg-gray-100 text-gray-600'}`}>
-                                                    {work.courseName}
-                                                </div>
-                                                <div className={`text-[10px] font-bold ${work.jsDate && work.jsDate < new Date() ? 'text-red-400' : `text-${primaryColor}-500`}`}>
-                                                    {work.jsDate?.toLocaleDateString('pt-BR')}
-                                                </div>
-                                            </div>
-                                            <h3 className={`text-sm font-bold leading-tight mb-2 ${frameText}`}>{work.title}</h3>
-                                            <a href={work.alternateLink} target="_blank" rel="noreferrer" className={`text-[11px] font-bold uppercase underline decoration-dashed ${isDarkMode ? 'text-gray-400 hover:text-white' : 'text-gray-500 hover:text-black'}`}>
-                                                Abrir no Classroom
-                                            </a>
+                            {classroomWork.length > 0 ? (
+                                classroomWork.map((work) => (
+                                    <div key={work.id} className={`p-4 rounded-2xl border ${isDarkMode ? 'bg-white/5 border-white/5' : 'bg-white border-gray-100 shadow-sm'}`}>
+                                        <div className="flex justify-between items-start mb-2">
+                                            <span className={`text-[10px] font-bold uppercase tracking-wider opacity-60`}>{work.courseName}</span>
+                                            <span className={`text-[10px] font-bold ${isDarkMode ? `text-${primaryColor}-400` : `text-${primaryColor}-600`}`}>
+                                                {work.jsDate?.toLocaleDateString('pt-BR', {day: '2-digit', month: 'short'})}
+                                            </span>
                                         </div>
-                                    ))
-                                  ) : (
-                                      <div className="flex flex-col items-center justify-center h-40 opacity-50">
-                                          <CheckSquare size={32} className="mb-2" />
-                                          <span className="text-xs font-bold uppercase">Tudo feito!</span>
-                                      </div>
-                                  )
-                              ) : (
-                                  <div className="flex flex-col items-center justify-center h-full text-center p-6 gap-4">
-                                      <div className={`w-16 h-16 rounded-full flex items-center justify-center ${isDarkMode ? 'bg-white/10' : 'bg-gray-100'}`}>
-                                          <Monitor size={24} className="opacity-50" />
-                                      </div>
-                                      <div>
-                                          <h3 className={`font-bold text-sm ${frameText}`}>Não Vinculado</h3>
-                                          <p className="text-xs opacity-60 mt-1">Conecte sua conta Google nas configurações.</p>
-                                      </div>
-                                      <button onClick={onOpenSettings} className={`px-4 py-2 rounded-xl text-xs font-bold uppercase ${isDarkMode ? 'bg-white text-black' : 'bg-black text-white'}`}>
-                                          Conectar
-                                      </button>
-                                  </div>
-                              )}
+                                        <h4 className={`text-sm font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>{work.title}</h4>
+                                        <a href={work.alternateLink} target="_blank" rel="noopener" className="text-[10px] font-bold underline opacity-50 hover:opacity-100 mt-2 block">Abrir no Classroom</a>
+                                    </div>
+                                ))
+                            ) : (
+                                <div className="flex-1 flex flex-col items-center justify-center opacity-40 text-center">
+                                    <Book size={32} className="mb-2" />
+                                    <p className="text-xs font-bold">Nenhuma tarefa pendente.</p>
+                                </div>
+                            )}
                           </motion.div>
                       )}
 
                       {rightTab === 'holidays' && (
                           <motion.div 
-                              key="holidays"
-                              initial={{ opacity: 0, x: 20 }}
-                              animate={{ opacity: 1, x: 0 }}
-                              exit={{ opacity: 0, x: -20 }}
-                              className="h-full overflow-y-auto space-y-3 pb-4"
+                            key="holidays"
+                            initial={{ opacity: 0, x: 20 }}
+                            animate={{ opacity: 1, x: 0 }}
+                            exit={{ opacity: 0, x: -20 }}
+                            className="h-full flex flex-col gap-3"
                           >
-                              {holidays.length > 0 ? (
-                                  holidays.map((h, idx) => {
-                                      const hDate = parseDateLocal(h.date);
-                                      const today = new Date();
-                                      today.setHours(0,0,0,0);
-                                      const isPast = hDate < today;
-                                      
-                                      if (isPast) return null; // Show only future holidays? Or sort them.
-
-                                      return (
-                                        <div key={idx} className={`p-4 rounded-[1.5rem] border flex items-center gap-4 ${isDarkMode ? 'bg-white/5 border-white/10' : 'bg-white border-gray-100 shadow-sm'}`}>
-                                            <div className={`flex flex-col items-center justify-center w-12 h-12 rounded-xl shrink-0 ${isDarkMode ? 'bg-indigo-500/20 text-indigo-400' : 'bg-indigo-50 text-indigo-600'}`}>
-                                                <span className="text-[10px] font-bold uppercase">{MONTH_NAMES[hDate.getMonth()].slice(0,3)}</span>
-                                                <span className="text-lg font-black leading-none">{hDate.getDate()}</span>
-                                            </div>
-                                            <div>
-                                                <h3 className={`text-sm font-bold leading-tight ${frameText}`}>{h.name}</h3>
-                                                <div className="text-[10px] font-bold opacity-50 uppercase tracking-wide mt-0.5">{DAYS_OF_WEEK[hDate.getDay()]}</div>
-                                            </div>
-                                        </div>
-                                      )
-                                  })
-                              ) : (
-                                  <div className="flex flex-col items-center justify-center h-40 opacity-50">
-                                      <Palmtree size={32} className="mb-2" />
-                                      <span className="text-xs font-bold uppercase">Sem feriados</span>
-                                  </div>
-                              )}
+                            {holidays.filter(h => new Date(h.date) >= new Date()).slice(0, 10).map((h, i) => (
+                                <div key={i} className={`p-4 rounded-2xl border flex items-center gap-4 ${isDarkMode ? 'bg-white/5 border-white/5' : 'bg-white border-gray-100 shadow-sm'}`}>
+                                    <div className={`p-2 rounded-xl ${isDarkMode ? 'bg-white/10 text-white' : 'bg-gray-100 text-gray-600'}`}>
+                                        <CalendarDays size={18} />
+                                    </div>
+                                    <div>
+                                        <div className={`text-sm font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>{h.name}</div>
+                                        <div className="text-[10px] font-medium opacity-50">{new Date(h.date + 'T00:00:00').toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' })}</div>
+                                    </div>
+                                </div>
+                            ))}
+                            {holidays.length === 0 && <p className="text-center text-xs opacity-50 mt-10">Sem feriados próximos.</p>}
                           </motion.div>
                       )}
 
                       {rightTab === 'achievements' && (
-                          <motion.div 
-                              key="achievements"
-                              initial={{ opacity: 0, x: 20 }}
-                              animate={{ opacity: 1, x: 0 }}
-                              exit={{ opacity: 0, x: -20 }}
-                              className="h-full overflow-y-auto grid grid-cols-1 gap-4 pb-4"
-                          >
-                              {ACHIEVEMENTS_LIST.map((ach) => {
-                                  const unlocked = unlockedAchievements.includes(ach.id);
-                                  const color = getRarityColor(ach.rarity);
-                                  const rarityLabel = getRarityLabel(ach.rarity);
-                                  
-                                  return (
-                                      <div key={ach.id} className={`p-4 rounded-[1.5rem] border flex items-center gap-4 transition-all relative overflow-hidden group ${unlocked ? (isDarkMode ? 'bg-white/5 border-white/10' : 'bg-white border-gray-100 shadow-sm') : 'opacity-40 grayscale border-transparent bg-gray-100 dark:bg-white/5'}`}>
-                                          <div className={`w-12 h-12 rounded-xl flex items-center justify-center shrink-0 relative ${unlocked ? (isDarkMode ? `bg-${color}-500/20 text-${color}-400` : `bg-${color}-100 text-${color}-600`) : 'bg-gray-300 dark:bg-white/10 text-gray-500'}`}>
-                                              <ach.icon size={20} />
-                                              {ach.rarity === 'legendary' && unlocked && (
-                                                <div className="absolute inset-0 rounded-xl bg-amber-400/20 animate-pulse" />
-                                              )}
-                                          </div>
-                                          <div>
-                                              <h3 className={`text-sm font-black ${frameText} flex items-center gap-2`}>
-                                                  {ach.title}
-                                                  {unlocked && ach.rarity === 'legendary' && (
-                                                      <span className="text-[8px] font-bold uppercase px-1.5 py-0.5 rounded bg-amber-500 text-white animate-pulse">Lendário</span>
-                                                  )}
-                                              </h3>
-                                              <p className="text-[10px] opacity-60 leading-tight mt-0.5">{unlocked ? ach.description : (ach.secret ? "Conquista Secreta" : ach.description)}</p>
-                                          </div>
-                                      </div>
-                                  )
-                              })}
-                          </motion.div>
+                        <motion.div 
+                            key="achievements"
+                            initial={{ opacity: 0, x: 20 }}
+                            animate={{ opacity: 1, x: 0 }}
+                            exit={{ opacity: 0, x: -20 }}
+                            className="h-full flex flex-col gap-3"
+                        >
+                            <div className={`p-6 rounded-[2rem] border text-center ${isDarkMode ? `bg-${primaryColor}-500/10 border-${primaryColor}-500/20` : `bg-${primaryColor}-50 border-${primaryColor}-100`}`}>
+                                <Trophy size={32} className={`mx-auto mb-2 text-${primaryColor}-500`} />
+                                <div className="text-2xl font-black">{unlockedAchievements.length}</div>
+                                <div className="text-[10px] font-bold uppercase opacity-50">Conquistas Desbloqueadas</div>
+                            </div>
+                            
+                            <div className="text-center mt-4">
+                                <p className="text-xs opacity-50">Veja todas as conquistas no seu Perfil.</p>
+                                <button onClick={() => handleNavClick(ViewState.PROFILE)} className={`mt-2 px-4 py-2 rounded-xl text-xs font-bold uppercase ${isDarkMode ? 'bg-white/10 hover:bg-white/20' : 'bg-gray-100 hover:bg-gray-200'}`}>
+                                    Ir para Perfil
+                                </button>
+                            </div>
+                        </motion.div>
                       )}
                   </AnimatePresence>
                 </div>
+
+                {/* VERSION FOOTER */}
+                <div className="mt-4 pt-4 border-t border-dashed border-gray-500/10 flex justify-between items-center opacity-50 hover:opacity-100 transition-opacity">
+                    <button onClick={() => setShowChangelog(true)} className="flex items-center gap-2 text-[10px] font-mono font-bold hover:text-blue-500 transition-colors">
+                        <GitCommit size={12} />
+                        <span>v{CURRENT_VERSION}</span>
+                    </button>
+                    <div className="text-[10px] font-bold">Electron</div>
+                </div>
+
              </motion.div>
           ) : (
-              <div className="flex-1 flex items-center justify-center opacity-30">
-                  <div className="text-center">
-                      <Lock size={32} className="mx-auto mb-2" />
-                      <div className="text-xs font-bold uppercase">Acesso Restrito</div>
-                  </div>
-              </div>
+            /* Not Logged In Sidebar State */
+             <div className="h-full flex flex-col items-center justify-center text-center opacity-40">
+                 <Shield size={48} className="mb-4" />
+                 <p className="text-sm font-bold max-w-[200px]">Faça login para ver seu resumo diário.</p>
+             </div>
           )}
       </div>
 
-      {/* MOBILE: Navigation Bar (Persistent) */}
-      {/* Handled in App.tsx now via MobileNavBar component, but Dashboard layout provides the space via pb-24 */}
-
-      {/* Login Modal and other overlays handled in App.tsx */}
+      {/* 4. MOBILE NAVBAR is handled in App.tsx via separate component */}
       
-      {/* Sub-Components like LoginModal would be defined below or imported */}
-      {/* For this specific file change request, we focus on the DashboardLayout export */}
     </div>
   );
 };
-
-// Simple helper components (omitted for brevity as they are unchanged)
-const TopBarItem = ({ children, icon, rightIcon, label, indicator, indicatorColor, isDark, onClick }: any) => {
-    // ... same as before
-    const [hover, setHover] = useState(false);
-    return (
-        <div 
-            className="relative group"
-            onMouseEnter={() => setHover(true)}
-            onMouseLeave={() => setHover(false)}
-            onClick={onClick}
-        >
-            <button className={`h-8 px-3 rounded-full flex items-center gap-2 transition-all ${isDark ? 'bg-white/5 hover:bg-white/10 text-white' : 'bg-gray-50 hover:bg-gray-100 text-gray-600'}`}>
-                {icon && <span className="opacity-70">{icon}</span>}
-                <span className="text-[10px] font-bold uppercase tracking-wide">{label}</span>
-                {rightIcon && <span className="opacity-50 group-hover:translate-x-0.5 transition-transform">{rightIcon}</span>}
-                {indicator && <div className={`w-1.5 h-1.5 rounded-full bg-${indicatorColor}-500`} />}
-            </button>
-            <AnimatePresence>
-                {hover && (
-                    <motion.div 
-                        initial={{ opacity: 0, y: 10, scale: 0.95 }}
-                        animate={{ opacity: 1, y: 0, scale: 1 }}
-                        exit={{ opacity: 0, y: 5, scale: 0.95 }}
-                        className={`absolute top-full right-0 mt-3 rounded-[1.5rem] border shadow-2xl overflow-hidden z-[100] ${isDark ? 'bg-slate-900 border-white/10 shadow-black/50' : 'bg-white border-white/40 shadow-xl'}`}
-                    >
-                        {children}
-                    </motion.div>
-                )}
-            </AnimatePresence>
-        </div>
-    )
-}
-
-const NavItem = ({ active, onClick, icon, label, isDark, activeColor }: any) => {
-    // ... same as before
-     return (
-        <button 
-            onClick={onClick}
-            className={`relative group w-12 h-12 flex items-center justify-center rounded-2xl transition-all duration-300
-                ${active 
-                    ? `bg-${activeColor}-500 text-white shadow-lg shadow-${activeColor}-500/30` 
-                    : (isDark ? 'text-gray-500 hover:bg-white/10 hover:text-white' : 'text-gray-400 hover:bg-gray-100 hover:text-gray-900')
-                }
-            `}
-        >
-            {React.cloneElement(icon, { size: 22, strokeWidth: active ? 2.5 : 2 })}
-            <div className={`absolute left-full ml-4 px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider opacity-0 -translate-x-2 pointer-events-none group-hover:opacity-100 group-hover:translate-x-0 transition-all z-50 whitespace-nowrap border shadow-sm ${isDark ? 'bg-slate-800 border-white/10 text-white' : 'bg-white border-gray-100 text-gray-800'}`}>
-                {label}
-            </div>
-        </button>
-    )
-}
-
-const LoginModal = ({ isDarkMode, primaryColor, onLogin }: any) => {
-   // ... omitted for brevity (handled in LandingPage mainly, but if present in DashboardLayout as an overlay)
-   return null; 
-}

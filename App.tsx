@@ -1,17 +1,29 @@
 
-import React, { useState, useMemo, useEffect, useRef } from 'react';
-import { DashboardLayout } from './components/DashboardLayout';
-import { ContentView } from './components/ContentViews';
-import { LandingPage } from './components/LandingPage';
-import { MobileNavBar } from './components/MobileNavBar';
-import { TutorialOverlay, TutorialStep } from './components/TutorialOverlay';
-import { ViewState, ThemeVariant, SuapProfile, SuapMeusDadosAluno, SuapPeriod, SuapDiario, SuapBoletim, ProcessedClass, GradeInfo, SuapCompletionData, Holiday, ClassroomWork, ClassroomCourse, PerformanceSettings, SuapMeusPeriodosLetivos, TodoItem } from './types';
+import React, { useState, useMemo, useEffect, useRef, Suspense } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { SecureStorage } from './services/SecureStorage';
-import { WifiOff, RefreshCw, Navigation, Layers, Zap, User } from 'lucide-react';
+import { supabase } from './services/supabaseClient';
+import { WifiOff, RefreshCw, AlertTriangle, X } from 'lucide-react';
+
+import { SplashScreen } from './components/SplashScreen';
+import { ViewState, ThemeVariant, SuapProfile, SuapMeusDadosAluno, SuapPeriod, SuapDiario, SuapBoletim, ProcessedClass, GradeInfo, SuapCompletionData, Holiday, ClassroomWork, ClassroomCourse, PerformanceSettings, SuapMeusPeriodosLetivos, TodoItem } from './types';
+
+// --- DYNAMIC IMPORTS (Code Splitting) ---
+// We handle named exports by destructuring the module in the promise result.
+const DashboardLayout = React.lazy(() => import('./components/DashboardLayout').then(module => ({ default: module.DashboardLayout })));
+const ContentView = React.lazy(() => import('./components/ContentViews').then(module => ({ default: module.ContentView })));
+const LandingPage = React.lazy(() => import('./components/LandingPage').then(module => ({ default: module.LandingPage })));
+const MobileNavBar = React.lazy(() => import('./components/MobileNavBar').then(module => ({ default: module.MobileNavBar })));
+const TutorialOverlay = React.lazy(() => import('./components/TutorialOverlay').then(module => ({ default: module.TutorialOverlay })));
+const PremiumModal = React.lazy(() => import('./components/PremiumModal').then(module => ({ default: module.PremiumModal })));
+const AIChatWidget = React.lazy(() => import('./components/AIChatWidget').then(module => ({ default: module.AIChatWidget })));
+const PomodoroWidget = React.lazy(() => import('./components/PomodoroWidget').then(module => ({ default: module.PomodoroWidget })));
 
 const DEFAULT_WALLPAPER = "https://images2.alphacoders.com/134/thumb-1920-1345658.png";
 const DEFAULT_PROFILE_IMG = "https://i.pinimg.com/736x/9c/63/e1/9c63e1cf0546ecd4f83b7df067f440d2.jpg";
+
+// --- INTERNAL CONFIG ---
+const SUPACO_INTERNAL_KEY = process.env.API_KEY || "AIzaSyD-PREMIUM-PLACEHOLDER-KEY-FOR-SUPACO-APP";
 
 // Cache Keys (Settings only - Data is now in SecureStorage)
 const CACHE_KEYS = {
@@ -20,7 +32,8 @@ const CACHE_KEYS = {
     THEME_MODE: 'suap_saved_theme_mode',
     PERFORMANCE: 'suap_performance_settings',
     WELCOME_SEEN: 'suap_welcome_seen',
-    TUTORIAL_SEEN: 'suap_tutorial_completed_v1' // New key for tutorial
+    TUTORIAL_SEEN: 'suap_tutorial_completed_v1',
+    IS_PREMIUM: 'suap_user_is_premium' 
 };
 
 const DEFAULT_PERFORMANCE: PerformanceSettings = {
@@ -37,33 +50,43 @@ interface Palette {
 
 // Wallpaper to Palette Map
 const WALLPAPER_THEMES: Record<string, Palette> = {
-    // Makima (Pink/Red)
+    // Original Defaults
     "https://images2.alphacoders.com/134/thumb-1920-1345658.png": { primary: "rose", secondary: "pink" },
-    // Landscape (Sunset - Amber/Orange)
     "https://images7.alphacoders.com/134/thumb-1920-1344447.png": { primary: "amber", secondary: "orange" },
-    // Astronauts (Black/White - Zinc/Slate) - True Monochrome
     "https://images7.alphacoders.com/140/thumb-1920-1402439.jpg": { primary: "slate", secondary: "zinc" },
-    // Power (Orange/Red)
-    "https://images6.alphacoders.com/129/thumb-1920-1297223.jpg": { primary: "orange", secondary: "red" }
+    "https://images6.alphacoders.com/129/thumb-1920-1297223.jpg": { primary: "orange", secondary: "red" },
+
+    // New Custom Wallpapers
+    "https://images.alphacoders.com/135/thumb-1920-1350151.png": { primary: "indigo", secondary: "violet" }, 
+    "https://images8.alphacoders.com/134/thumb-1920-1345659.png": { primary: "red", secondary: "orange" }, 
+    "https://images.alphacoders.com/644/thumb-1920-644146.jpg": { primary: "cyan", secondary: "sky" }, 
+    "https://images8.alphacoders.com/135/thumb-1920-1351412.png": { primary: "pink", secondary: "rose" }, 
+    "https://images7.alphacoders.com/135/thumb-1920-1359055.png": { primary: "red", secondary: "zinc" }, 
+    "https://images6.alphacoders.com/135/thumb-1920-1351414.png": { primary: "sky", secondary: "blue" }, 
+    "https://images6.alphacoders.com/134/thumb-1920-1345656.png": { primary: "orange", secondary: "amber" }, 
+    "https://images7.alphacoders.com/966/thumb-1920-966372.jpg": { primary: "purple", secondary: "slate" }, 
+    "https://images4.alphacoders.com/138/thumb-1920-1383047.jpg": { primary: "violet", secondary: "indigo" }, 
+    "https://images8.alphacoders.com/138/thumb-1920-1382989.png": { primary: "blue", secondary: "cyan" }, 
+    "https://images6.alphacoders.com/132/thumb-1920-1323578.png": { primary: "slate", secondary: "gray" } 
 };
 
 // TUTORIAL STEPS CONFIGURATION
-const TUTORIAL_STEPS: TutorialStep[] = [
+const TUTORIAL_STEPS: any[] = [
     {
         targetId: 'tut-carousel', 
         mobileTargetId: 'tut-carousel',
         title: 'Visão Geral',
         description: 'Aqui ficam seus cartões principais. Deslize para ver horários, feriados e tarefas pendentes de forma rápida.',
         position: 'right',
-        icon: <Layers />
+        icon: <div className="p-1"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg></div>
     },
     {
         targetId: 'tut-nav-desktop',
         mobileTargetId: 'tut-nav-mobile',
         title: 'Navegação',
         description: 'Acesse suas notas detalhadas, faltas, grade de horários e integração com o Google Classroom por aqui.',
-        position: 'right', // Desktop defaults to right of sidebar
-        icon: <Navigation />
+        position: 'right', 
+        icon: <div className="p-1"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polygon points="3 11 22 2 13 21 11 13 3 11"/></svg></div>
     },
     {
         targetId: 'tut-widgets',
@@ -71,7 +94,7 @@ const TUTORIAL_STEPS: TutorialStep[] = [
         title: 'Ferramentas Inteligentes',
         description: 'Converse com a IA sobre suas notas ou use o Pomodoro para focar nos estudos.',
         position: 'top',
-        icon: <Zap />
+        icon: <div className="p-1"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg></div>
     },
     {
         targetId: 'tut-profile',
@@ -79,11 +102,21 @@ const TUTORIAL_STEPS: TutorialStep[] = [
         title: 'Seu Perfil',
         description: 'Personalize o tema, troque o papel de parede e sincronize seus dados com a nuvem.',
         position: 'left',
-        icon: <User />
+        icon: <div className="p-1"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></div>
     }
 ];
 
+// --- TOAST INTERFACE ---
+interface Toast {
+    id: string;
+    message: string;
+    type: 'warning' | 'info';
+}
+
 const App: React.FC = () => {
+  // --- APPLICATION READY STATE ---
+  const [isAppReady, setIsAppReady] = useState(false);
+
   // --- LANDING PAGE STATE ---
   const [showLanding, setShowLanding] = useState(() => {
       return !localStorage.getItem(CACHE_KEYS.WELCOME_SEEN);
@@ -106,12 +139,16 @@ const App: React.FC = () => {
       return saved ? JSON.parse(saved) : DEFAULT_PERFORMANCE;
   });
 
+  // Premium State
+  const [isPremium, setIsPremium] = useState(false); // Initial state false, will check DB
+  const [showPremiumModal, setShowPremiumModal] = useState(false);
+
   // Profile Photo State
   const [customPhotoUrl, setCustomPhotoUrl] = useState(localStorage.getItem('suap_custom_photo') || '');
   const [useCustomPhoto, setUseCustomPhoto] = useState(localStorage.getItem('suap_use_custom_photo') === 'true');
   
   // UI State
-  const [rightSidebarTab, setRightSidebarTab] = useState<'overview' | 'tasks' | 'holidays'>('overview');
+  const [rightSidebarTab, setRightSidebarTab] = useState<'overview' | 'tasks' | 'holidays' | 'achievements'>('overview');
   const [profileInitialTab, setProfileInitialTab] = useState<'profile' | 'settings' | 'wallpaper' | 'performance' | 'achievements'>('profile');
 
   // Auth State
@@ -147,6 +184,100 @@ const App: React.FC = () => {
   // PWA Install State
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
 
+  // Notifications State
+  const [toasts, setToasts] = useState<Toast[]>([]);
+
+  // --- INITIAL LOAD SEQUENCE ---
+  useEffect(() => {
+    const initApp = async () => {
+      // 1. Wait for Fonts
+      try {
+        await document.fonts.ready;
+      } catch (e) {
+        console.warn("Fonts loading timeout");
+      }
+
+      // 2. Initial Data Load from Cache (Sync)
+      fetchHolidays(); 
+      const token = localStorage.getItem('suap_access_token');
+      const matricula = localStorage.getItem('suap_username');
+
+      if (token && matricula) {
+        setIsLoggedIn(true);
+        loadUserCache(matricula);
+        // Start async background fetch
+        if (navigator.onLine) {
+          fetchAllUserDataBackground(matricula, false);
+          checkSubscription(matricula);
+        }
+      }
+
+      // 3. Preload Wallpaper Image to avoid white flash
+      if (currentWallpaper) {
+          const img = new Image();
+          img.src = currentWallpaper;
+          // We don't await the image fully loading, just kickoff
+      }
+
+      // 4. Force a minimum splash screen duration for aesthetics
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      
+      setIsAppReady(true);
+    };
+
+    initApp();
+  }, []);
+
+  const addToast = (message: string, type: 'warning' | 'info') => {
+      const id = Date.now().toString();
+      setToasts(prev => [...prev, { id, message, type }]);
+      setTimeout(() => {
+          setToasts(prev => prev.filter(t => t.id !== id));
+      }, 5000);
+  };
+
+  const removeToast = (id: string) => {
+      setToasts(prev => prev.filter(t => t.id !== id));
+  };
+
+  // --- CHECK SUBSCRIPTION STATUS ---
+  const checkSubscription = async (matricula: string) => {
+      try {
+          const isActive = await SecureStorage.checkSubscriptionStatus(matricula);
+          setIsPremium(isActive);
+      } catch (e) {
+          console.error("Failed to check subscription:", e);
+      }
+  };
+
+  // --- ATTENDANCE RISK CHECKER ---
+  useEffect(() => {
+      if (processedGrades.length > 0) {
+          processedGrades.forEach(grade => {
+              if (grade.limit > 0) {
+                  const percentage = grade.absences / grade.limit;
+                  const remaining = grade.limit - grade.absences;
+                  // Unique ID for this specific alert to avoid spamming every render
+                  const alertId = `risk-${grade.code}-${grade.absences}`;
+                  
+                  // Trigger if > 75% used AND not already notified for this exact absence count
+                  if (percentage >= 0.75 && remaining >= 0) {
+                      const sessionKey = `notified_${alertId}`;
+                      if (!sessionStorage.getItem(sessionKey)) {
+                          const statusMsg = remaining === 0 
+                              ? `Limite atingido em ${grade.subject}!` 
+                              : `Cuidado! ${grade.subject} atingiu ${(percentage * 100).toFixed(0)}% do limite.`;
+                          
+                          addToast(statusMsg, 'warning');
+                          sessionStorage.setItem(sessionKey, 'true');
+                      }
+                  }
+              }
+          });
+      }
+  }, [processedGrades]);
+
+
   // --- PERSISTENCE HELPERS ---
 
   useEffect(() => {
@@ -165,14 +296,51 @@ const App: React.FC = () => {
       localStorage.setItem(CACHE_KEYS.PERFORMANCE, JSON.stringify(performanceSettings));
   }, [performanceSettings]);
 
+  // --- APPLY SETTINGS HELPER (New) ---
+  const applySettingsFromCache = () => {
+      console.log("[App] Applying visual settings from cache...");
+      const mode = localStorage.getItem(CACHE_KEYS.THEME_MODE);
+      if (mode) setIsDarkMode(mode === 'dark');
+
+      const variant = localStorage.getItem(CACHE_KEYS.THEME_VARIANT);
+      if (variant) setThemeVariant(variant as ThemeVariant);
+
+      const wall = localStorage.getItem(CACHE_KEYS.WALLPAPER);
+      if (wall) setCurrentWallpaper(wall);
+
+      const perf = localStorage.getItem(CACHE_KEYS.PERFORMANCE);
+      if (perf) setPerformanceSettings(JSON.parse(perf));
+
+      const photo = localStorage.getItem('suap_custom_photo');
+      if (photo) setCustomPhotoUrl(photo);
+
+      const usePhoto = localStorage.getItem('suap_use_custom_photo');
+      if (usePhoto) setUseCustomPhoto(usePhoto === 'true');
+  };
+
   // Check Tutorial Status whenever Login or Landing changes
   useEffect(() => {
       if (isLoggedIn && !showLanding) {
-          const seen = localStorage.getItem(CACHE_KEYS.TUTORIAL_SEEN);
-          if (!seen) {
-              // Wait a bit for layout to settle/animations to finish
-              const t = setTimeout(() => setShowTutorial(true), 1500);
-              return () => clearTimeout(t);
+          const matricula = localStorage.getItem('suap_username');
+          // If we have a user, check cloud for existing data to SKIP tutorial
+          if (matricula) {
+             // We do this check first
+             SecureStorage.syncFromCloud(matricula).then((result) => {
+                if (result && result.hasData) {
+                    console.log("[App] User has cloud data. Skipping tutorial.");
+                    localStorage.setItem(CACHE_KEYS.TUTORIAL_SEEN, 'true');
+                    setShowTutorial(false);
+                    // Also apply settings if found
+                    if(result.settings) applySettingsFromCache();
+                } else {
+                    // Normal flow for new/local users
+                    const seen = localStorage.getItem(CACHE_KEYS.TUTORIAL_SEEN);
+                    if (!seen) {
+                        const t = setTimeout(() => setShowTutorial(true), 1500);
+                        return () => clearTimeout(t);
+                    }
+                }
+             });
           }
       }
   }, [isLoggedIn, showLanding]);
@@ -202,6 +370,13 @@ const App: React.FC = () => {
       localStorage.setItem('suap_use_custom_photo', String(enable));
   };
 
+  const handleSubscribe = () => {
+      setIsPremium(true);
+      addToast("Bem-vindo ao Supaco Premium!", "info");
+      // Trigger re-check
+      if (userData?.matricula) checkSubscription(userData.matricula);
+  };
+
   // --- AUTO SYNC FOR SETTINGS ---
   const syncTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -221,10 +396,20 @@ const App: React.FC = () => {
 
   // Calculate Active User Photo
   const activeUserPhoto = useMemo(() => {
+      // 1. Custom Photo (Highest Priority)
       if (useCustomPhoto && customPhotoUrl) return customPhotoUrl;
+      
+      // 2. SUAP High Res
+      if (userData?.url_foto_150x200) {
+          return userData.url_foto_150x200.startsWith('http') ? userData.url_foto_150x200 : `https://suap.ifrn.edu.br${userData.url_foto_150x200}`;
+      }
+      
+      // 3. SUAP Default
       if (userData?.foto) {
           return userData.foto.startsWith('http') ? userData.foto : `https://suap.ifrn.edu.br${userData.foto}`;
       }
+      
+      // 4. Fallback
       return DEFAULT_PROFILE_IMG;
   }, [useCustomPhoto, customPhotoUrl, userData]);
 
@@ -304,6 +489,8 @@ const App: React.FC = () => {
                           setShowLanding(false);
                           localStorage.setItem(CACHE_KEYS.WELCOME_SEEN, 'true');
                           fetchAllUserDataBackground(profile.matricula, true);
+                          // Check Premium Status
+                          checkSubscription(profile.matricula);
                       }
                   }
               }
@@ -384,13 +571,8 @@ const App: React.FC = () => {
   }, [showLanding]);
 
   // --- PROCESSING LOGIC ---
-
-  // Refactored to work with SuapBoletim[] from /api/ensino/meu-boletim/
-  // This endpoint provides accurate absence counts compared to diarios
   const processGradesFromBoletim = (boletim: SuapBoletim[]): GradeInfo[] => {
       return boletim.map(b => {
-          // Fix based on user feedback: The name is after " - ". 
-          // Previous regex was removing the name for non-numeric codes like "TEC.1007 - Name".
           const cleanSubject = b.disciplina.includes(' - ') 
               ? b.disciplina.split(' - ').slice(1).join(' - ') 
               : b.disciplina;
@@ -483,6 +665,19 @@ const App: React.FC = () => {
 
           const cachedHolidays = localStorage.getItem('suap_cache_holidays');
           if (cachedHolidays) setHolidays(JSON.parse(cachedHolidays));
+          
+          // Load Classroom from Cache (Hydrate Dates)
+          const classroom = SecureStorage.loadItem(matricula, 'classroom');
+          if (classroom) {
+              const hydrated = classroom.map((w: any) => ({
+                  ...w,
+                  jsDate: w.jsDate ? new Date(w.jsDate) : undefined
+              }));
+              setClassroomWork(hydrated);
+          }
+
+          // Apply visual settings that might be stored
+          applySettingsFromCache();
 
       } catch (e) {
           console.error("[App] Error loading secure cache:", e);
@@ -546,6 +741,14 @@ const App: React.FC = () => {
   };
 
   const fetchHolidays = async () => {
+      // Very basic caching for holidays (weekly)
+      const lastFetch = localStorage.getItem('suap_cache_holidays_ts');
+      const now = Date.now();
+      if (lastFetch && (now - parseInt(lastFetch)) < 1000 * 60 * 60 * 24 * 7) {
+          // Valid cache, do nothing as loaded in loadUserCache/Initial
+          return;
+      }
+
       const year = new Date().getFullYear();
       try {
           const response = await fetch(`https://brasilapi.com.br/api/feriados/v1/${year}`);
@@ -553,11 +756,17 @@ const App: React.FC = () => {
               const data = await response.json();
               setHolidays(data);
               localStorage.setItem('suap_cache_holidays', JSON.stringify(data));
+              localStorage.setItem('suap_cache_holidays_ts', now.toString());
           }
       } catch (error) { console.warn("Failed to update holidays (offline)", error); }
   };
 
-  const fetchClassroomData = async () => {
+  const fetchClassroomData = async (currentMatricula: string) => {
+    // Check Cache (30 min TTL)
+    if (SecureStorage.isCacheValid(currentMatricula, 'classroom', 30)) {
+        return;
+    }
+
     const token = localStorage.getItem('google_classroom_token');
     if (!token || !navigator.onLine) {
         setIsClassroomLinked(false);
@@ -585,7 +794,10 @@ const App: React.FC = () => {
         });
         const allWork = (await Promise.all(workPromises)).flat();
         const futureWork = allWork.filter(w => w.jsDate && w.jsDate >= new Date()).sort((a, b) => a.jsDate!.getTime() - b.jsDate!.getTime());
+        
         setClassroomWork(futureWork);
+        SecureStorage.saveItem(currentMatricula, 'classroom', futureWork);
+
     } catch (e) { console.error("Failed to fetch classroom data", e); }
   };
 
@@ -593,16 +805,20 @@ const App: React.FC = () => {
   const fetchAllUserDataBackground = async (currentMatricula: string, forceRefresh = false) => {
     console.log(`[App] Syncing data for ${currentMatricula} (Force: ${forceRefresh})`);
     
-    const shouldFetch = (key: string) => {
+    const shouldFetch = (key: string, ttlMinutes: number = 60) => {
         if (forceRefresh) return true;
-        const data = SecureStorage.loadItem(currentMatricula, key);
-        return !data; 
+        return !SecureStorage.isCacheValid(currentMatricula, key, ttlMinutes); 
     };
 
     try {
         setIsSyncing(true);
 
-        if (shouldFetch('profile')) {
+        const cloudResult = await SecureStorage.syncFromCloud(currentMatricula);
+        if (cloudResult && cloudResult.hasData && cloudResult.settings) {
+            applySettingsFromCache(); 
+        }
+
+        if (shouldFetch('profile', 1440)) {
             const profile = await fetchWithAuth('https://suap.ifrn.edu.br/api/v2/minhas-informacoes/meus-dados/');
             if (profile) {
                 setUserData(profile);
@@ -610,7 +826,7 @@ const App: React.FC = () => {
             }
         }
 
-        if (shouldFetch('academic')) {
+        if (shouldFetch('academic', 1440)) {
             const academic = await fetchWithAuth('https://suap.ifrn.edu.br/api/ensino/meus-dados-aluno/');
             if (academic) {
                 setAcademicData(academic);
@@ -618,7 +834,7 @@ const App: React.FC = () => {
             }
         }
 
-        if (shouldFetch('completion')) {
+        if (shouldFetch('completion', 1440)) {
             const completion = await fetchWithAuth('https://suap.ifrn.edu.br/api/ensino/requisitos-conclusao/');
             if (completion) {
                 setCompletionData(completion);
@@ -626,11 +842,10 @@ const App: React.FC = () => {
             }
         }
 
-        // --- PERIODS LOGIC (Using meus-periodos-letivos) ---
         let periodList = SecureStorage.loadItem(currentMatricula, 'periods');
         let activePeriod = SecureStorage.loadItem(currentMatricula, 'active_period');
 
-        if (!periodList || forceRefresh) {
+        if (!periodList || shouldFetch('periods', 1440)) {
             const data = await fetchWithAuth('https://suap.ifrn.edu.br/api/ensino/meus-periodos-letivos/');
             if (data && data.results) {
                 const mappedPeriods: SuapPeriod[] = data.results.map((p: SuapMeusPeriodosLetivos) => ({
@@ -658,18 +873,16 @@ const App: React.FC = () => {
              if (!viewingPeriod) setViewingPeriod(activePeriod);
         }
 
-        // --- FETCH DETAILS (Grades & Schedule) ---
         if (activePeriod) {
             const cacheKeyGrades = `grades_${activePeriod.semestre}`;
             const cacheKeySchedule = `schedule_${activePeriod.semestre}`;
 
-            if (shouldFetch(cacheKeyGrades) || shouldFetch(cacheKeySchedule) || forceRefresh) {
-                // FORCE UI UPDATE if we are loading the active period
+            if (shouldFetch(cacheKeyGrades, 60) || shouldFetch(cacheKeySchedule, 60) || forceRefresh) {
                 await fetchAcademicDetails(activePeriod.semestre, currentMatricula, true);
             }
         }
         
-        await fetchClassroomData();
+        await fetchClassroomData(currentMatricula);
 
         if (forceRefresh) {
              await SecureStorage.syncToCloud(currentMatricula);
@@ -685,8 +898,6 @@ const App: React.FC = () => {
   const fetchAcademicDetails = async (semestre: string, matricula: string, forceUIUpdate = false) => {
       console.log(`[App] Fetching details for ${semestre}`);
 
-      // 1. SCHEDULE (Horários) via DIARIOS
-      // Keep fetching diarios for schedule info, locations, etc.
       const diariesResponse = await fetchWithAuth(`https://suap.ifrn.edu.br/api/ensino/diarios/${semestre}/`);
       
       let diariesList: SuapDiario[] = [];
@@ -702,8 +913,6 @@ const App: React.FC = () => {
           });
       }
 
-      // 2. GRADES (Notas/Faltas) via BOLETIM
-      // This endpoint provides accurate absence counts.
       const [ano, periodo] = semestre.split('.').map(Number);
       if (ano && periodo) {
           const boletimResponse = await fetchWithAuth(`https://suap.ifrn.edu.br/api/ensino/meu-boletim/${ano}/${periodo}/`);
@@ -740,10 +949,10 @@ const App: React.FC = () => {
       if (cachedSchedule) setProcessedSchedule(cachedSchedule);
       else setProcessedSchedule([]);
 
-      if (!cachedGrades || !cachedSchedule) {
+      if (!cachedGrades || !cachedSchedule || !SecureStorage.isCacheValid(matricula, `grades_${semestre}`, 60)) {
            setIsSyncing(true);
            try {
-               await fetchAcademicDetails(semestre, matricula, true); // Force update since we just switched
+               await fetchAcademicDetails(semestre, matricula, true); 
            } finally {
                setIsSyncing(false);
            }
@@ -764,7 +973,6 @@ const App: React.FC = () => {
       const matricula = localStorage.getItem('suap_username');
       if (matricula) {
           SecureStorage.saveItem(matricula, 'todos', updatedTodos);
-          // Trigger sync (debouncing would be better, but direct call is okay for now)
           if (syncTimeoutRef.current) clearTimeout(syncTimeoutRef.current);
           syncTimeoutRef.current = setTimeout(() => SecureStorage.syncToCloud(matricula), 2000);
       }
@@ -794,30 +1002,11 @@ const App: React.FC = () => {
       }
   };
 
-
-  // --- INITIALIZATION ---
-  
-  useEffect(() => {
-    fetchHolidays(); 
-    const token = localStorage.getItem('suap_access_token');
-    const matricula = localStorage.getItem('suap_username');
-
-    if (token && matricula) {
-      setIsLoggedIn(true);
-      loadUserCache(matricula);
-      if (navigator.onLine) {
-        // Fetch background data on load, but don't force unnecessary refreshes if cache exists
-        // However, the issue described was initial load not showing.
-        // fetchAllUserDataBackground logic now forces UI update for active period.
-        fetchAllUserDataBackground(matricula, false);
-      }
-    }
-  }, []);
-
   const handleManualRefresh = () => {
     const matricula = localStorage.getItem('suap_username');
     if (matricula && navigator.onLine) {
         fetchAllUserDataBackground(matricula, true);
+        checkSubscription(matricula);
     }
   };
 
@@ -844,6 +1033,7 @@ const App: React.FC = () => {
       if (matricula) {
           setIsLoggedIn(true);
           fetchAllUserDataBackground(matricula, true);
+          checkSubscription(matricula);
       }
   };
 
@@ -865,6 +1055,7 @@ const App: React.FC = () => {
       
       setIsLoggedIn(false);
       setCurrentView(ViewState.DASHBOARD);
+      setIsPremium(false);
   };
 
   const handleFinishLanding = () => {
@@ -881,6 +1072,10 @@ const App: React.FC = () => {
           default: return { primary: 'emerald', secondary: 'rose' };
       }
   }, [themeVariant, currentWallpaper]);
+
+  if (!isAppReady) {
+    return <SplashScreen />;
+  }
 
   return (
     <div className={`font-sans antialiased transition-colors duration-500 ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
@@ -918,6 +1113,21 @@ const App: React.FC = () => {
         `}
       </style>
 
+      {/* --- PREMIUM MODAL --- */}
+      <AnimatePresence>
+          {showPremiumModal && (
+              <Suspense fallback={null}>
+                <PremiumModal 
+                    onClose={() => setShowPremiumModal(false)}
+                    onSubscribe={handleSubscribe}
+                    isDarkMode={isDarkMode}
+                    accentColor={palette.primary}
+                    userData={userData}
+                />
+              </Suspense>
+          )}
+      </AnimatePresence>
+
       <AnimatePresence>
         {isSyncing && (
             <motion.div
@@ -949,6 +1159,32 @@ const App: React.FC = () => {
         )}
       </AnimatePresence>
 
+       {/* --- NOTIFICATION TOASTS --- */}
+       <div className="fixed top-6 left-1/2 -translate-x-1/2 z-[9999] flex flex-col gap-2 items-center pointer-events-none">
+          <AnimatePresence>
+              {toasts.map(toast => (
+                  <motion.div
+                      key={toast.id}
+                      initial={{ opacity: 0, y: -20, scale: 0.9 }}
+                      animate={{ opacity: 1, y: 0, scale: 1 }}
+                      exit={{ opacity: 0, y: -20, scale: 0.9 }}
+                      className={`pointer-events-auto flex items-center gap-3 px-5 py-3 rounded-2xl shadow-2xl backdrop-blur-md border cursor-pointer max-w-[90vw] md:max-w-md
+                          ${toast.type === 'warning' 
+                              ? (isDarkMode ? 'bg-orange-500/20 border-orange-500/30 text-white' : 'bg-orange-50 border-orange-200 text-gray-900') 
+                              : (isDarkMode ? 'bg-blue-500/20 border-blue-500/30 text-white' : 'bg-blue-50 border-blue-200 text-gray-900')}
+                      `}
+                      onClick={() => removeToast(toast.id)}
+                  >
+                      <div className={`p-1.5 rounded-full shrink-0 ${toast.type === 'warning' ? 'bg-orange-500 text-white' : 'bg-blue-500 text-white'}`}>
+                          <AlertTriangle size={14} fill="currentColor" />
+                      </div>
+                      <span className="text-xs font-bold leading-tight">{toast.message}</span>
+                      <X size={14} className="opacity-50 hover:opacity-100 ml-1" />
+                  </motion.div>
+              ))}
+          </AnimatePresence>
+      </div>
+
       <div className={showLanding ? 'fixed inset-0' : ''}>
         
         {themeVariant === 'sepia' && (
@@ -960,109 +1196,152 @@ const App: React.FC = () => {
         <div style={{ filter: themeVariant === 'sepia' ? 'sepia(80%) contrast(90%)' : 'none', transition: 'filter 0.5s ease' }} className="h-full w-full absolute inset-0 z-0" />
 
         <div className="relative z-10 h-full">
-            <DashboardLayout 
-                key="dashboard"
-                currentView={currentView} 
-                onChangeView={handleViewChange} 
-                isDarkMode={isDarkMode}
-                onToggleTheme={toggleTheme}
-                currentWallpaper={currentWallpaper}
-                primaryColor={palette.primary}
-                secondaryColor={palette.secondary}
-                isLoggedIn={isLoggedIn}
-                onLogin={handleLogin}
-                userData={userData}
-                academicData={academicData}
-                currentPeriod={currentPeriod}
-                grades={processedGrades}
-                schedule={processedSchedule}
-                completionData={completionData}
-                holidays={holidays}
-                classroomWork={classroomWork}
-                rightTab={rightSidebarTab}
-                onRightTabChange={setRightSidebarTab}
-                onOpenSettings={handleOpenSettings}
-                userPhoto={activeUserPhoto} 
-                onRefresh={handleManualRefresh}
-                isClassroomLinked={isClassroomLinked}
-                todos={todos}
-                onAddTodo={handleAddTodo}
-                onToggleTodo={handleToggleTodo}
-                onRemoveTodo={handleRemoveTodo}
-            />
+            <Suspense fallback={null}>
+                <DashboardLayout 
+                    key="dashboard"
+                    currentView={currentView} 
+                    onChangeView={handleViewChange} 
+                    isDarkMode={isDarkMode}
+                    onToggleTheme={toggleTheme}
+                    currentWallpaper={currentWallpaper}
+                    primaryColor={palette.primary}
+                    secondaryColor={palette.secondary}
+                    isLoggedIn={isLoggedIn}
+                    onLogin={handleLogin}
+                    userData={userData}
+                    academicData={academicData}
+                    currentPeriod={currentPeriod}
+                    grades={processedGrades}
+                    schedule={processedSchedule}
+                    completionData={completionData}
+                    holidays={holidays}
+                    classroomWork={classroomWork}
+                    rightTab={rightSidebarTab}
+                    onRightTabChange={setRightSidebarTab}
+                    onOpenSettings={handleOpenSettings}
+                    userPhoto={activeUserPhoto} 
+                    onRefresh={handleManualRefresh}
+                    isClassroomLinked={isClassroomLinked}
+                    todos={todos}
+                    onAddTodo={handleAddTodo}
+                    onToggleTodo={handleToggleTodo}
+                    onRemoveTodo={handleRemoveTodo}
+                />
+            </Suspense>
 
             <AnimatePresence>
                 {/* TUTORIAL OVERLAY */}
                 {showTutorial && (
-                    <TutorialOverlay 
-                        steps={TUTORIAL_STEPS}
-                        onComplete={handleFinishTutorial}
-                        isDarkMode={isDarkMode}
-                        primaryColor={palette.primary}
-                    />
+                    <Suspense fallback={null}>
+                        <TutorialOverlay 
+                            steps={TUTORIAL_STEPS}
+                            onComplete={handleFinishTutorial}
+                            isDarkMode={isDarkMode}
+                            primaryColor={palette.primary}
+                        />
+                    </Suspense>
                 )}
             </AnimatePresence>
 
             <AnimatePresence>
                 {currentView !== ViewState.DASHBOARD && (
-                <ContentView 
-                    view={currentView} 
-                    onClose={handleCloseOverlay}
-                    onChangeView={handleViewChange}
-                    isDarkMode={isDarkMode}
-                    onToggleTheme={toggleTheme}
-                    currentWallpaper={currentWallpaper}
-                    onWallpaperChange={setCurrentWallpaper}
-                    themeVariant={themeVariant}
-                    onThemeVariantChange={setThemeVariant}
-                    primaryColor={palette.primary}
-                    secondaryColor={palette.secondary}
-                    userData={userData}
-                    academicData={academicData}
-                    grades={processedGrades}
-                    schedule={processedSchedule}
-                    completionData={completionData}
-                    onLogout={handleLogout}
-                    autoExpandClassroom={autoExpandClassroom}
-                    onAutoExpandClassroom={setAutoExpandClassroom}
-                    initialProfileTab={profileInitialTab}
-                    onInstallPwa={handleInstallPwa}
-                    canInstall={!!deferredPrompt}
-                    performanceSettings={performanceSettings}
-                    onUpdatePerformance={setPerformanceSettings}
-                    customPhotoUrl={customPhotoUrl}
-                    onUpdateCustomPhoto={handleUpdateCustomPhoto}
-                    useCustomPhoto={useCustomPhoto}
-                    onToggleCustomPhoto={handleToggleCustomPhoto}
-                    // New Props for Period Selection
-                    periods={periods}
-                    viewingPeriod={viewingPeriod}
-                    onPeriodChange={handlePeriodChange}
-                />
+                <Suspense fallback={null}>
+                    <ContentView 
+                        view={currentView} 
+                        onClose={handleCloseOverlay}
+                        onChangeView={handleViewChange}
+                        isDarkMode={isDarkMode}
+                        onToggleTheme={toggleTheme}
+                        currentWallpaper={currentWallpaper}
+                        onWallpaperChange={setCurrentWallpaper}
+                        themeVariant={themeVariant}
+                        onThemeVariantChange={setThemeVariant}
+                        primaryColor={palette.primary}
+                        secondaryColor={palette.secondary}
+                        userData={userData}
+                        academicData={academicData}
+                        grades={processedGrades}
+                        schedule={processedSchedule}
+                        completionData={completionData}
+                        onLogout={handleLogout}
+                        autoExpandClassroom={autoExpandClassroom}
+                        onAutoExpandClassroom={setAutoExpandClassroom}
+                        initialProfileTab={profileInitialTab}
+                        onInstallPwa={handleInstallPwa}
+                        canInstall={!!deferredPrompt}
+                        performanceSettings={performanceSettings}
+                        onUpdatePerformance={setPerformanceSettings}
+                        customPhotoUrl={customPhotoUrl}
+                        onUpdateCustomPhoto={handleUpdateCustomPhoto}
+                        useCustomPhoto={useCustomPhoto}
+                        onToggleCustomPhoto={handleToggleCustomPhoto}
+                        // New Props for Period Selection
+                        periods={periods}
+                        viewingPeriod={viewingPeriod}
+                        onPeriodChange={handlePeriodChange}
+                        // Premium Props
+                        isPremium={isPremium}
+                        onOpenPremiumModal={() => setShowPremiumModal(true)}
+                        // Classroom Props
+                        classroomWork={classroomWork}
+                        isClassroomLinked={isClassroomLinked}
+                        onLinkClassroom={handleOpenSettings}
+                    />
+                </Suspense>
                 )}
             </AnimatePresence>
+
+            {isLoggedIn && (
+                <div 
+                    id="tut-widgets"
+                    className="fixed md:absolute bottom-24 md:bottom-10 left-0 md:left-[322px] right-0 z-[250] flex justify-center items-end pointer-events-none px-4 md:px-0 transition-opacity duration-1000 opacity-100"
+                >
+                    <div className="pointer-events-auto flex items-end gap-4 w-full max-w-md md:w-auto justify-center md:justify-start">
+                        <Suspense fallback={null}>
+                            <PomodoroWidget isDarkMode={isDarkMode} primaryColor={palette.primary} />
+                        </Suspense>
+                        <Suspense fallback={null}>
+                            <AIChatWidget 
+                                isDarkMode={isDarkMode} 
+                                accentColor={palette.primary} 
+                                userData={userData}
+                                grades={processedGrades}
+                                schedule={processedSchedule}
+                                holidays={holidays}
+                                onRequestSettings={handleOpenSettings}
+                                isPremium={isPremium}
+                                internalApiKey={SUPACO_INTERNAL_KEY}
+                            />
+                        </Suspense>
+                    </div>
+                </div>
+            )}
             
             {isLoggedIn && !showLanding && (
-               <MobileNavBar 
-                 currentView={currentView}
-                 onChangeView={handleViewChange}
-                 isDarkMode={isDarkMode}
-                 primaryColor={palette.primary}
-               />
+               <Suspense fallback={null}>
+                   <MobileNavBar 
+                     currentView={currentView}
+                     onChangeView={handleViewChange}
+                     isDarkMode={isDarkMode}
+                     primaryColor={palette.primary}
+                   />
+               </Suspense>
             )}
         </div>
       </div>
 
       <AnimatePresence>
         {showLanding && (
-            <LandingPage 
-                key="landing"
-                onComplete={handleFinishLanding}
-                onLogin={handleLogin} 
-                isDarkMode={isDarkMode} 
-                primaryColor={palette.primary}
-                currentWallpaper={currentWallpaper}
-            />
+            <Suspense fallback={null}>
+                <LandingPage 
+                    key="landing"
+                    onComplete={handleFinishLanding}
+                    onLogin={handleLogin} 
+                    isDarkMode={isDarkMode} 
+                    primaryColor={palette.primary}
+                    currentWallpaper={currentWallpaper}
+                />
+            </Suspense>
         )}
       </AnimatePresence>
     </div>

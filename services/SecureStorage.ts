@@ -1,4 +1,3 @@
-
 import { supabase } from './supabaseClient';
 
 // Service for simulating a folder-based cache structure in localStorage.
@@ -15,13 +14,14 @@ export const SecureStorage = {
     },
 
     /**
-     * Saves data to localStorage in readable JSON format.
+     * Saves data to localStorage in readable JSON format and updates timestamp.
      */
     saveItem: (matricula: string, endpoint: string, data: any) => {
         try {
             const key = SecureStorage.getKey(matricula, endpoint);
             // Saving with indentation (null, 2) to make it "entendível" (readable)
             localStorage.setItem(key, JSON.stringify(data, null, 2)); 
+            localStorage.setItem(`${key}_ts`, Date.now().toString());
             console.log(`[Storage] Saved readable data to ${key}`);
         } catch (error) {
             console.error("[Storage] Save failed:", error);
@@ -46,11 +46,33 @@ export const SecureStorage = {
     },
 
     /**
-     * Removes specific user data.
+     * Checks if the cached data is valid based on TTL (in minutes).
+     */
+    isCacheValid: (matricula: string, endpoint: string, ttlMinutes: number) => {
+        try {
+            const key = SecureStorage.getKey(matricula, endpoint);
+            const ts = localStorage.getItem(`${key}_ts`);
+            const data = localStorage.getItem(key);
+            
+            if (!data || !ts) return false;
+
+            const now = Date.now();
+            const cacheTime = parseInt(ts, 10);
+            const diffMinutes = (now - cacheTime) / (1000 * 60);
+
+            return diffMinutes < ttlMinutes;
+        } catch (e) {
+            return false;
+        }
+    },
+
+    /**
+     * Removes specific user data and timestamp.
      */
     removeItem: (matricula: string, endpoint: string) => {
         const key = SecureStorage.getKey(matricula, endpoint);
         localStorage.removeItem(key);
+        localStorage.removeItem(`${key}_ts`);
     },
 
     /**
@@ -78,9 +100,10 @@ export const SecureStorage = {
             const grades = SecureStorage.loadItem(matricula, 'grades');
             const schedule = SecureStorage.loadItem(matricula, 'schedule');
             const todos = SecureStorage.loadItem(matricula, 'todos');
-            const achievements = SecureStorage.loadItem(matricula, 'achievements'); // New
+            const achievements = SecureStorage.loadItem(matricula, 'achievements');
             
             // Collect settings from root localStorage
+            // Explicitly getting all visual preferences to ensure they persist
             const settings = {
                 wallpaper: localStorage.getItem('suap_saved_wallpaper'),
                 theme_variant: localStorage.getItem('suap_saved_theme_variant'),
@@ -97,9 +120,9 @@ export const SecureStorage = {
                 completion,
                 grades,
                 schedule,
-                settings,
+                settings, // Now includes all user preferences
                 todos,
-                achievements, // Add to payload
+                achievements,
                 updated_at: new Date().toISOString()
             };
 
@@ -123,6 +146,7 @@ export const SecureStorage = {
 
     /**
      * Loads data from Supabase and updates local storage.
+     * Returns object with data status and settings for immediate UI update.
      */
     syncFromCloud: async (matricula: string) => {
         try {
@@ -139,17 +163,19 @@ export const SecureStorage = {
             }
             if (!data) {
                 console.log("[Storage] No cloud data found.");
-                return false;
+                return { hasData: false };
             }
 
+            // Restore academic data
             if (data.profile) SecureStorage.saveItem(matricula, 'profile', data.profile);
             if (data.academic) SecureStorage.saveItem(matricula, 'academic', data.academic);
             if (data.completion) SecureStorage.saveItem(matricula, 'completion', data.completion);
             if (data.grades) SecureStorage.saveItem(matricula, 'grades', data.grades);
             if (data.schedule) SecureStorage.saveItem(matricula, 'schedule', data.schedule);
             if (data.todos) SecureStorage.saveItem(matricula, 'todos', data.todos);
-            if (data.achievements) SecureStorage.saveItem(matricula, 'achievements', data.achievements); // New
+            if (data.achievements) SecureStorage.saveItem(matricula, 'achievements', data.achievements);
             
+            // Restore Settings (Preferences) to localStorage
             if (data.settings) {
                 if(data.settings.wallpaper) localStorage.setItem('suap_saved_wallpaper', data.settings.wallpaper);
                 if(data.settings.theme_variant) localStorage.setItem('suap_saved_theme_variant', data.settings.theme_variant);
@@ -160,11 +186,12 @@ export const SecureStorage = {
             }
 
             console.log(`[Storage] Cloud load successful for ${matricula}`);
-            return true;
+            // Return settings object so the UI can update state immediately
+            return { hasData: true, settings: data.settings };
         } catch (error: any) {
             const errorMessage = error?.message || error?.error_description || (typeof error === 'object' ? JSON.stringify(error) : String(error));
             console.error(`[Storage] Cloud load failed: ${errorMessage}`);
-            return false;
+            return { hasData: false };
         }
     },
 
@@ -187,13 +214,27 @@ export const SecureStorage = {
     },
 
     /**
-     * Checks if the provided matricula belongs to an admin.
-     * Uses simple obfuscation to avoid hardcoding the plain text ID in the bundle.
+     * Checks subscription status securely using a Postgres Function (RPC).
      */
+    checkSubscriptionStatus: async (matricula: string) => {
+        try {
+            // console.log(`[Premium Check] Checking status via RPC for ${matricula}...`);
+            const { data, error } = await supabase
+                .rpc('check_subscription_status', { user_matricula: matricula });
+
+            if (error) {
+                console.error("[Premium Check] RPC error:", error);
+                return false;
+            }
+            return !!data;
+        } catch (e) {
+            console.error("[Premium Check] Unexpected error:", e);
+            return false;
+        }
+    },
+
     isAdmin: (matricula: string | undefined | null) => {
         if (!matricula) return false;
-        // Target is the Admin Matricula but stored as Base64 of its reverse to prevent grep/search in DevTools.
-        // Plain: "20251094040030" -> Reverse: "03004049015202" -> Base64: "MDMwMDQwNDkwMTUyMDI="
         const TARGET_HASH = "MDMwMDQwNDkwMTUyMDI="; 
         try {
             const inputHash = btoa(matricula.split('').reverse().join(''));
