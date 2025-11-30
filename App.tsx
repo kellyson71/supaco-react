@@ -845,7 +845,8 @@ const App: React.FC = () => {
                     headers: { 'Authorization': `Bearer ${token}`, 'Accept': 'application/json' }
                 });
             } else {
-                handleLogout();
+                // Do NOT wipe data, just mark session as invalid to allow offline mode
+                setIsLoggedIn(false);
                 return null;
             }
         }
@@ -1385,6 +1386,7 @@ const App: React.FC = () => {
                     userPhoto={activeUserPhoto} 
                     onRefresh={handleManualRefresh}
                     isClassroomLinked={isClassroomLinked}
+                    onLinkClassroom={initiateGoogleAuth}
                     todos={todos}
                     onAddTodo={handleAddTodo}
                     onToggleTodo={handleToggleTodo}
@@ -1482,7 +1484,7 @@ const App: React.FC = () => {
                 </div>
             )}
             
-            {isLoggedIn && !showLanding && (
+            {(isLoggedIn || userData) && !showLanding && (
                <Suspense fallback={null}>
                    <MobileNavBar 
                      currentView={currentView}

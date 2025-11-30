@@ -51,7 +51,9 @@ import {
   Zap,
   ShieldCheck,
   Brain,
-  GitCommit
+  GitCommit,
+  WifiOff,
+  Fingerprint
 } from 'lucide-react';
 import { InvertedCorner } from './InvertedCorner';
 import { ViewState, ClassroomWork, SuapProfile, SuapPeriod, GradeInfo, ProcessedClass, SuapCompletionData, Holiday, TodoItem, SuapMeusDadosAluno, Achievement } from '../types';
@@ -102,6 +104,7 @@ interface DashboardProps {
   onToggleTodo?: (id: string) => void;
   onRemoveTodo?: (id: string) => void;
   classroomStatus?: 'connected' | 'disconnected' | 'expired';
+  onLinkClassroom?: () => void;
 }
 
 // --- HOLOGRAPHIC CARD COMPONENT ---
@@ -383,17 +386,57 @@ const TopBarItem = ({ icon, label, onClick, active, indicator, indicatorColor, r
 }
 
 // --- LOGIN MODAL ---
-const LoginModal = ({ isDarkMode, primaryColor, onLogin }: any) => {
-    // This is a simplified placeholder as login is handled in LandingPage usually
-    // But kept here if user logs out and needs to log back in without full reload
+const LoginModal = ({ isDarkMode, primaryColor, onSuapLogin, onGoogleLogin, onDismiss }: any) => {
     return (
-        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/60 backdrop-blur-md">
-            <div className={`p-8 rounded-[2rem] shadow-2xl ${isDarkMode ? 'bg-slate-900 text-white' : 'bg-white text-gray-900'}`}>
-                <h2 className="text-2xl font-black mb-4">Bem-vindo de volta</h2>
-                <button onClick={onLogin} className={`w-full py-3 rounded-xl font-bold bg-${primaryColor}-500 text-white`}>
-                    Entrar
-                </button>
-            </div>
+        <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/60 backdrop-blur-md">
+            <motion.div 
+                initial={{ scale: 0.9, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                className={`w-full max-w-sm p-8 rounded-[2.5rem] shadow-2xl relative overflow-hidden ${isDarkMode ? 'bg-slate-900 text-white' : 'bg-white text-gray-900'}`}
+            >
+                 <div className={`absolute top-0 right-0 w-32 h-32 bg-${primaryColor}-500/20 blur-[60px] rounded-full -translate-y-1/2 translate-x-1/2`} />
+
+                 <div className="relative z-10 flex flex-col items-center text-center">
+                     <div className={`w-16 h-16 rounded-2xl mb-6 flex items-center justify-center shadow-lg ${isDarkMode ? 'bg-white/5' : 'bg-gray-100'}`}>
+                         <Fingerprint size={32} className={`text-${primaryColor}-500`} />
+                     </div>
+                     
+                     <h2 className="text-2xl font-black mb-2">Sessão Expirada</h2>
+                     <p className="text-sm opacity-60 mb-8 leading-relaxed">
+                         Para sincronizar novos dados, faça login novamente. Você pode continuar visualizando os dados em cache.
+                     </p>
+
+                     <div className="w-full space-y-3">
+                         <button 
+                            onClick={onSuapLogin} 
+                            className={`w-full py-4 rounded-xl font-bold text-xs uppercase tracking-widest flex items-center justify-center gap-3 transition-transform active:scale-95 shadow-lg
+                                ${isDarkMode ? 'bg-white text-black hover:bg-gray-200' : 'bg-black text-white hover:bg-gray-800'}
+                            `}
+                         >
+                             <Fingerprint size={16} />
+                             Entrar com SUAP
+                         </button>
+                         
+                         <button 
+                            onClick={onGoogleLogin} 
+                            className={`w-full py-4 rounded-xl font-bold text-xs uppercase tracking-widest flex items-center justify-center gap-3 transition-colors border
+                                ${isDarkMode ? 'bg-transparent border-white/20 hover:bg-white/5' : 'bg-transparent border-gray-200 hover:bg-gray-50'}
+                            `}
+                         >
+                             <Monitor size={16} />
+                             Conectar Classroom
+                         </button>
+
+                         <button 
+                            onClick={onDismiss} 
+                            className="w-full py-3 text-[10px] font-bold uppercase tracking-widest opacity-40 hover:opacity-100 transition-opacity flex items-center justify-center gap-2 mt-2"
+                         >
+                             <WifiOff size={14} />
+                             Continuar Offline
+                         </button>
+                     </div>
+                 </div>
+            </motion.div>
         </div>
     )
 }
@@ -430,12 +473,14 @@ export const DashboardLayout: React.FC<DashboardProps> = ({
   onAddTodo,
   onToggleTodo,
   onRemoveTodo,
-  classroomStatus
+  classroomStatus,
+  onLinkClassroom
 }) => {
   const [activeNav, setActiveNav] = useState<ViewState>(ViewState.DASHBOARD);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isFocusMode, setIsFocusMode] = useState(false);
   const [showChangelog, setShowChangelog] = useState(false);
+  const [isLoginModalDismissed, setIsLoginModalDismissed] = useState(false);
   
   // Achievement State
   const [unlockedAchievements, setUnlockedAchievements] = useState<string[]>([]);
@@ -462,13 +507,16 @@ export const DashboardLayout: React.FC<DashboardProps> = ({
   // Premium check
   const isPremium = localStorage.getItem('suap_user_is_premium') === 'true';
 
+  // Determine if content should be shown (Logged In OR Offline with Data)
+  const showContent = isLoggedIn || (!!userData && isLoginModalDismissed);
+
   useEffect(() => {
     setActiveNav(currentView);
   }, [currentView]);
 
   // --- ACHIEVEMENT LOGIC ---
   useEffect(() => {
-    if (grades.length > 0 && userData && isLoggedIn) {
+    if (grades.length > 0 && userData && showContent) {
         const storedAchievements = SecureStorage.loadItem(userData.matricula || '', 'achievements') || [];
         const newUnlocks: string[] = [];
         let lastUnlock: Achievement | null = null;
@@ -498,7 +546,7 @@ export const DashboardLayout: React.FC<DashboardProps> = ({
             setUnlockedAchievements(storedAchievements);
         }
     }
-  }, [grades, userData, isLoggedIn]);
+  }, [grades, userData, showContent]);
 
   const handleRefreshClick = () => {
     if (onRefresh) {
@@ -507,6 +555,12 @@ export const DashboardLayout: React.FC<DashboardProps> = ({
       // Simulate spinning for UX feedback
       setTimeout(() => setIsRefreshing(false), 2000);
     }
+  };
+  
+  const handleSuapLogin = () => {
+    const CLIENT_ID = 'mtwXt4wCesctJiKA6BbRQ7DMROTJeNosSpQUc7dm';
+    const REDIRECT_URI = window.location.hostname === 'localhost' ? 'http://localhost:5173/' : 'https://supaco.vercel.app/'; 
+    window.location.href = `https://suap.ifrn.edu.br/o/authorize/?response_type=code&client_id=${CLIENT_ID}&redirect_uri=${REDIRECT_URI}`;
   };
 
   // Calculate Overall Stats (Average & Frequency)
@@ -1023,11 +1077,13 @@ export const DashboardLayout: React.FC<DashboardProps> = ({
 
       {/* --- LOGIN OVERLAY --- */}
       <AnimatePresence>
-        {!isLoggedIn && (
+        {!isLoggedIn && !isLoginModalDismissed && userData && (
           <LoginModal 
              isDarkMode={isDarkMode} 
              primaryColor={primaryColor} 
-             onLogin={onLogin} 
+             onSuapLogin={handleSuapLogin} 
+             onGoogleLogin={onLinkClassroom}
+             onDismiss={() => setIsLoginModalDismissed(true)}
           />
         )}
       </AnimatePresence>
@@ -1129,8 +1185,8 @@ export const DashboardLayout: React.FC<DashboardProps> = ({
             <div className="relative w-full flex justify-center z-[60]">
                 <motion.div 
                     initial={{ y: -150 }}
-                    animate={{ y: isLoggedIn ? 0 : -150 }}
-                    transition={{ type: 'spring', stiffness: 60, damping: 15, delay: isLoggedIn ? 0.2 : 0 }}
+                    animate={{ y: showContent ? 0 : -150 }}
+                    transition={{ type: 'spring', stiffness: 60, damping: 15, delay: showContent ? 0.2 : 0 }}
                     className={`mt-4 md:mt-8 backdrop-blur-xl h-12 md:h-14 pl-2 pr-4 md:pr-6 rounded-full flex items-center gap-3 md:gap-4 shadow-lg border transition-colors duration-500
                         ${isDarkMode ? 'bg-slate-950/80 border-white/10' : 'bg-white/90 border-white/40'}
                     `}
@@ -1261,8 +1317,8 @@ export const DashboardLayout: React.FC<DashboardProps> = ({
                 <div className="relative md:absolute md:bottom-[380px] md:left-0 md:pl-6 z-20 w-full md:w-auto flex justify-center md:justify-start mb-6 md:mb-0">
                         <motion.div 
                             initial={{ opacity: 0, x: -50 }}
-                            animate={{ opacity: isLoggedIn ? 1 : 0, x: isLoggedIn ? 0 : -50 }}
-                            transition={{ type: 'spring', stiffness: 50, damping: 15, delay: isLoggedIn ? 0.4 : 0 }}
+                            animate={{ opacity: showContent ? 1 : 0, x: showContent ? 0 : -50 }}
+                            transition={{ type: 'spring', stiffness: 50, damping: 15, delay: showContent ? 0.4 : 0 }}
                             className="relative w-full max-w-[320px] md:w-[298px] h-[220px]"
                         >
                             <HolographicCard primaryColor={primaryColor} isPremium={isPremium}>
@@ -1322,8 +1378,8 @@ export const DashboardLayout: React.FC<DashboardProps> = ({
                 {/* INTEGRATED CARD BLOCK (Unified Stacked Carousel) */}
                 <motion.div 
                     initial={{ x: -50, opacity: 0 }}
-                    animate={{ x: isLoggedIn ? 0 : -50, opacity: isLoggedIn ? 1 : 0 }}
-                    transition={{ type: 'spring', stiffness: 60, damping: 15, delay: isLoggedIn ? 0.6 : 0 }}
+                    animate={{ x: showContent ? 0 : -50, opacity: showContent ? 1 : 0 }}
+                    transition={{ type: 'spring', stiffness: 60, damping: 15, delay: showContent ? 0.6 : 0 }}
                     className="relative md:absolute md:bottom-4 md:left-0 z-[60] w-full md:w-auto flex justify-center md:justify-start"
                 >
                     {/* Desktop Inverted Corner */}
@@ -1461,7 +1517,7 @@ export const DashboardLayout: React.FC<DashboardProps> = ({
              <InvertedCorner position="bottom-right" size={40} fill={cornerColor} />
           </div>
 
-          {isLoggedIn ? (
+          {showContent ? (
              <motion.div 
                 className="flex flex-col h-full w-full"
                 initial={{ opacity: 0 }}
