@@ -1,3 +1,5 @@
+
+
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence, PanInfo } from 'framer-motion';
 import { X, AlertTriangle, AlertCircle, CheckCircle, Clock, MapPin, Award, Briefcase, User, Calendar, GraduationCap, Settings, Monitor, Moon, Sun, ToggleLeft, ToggleRight, Link2, ExternalLink, Cpu, ShieldCheck, Eye, EyeOff, Key, Image as ImageIcon, Check, BookOpen, Palette, RefreshCw, Mail, Fingerprint, FileText, UserSquare2, Percent, Calculator, Flag, Target, CheckSquare, LogOut, ArrowRight, Copy, Clipboard, HelpCircle, Book, CalendarClock, ChevronRight, MoreHorizontal, Save, Download, Droplet, Coffee, Aperture, BookMarked, Users, Rocket, Zap, TrendingUp, TrendingDown, Minus, Sparkles, Camera, PenLine, Trash2, Cloud, UploadCloud, Search, Shield, ChevronDown, Trophy, Medal, Brain, History, Crown, CreditCard, Laptop, Smartphone, LayoutTemplate, HardDrive, Heart } from 'lucide-react';
@@ -52,6 +54,7 @@ interface OverlayViewProps {
   classroomWork?: ClassroomWork[];
   isClassroomLinked?: boolean;
   onLinkClassroom?: () => void;
+  classroomStatus?: 'connected' | 'disconnected' | 'expired';
 }
 
 const WALLPAPERS = [
@@ -115,7 +118,7 @@ const SectionHeader = ({ icon: Icon, title, color }: any) => (
     </div>
 );
 
-export const ContentView: React.FC<OverlayViewProps> = ({ view, onClose, onChangeView, isDarkMode, onToggleTheme, currentWallpaper, onWallpaperChange, themeVariant, onThemeVariantChange, primaryColor, secondaryColor, userData, academicData, grades, schedule, completionData, onLogout, autoExpandClassroom, onAutoExpandClassroom, initialProfileTab, onInstallPwa, canInstall, performanceSettings, onUpdatePerformance, customPhotoUrl = '', onUpdateCustomPhoto, useCustomPhoto = false, onToggleCustomPhoto, periods, viewingPeriod, onPeriodChange, isPremium, onOpenPremiumModal, classroomWork = [], isClassroomLinked = false, onLinkClassroom }) => {
+export const ContentView: React.FC<OverlayViewProps> = ({ view, onClose, onChangeView, isDarkMode, onToggleTheme, currentWallpaper, onWallpaperChange, themeVariant, onThemeVariantChange, primaryColor, secondaryColor, userData, academicData, grades, schedule, completionData, onLogout, autoExpandClassroom, onAutoExpandClassroom, initialProfileTab, onInstallPwa, canInstall, performanceSettings, onUpdatePerformance, customPhotoUrl = '', onUpdateCustomPhoto, useCustomPhoto = false, onToggleCustomPhoto, periods, viewingPeriod, onPeriodChange, isPremium, onOpenPremiumModal, classroomWork = [], isClassroomLinked = false, onLinkClassroom, classroomStatus }) => {
   if (view === ViewState.DASHBOARD) return null;
 
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
@@ -292,6 +295,9 @@ export const ContentView: React.FC<OverlayViewProps> = ({ view, onClose, onChang
                     isPremium={isPremium}
                     onOpenPremiumModal={onOpenPremiumModal}
                     onClose={onClose}
+                    onLinkClassroom={onLinkClassroom}
+                    isClassroomLinked={isClassroomLinked}
+                    classroomStatus={classroomStatus}
                 />
             )}
         </div>
@@ -325,7 +331,10 @@ const ProfileContent = ({
     onToggleCustomPhoto,
     isPremium,
     onOpenPremiumModal,
-    onClose
+    onClose,
+    onLinkClassroom,
+    isClassroomLinked,
+    classroomStatus
 }: any) => {
     const [activeTab, setActiveTab] = useState(initialTab || 'profile');
     const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
@@ -462,6 +471,9 @@ const ProfileContent = ({
                             isPremium={isPremium}
                             onOpenPremiumModal={onOpenPremiumModal}
                             userData={userData}
+                            onLinkClassroom={onLinkClassroom}
+                            isClassroomLinked={isClassroomLinked}
+                            classroomStatus={classroomStatus}
                         />
                     )}
                     {activeTab === 'wallpaper' && (
@@ -599,7 +611,7 @@ const ProfileTabContent = ({ isDark, accentColor, userData, academicData, profil
     );
 };
 
-const SettingsTabContent = ({ isDark, accentColor, performanceSettings, onUpdatePerformance, customPhotoUrl, onUpdateCustomPhoto, useCustomPhoto, onToggleCustomPhoto, onInstallPwa, canInstall, isPremium, onOpenPremiumModal, userData }: any) => {
+const SettingsTabContent = ({ isDark, accentColor, performanceSettings, onUpdatePerformance, customPhotoUrl, onUpdateCustomPhoto, useCustomPhoto, onToggleCustomPhoto, onInstallPwa, canInstall, isPremium, onOpenPremiumModal, userData, onLinkClassroom, isClassroomLinked, classroomStatus }: any) => {
     return (
         <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="max-w-3xl mx-auto space-y-8 pb-10">
             {!isPremium ? (
@@ -628,6 +640,39 @@ const SettingsTabContent = ({ isDark, accentColor, performanceSettings, onUpdate
                     </div>
                 </div>
             )}
+            
+            {/* GOOGLE CLASSROOM SETTINGS */}
+            <div>
+                <SectionHeader icon={Monitor} title="Integrações" color={accentColor} />
+                <div className={`rounded-[2rem] border overflow-hidden ${isDark ? 'bg-white/5 border-white/5' : 'bg-white border-gray-100 shadow-sm'}`}>
+                    <div className={`p-5 flex items-center justify-between`}>
+                        <div className="flex items-center gap-4">
+                            <div className={`p-2.5 rounded-xl ${classroomStatus === 'connected' ? 'bg-green-500/20 text-green-500' : (classroomStatus === 'expired' ? 'bg-red-500/20 text-red-500' : (isDark ? 'bg-white/5 text-gray-400' : 'bg-gray-100 text-gray-500'))}`}>
+                                <Monitor size={18} />
+                            </div>
+                            <div>
+                                <div className={`text-sm font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>Google Classroom</div>
+                                <div className="text-[10px] font-medium opacity-60">
+                                    {classroomStatus === 'connected' ? 'Sincronizado' : (classroomStatus === 'expired' ? 'Sessão Expirada' : 'Não conectado')}
+                                </div>
+                            </div>
+                        </div>
+                        <button 
+                            onClick={onLinkClassroom} 
+                            className={`px-4 py-2 rounded-lg text-[10px] font-bold uppercase transition-colors
+                                ${classroomStatus === 'connected' 
+                                    ? `bg-green-500/10 text-green-500` 
+                                    : (classroomStatus === 'expired' 
+                                        ? `bg-red-500 text-white animate-pulse` 
+                                        : `bg-${accentColor}-500 text-white`)}
+                            `}
+                        >
+                            {classroomStatus === 'connected' ? 'Reconectar' : (classroomStatus === 'expired' ? 'Reconectar Agora' : 'Conectar')}
+                        </button>
+                    </div>
+                </div>
+            </div>
+
             <div>
                 <SectionHeader icon={Zap} title="Performance & Visual" color={accentColor} />
                 <div className={`rounded-[2rem] border overflow-hidden ${isDark ? 'bg-white/5 border-white/5' : 'bg-white border-gray-100 shadow-sm'}`}>

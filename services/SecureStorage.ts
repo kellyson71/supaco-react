@@ -1,3 +1,4 @@
+
 import { supabase } from './supabaseClient';
 
 // Service for simulating a folder-based cache structure in localStorage.
@@ -102,6 +103,9 @@ export const SecureStorage = {
             const todos = SecureStorage.loadItem(matricula, 'todos');
             const achievements = SecureStorage.loadItem(matricula, 'achievements');
             
+            // Load tokens to embed in settings
+            const google_tokens = SecureStorage.loadItem(matricula, 'google_tokens');
+            
             // Collect settings from root localStorage
             // Explicitly getting all visual preferences to ensure they persist
             const settings = {
@@ -110,7 +114,9 @@ export const SecureStorage = {
                 theme_mode: localStorage.getItem('suap_saved_theme_mode'),
                 performance: JSON.parse(localStorage.getItem('suap_performance_settings') || 'null'),
                 custom_photo: localStorage.getItem('suap_custom_photo'),
-                use_custom_photo: localStorage.getItem('suap_use_custom_photo')
+                use_custom_photo: localStorage.getItem('suap_use_custom_photo'),
+                // Embed tokens here to avoid schema missing column error
+                google_tokens: google_tokens 
             };
 
             const payload = {
@@ -120,7 +126,7 @@ export const SecureStorage = {
                 completion,
                 grades,
                 schedule,
-                settings, // Now includes all user preferences
+                settings, // Now includes all user preferences AND tokens
                 todos,
                 achievements,
                 updated_at: new Date().toISOString()
@@ -183,6 +189,11 @@ export const SecureStorage = {
                 if(data.settings.performance) localStorage.setItem('suap_performance_settings', JSON.stringify(data.settings.performance));
                 if(data.settings.custom_photo) localStorage.setItem('suap_custom_photo', data.settings.custom_photo);
                 if(data.settings.use_custom_photo) localStorage.setItem('suap_use_custom_photo', data.settings.use_custom_photo);
+                
+                // RESTORE TOKENS from settings
+                if(data.settings.google_tokens) {
+                    SecureStorage.saveItem(matricula, 'google_tokens', data.settings.google_tokens);
+                }
             }
 
             console.log(`[Storage] Cloud load successful for ${matricula}`);

@@ -1,4 +1,5 @@
 
+
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { motion, AnimatePresence, PanInfo, useMotionValue, useTransform } from 'framer-motion';
 import { 
@@ -100,6 +101,7 @@ interface DashboardProps {
   onAddTodo?: (text: string) => void;
   onToggleTodo?: (id: string) => void;
   onRemoveTodo?: (id: string) => void;
+  classroomStatus?: 'connected' | 'disconnected' | 'expired';
 }
 
 // --- HOLOGRAPHIC CARD COMPONENT ---
@@ -427,7 +429,8 @@ export const DashboardLayout: React.FC<DashboardProps> = ({
   todos = [],
   onAddTodo,
   onToggleTodo,
-  onRemoveTodo
+  onRemoveTodo,
+  classroomStatus
 }) => {
   const [activeNav, setActiveNav] = useState<ViewState>(ViewState.DASHBOARD);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -927,6 +930,7 @@ export const DashboardLayout: React.FC<DashboardProps> = ({
                     <span className={`text-[10px] font-black uppercase tracking-wide px-2 py-1 rounded-md ${isDarkMode ? `bg-${primaryColor}-900/50 text-${primaryColor}-400` : `bg-${primaryColor}-100 text-${primaryColor}-700`}`}>
                         Classroom
                     </span>
+                    {/* Add re-connect warning here if needed or rely on main nav */}
                 </div>
                 <div className="relative z-10 flex-1 flex flex-col justify-center">
                     {nextTask ? (
@@ -1174,6 +1178,20 @@ export const DashboardLayout: React.FC<DashboardProps> = ({
                             </div>
                         </TopBarItem>
                     </div>
+
+                    {/* Classroom Connection Status */}
+                    {classroomStatus === 'expired' && (
+                        <>
+                            <div className={`h-4 w-[1px] ${isDarkMode ? 'bg-white/20' : 'bg-gray-300'}`} />
+                            <button
+                                onClick={onOpenSettings}
+                                className={`h-8 md:h-10 px-3 md:px-4 rounded-full flex items-center gap-2 text-xs md:text-sm font-bold border transition-all animate-pulse ${isDarkMode ? 'bg-red-500/20 text-red-400 border-red-500/30' : 'bg-red-100 text-red-600 border-red-200'}`}
+                            >
+                                <AlertTriangle size={14} />
+                                <span className="hidden md:inline">Reconectar Classroom</span>
+                            </button>
+                        </>
+                    )}
 
                     <div className={`h-4 w-[1px] ${isDarkMode ? 'bg-white/20' : 'bg-gray-300'}`} />
 

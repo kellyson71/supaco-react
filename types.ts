@@ -43,6 +43,12 @@ export interface TodoItem {
     completed: boolean;
 }
 
+export interface GoogleTokens {
+  access_token: string;
+  refresh_token?: string;
+  expiry_date?: number;
+}
+
 // --- SUAP API INTERFACES ---
 
 // Updated to match GET /api/ensino/periodos/

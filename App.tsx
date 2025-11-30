@@ -1,4 +1,5 @@
 
+
 import React, { useState, useMemo, useEffect, useRef, Suspense } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { SecureStorage } from './services/SecureStorage';
@@ -6,7 +7,7 @@ import { supabase } from './services/supabaseClient';
 import { WifiOff, RefreshCw, AlertTriangle, X } from 'lucide-react';
 
 import { SplashScreen } from './components/SplashScreen';
-import { ViewState, ThemeVariant, SuapProfile, SuapMeusDadosAluno, SuapPeriod, SuapDiario, SuapBoletim, ProcessedClass, GradeInfo, SuapCompletionData, Holiday, ClassroomWork, ClassroomCourse, PerformanceSettings, SuapMeusPeriodosLetivos, TodoItem } from './types';
+import { ViewState, ThemeVariant, SuapProfile, SuapMeusDadosAluno, SuapPeriod, SuapDiario, SuapBoletim, ProcessedClass, GradeInfo, SuapCompletionData, Holiday, ClassroomWork, ClassroomCourse, PerformanceSettings, SuapMeusPeriodosLetivos, TodoItem, GoogleTokens } from './types';
 
 // --- DYNAMIC IMPORTS (Code Splitting) ---
 // We handle named exports by destructuring the module in the promise result.
@@ -24,6 +25,13 @@ const DEFAULT_PROFILE_IMG = "https://i.pinimg.com/736x/9c/63/e1/9c63e1cf0546ecd4
 
 // --- INTERNAL CONFIG ---
 const SUPACO_INTERNAL_KEY = process.env.API_KEY || "AIzaSyD-PREMIUM-PLACEHOLDER-KEY-FOR-SUPACO-APP";
+
+// --- GOOGLE OAUTH CONFIG ---
+// IMPORTANT: You must add your Client ID and Client Secret here.
+// For production, these should be environment variables.
+const GOOGLE_CLIENT_ID = 'YOUR_GOOGLE_CLIENT_ID'; 
+const GOOGLE_CLIENT_SECRET = 'YOUR_GOOGLE_CLIENT_SECRET'; 
+const REDIRECT_URI = window.location.hostname === 'localhost' ? 'http://localhost:5173/' : 'https://supaco.vercel.app/';
 
 // Cache Keys (Settings only - Data is now in SecureStorage)
 const CACHE_KEYS = {
@@ -173,7 +181,10 @@ const App: React.FC = () => {
   const [completionData, setCompletionData] = useState<SuapCompletionData | null>(null);
   const [holidays, setHolidays] = useState<Holiday[]>([]);
   const [classroomWork, setClassroomWork] = useState<ClassroomWork[]>([]);
-  const [isClassroomLinked, setIsClassroomLinked] = useState(false);
+  
+  // Classroom State
+  const [classroomStatus, setClassroomStatus] = useState<'connected' | 'disconnected' | 'expired'>('disconnected');
+  const [isClassroomLinked, setIsClassroomLinked] = useState(false); // Legacy boolean, kept for compatibility
 
   // Todo List State
   const [todos, setTodos] = useState<TodoItem[]>([]);
@@ -391,7 +402,7 @@ const App: React.FC = () => {
               setIsSyncing(false);
           }, 3000); 
       }
-  }, [currentWallpaper, customPhotoUrl, useCustomPhoto, themeVariant, isDarkMode, performanceSettings, isLoggedIn, userData?.matricula]);
+  }, [currentView, currentWallpaper, customPhotoUrl, useCustomPhoto, themeVariant, isDarkMode, performanceSettings, isLoggedIn, userData?.matricula]);
 
 
   // Calculate Active User Photo
@@ -447,7 +458,7 @@ const App: React.FC = () => {
   const exchangeSuapCodeForToken = async (code: string) => {
       const CLIENT_ID = 'mtwXt4wCesctJiKA6BbRQ7DMROTJeNosSpQUc7dm';
       const CLIENT_SECRET = 'zPYe7h1xr3Vv1yE38N8ziV56oAcmlJVMQIZP3BCFbuftEyu6whAbvoj7e8oKXU6jcbv9RVosL63fs4SBNnsESnPvozo2bodmvbp7dABOk566Dz88S3UMwKDTwwe6wL2G';
-      const REDIRECT_URI = window.location.hostname === 'localhost' ? 'http://localhost:5173/' : 'https://supaco.vercel.app/';
+      const SUAP_REDIRECT_URI = REDIRECT_URI; 
 
       try {
           const response = await fetch('https://suap.ifrn.edu.br/o/token/', {
@@ -460,7 +471,7 @@ const App: React.FC = () => {
                   code: code,
                   client_id: CLIENT_ID,
                   client_secret: CLIENT_SECRET,
-                  redirect_uri: REDIRECT_URI
+                  redirect_uri: SUAP_REDIRECT_URI
               })
           });
 
@@ -502,43 +513,135 @@ const App: React.FC = () => {
       }
   };
 
+  // --- GOOGLE CLASSROOM OAUTH (Code Flow) ---
+  const initiateGoogleAuth = () => {
+    const params = new URLSearchParams({
+        client_id: GOOGLE_CLIENT_ID,
+        redirect_uri: REDIRECT_URI,
+        response_type: 'code',
+        scope: 'https://www.googleapis.com/auth/classroom.courses.readonly https://www.googleapis.com/auth/classroom.coursework.me.readonly',
+        access_type: 'offline', // Required for refresh_token
+        prompt: 'consent', // Force consent to ensure refresh_token is returned
+        state: 'google_auth'
+    });
+    window.location.href = `https://accounts.google.com/o/oauth2/v2/auth?${params}`;
+  };
+
+  const exchangeGoogleCode = async (code: string) => {
+    try {
+        const response = await fetch('https://oauth2.googleapis.com/token', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded',
+            },
+            body: new URLSearchParams({
+                code,
+                client_id: GOOGLE_CLIENT_ID,
+                client_secret: GOOGLE_CLIENT_SECRET,
+                redirect_uri: REDIRECT_URI,
+                grant_type: 'authorization_code'
+            })
+        });
+
+        if (response.ok) {
+            const data = await response.json();
+            const matricula = localStorage.getItem('suap_username');
+            
+            if (data.access_token && matricula) {
+                const tokens: GoogleTokens = {
+                    access_token: data.access_token,
+                    refresh_token: data.refresh_token, // Only returned if access_type=offline and prompt=consent
+                    expiry_date: Date.now() + (data.expires_in * 1000)
+                };
+
+                SecureStorage.saveItem(matricula, 'google_tokens', tokens);
+                
+                // Also trigger sync to save refresh token to Supabase for other devices
+                SecureStorage.syncToCloud(matricula);
+
+                setIsClassroomLinked(true);
+                setClassroomStatus('connected');
+                
+                // Clean URL
+                window.history.replaceState({}, document.title, window.location.pathname);
+                
+                // Fetch data immediately
+                fetchClassroomData(matricula);
+
+                // UI Feedback
+                addToast("Google Classroom conectado com sucesso!", "info");
+                setTimeout(() => {
+                    setCurrentView(ViewState.CLASSROOM);
+                }, 500);
+            }
+        } else {
+             const errText = await response.text();
+             console.error("Google Token Exchange Failed", errText);
+             addToast("Falha ao conectar Classroom. Tente novamente.", "warning");
+        }
+    } catch (e) {
+        console.error("Google Token Exchange Error", e);
+        addToast("Erro de conexão com Google.", "warning");
+    }
+  };
+
+  const refreshGoogleToken = async (refreshToken: string, matricula: string): Promise<string | null> => {
+      try {
+          console.log("[Classroom] Refreshing access token...");
+          const response = await fetch('https://oauth2.googleapis.com/token', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+              body: new URLSearchParams({
+                  client_id: GOOGLE_CLIENT_ID,
+                  client_secret: GOOGLE_CLIENT_SECRET,
+                  refresh_token: refreshToken,
+                  grant_type: 'refresh_token'
+              })
+          });
+
+          if (response.ok) {
+              const data = await response.json();
+              if (data.access_token) {
+                  const currentTokens = SecureStorage.loadItem(matricula, 'google_tokens') as GoogleTokens;
+                  const newTokens: GoogleTokens = {
+                      ...currentTokens,
+                      access_token: data.access_token,
+                      // Important: Google might return a new refresh token (rarely) or just access token.
+                      // If it returns a new refresh_token, we should update it.
+                      refresh_token: data.refresh_token || currentTokens.refresh_token, 
+                      expiry_date: Date.now() + (data.expires_in * 1000)
+                  };
+                  SecureStorage.saveItem(matricula, 'google_tokens', newTokens);
+                  // Sync updated access token (optional, mainly for local usage)
+                  return data.access_token;
+              }
+          } else {
+              console.error("[Classroom] Refresh failed. Token might be revoked.");
+          }
+      } catch (e) {
+          console.error("[Classroom] Refresh error", e);
+      }
+      return null;
+  };
+
+
   // --- OAUTH CALLBACK HANDLER ---
   useEffect(() => {
-      const checkClassroomToken = () => {
-          const token = localStorage.getItem('google_classroom_token');
-          setIsClassroomLinked(!!token);
-      };
-      
-      checkClassroomToken();
-      window.addEventListener('storage', checkClassroomToken);
-
-      // Handle SUAP OAuth Callback (?code=...)
       const searchParams = new URLSearchParams(window.location.search);
-      const suapCode = searchParams.get('code');
-      if (suapCode) {
-          exchangeSuapCodeForToken(suapCode);
-      }
+      const code = searchParams.get('code');
+      const state = searchParams.get('state');
 
-      // Handle Google OAuth Callback (#access_token=...)
-      const hash = window.location.hash;
-      if (hash && hash.includes('access_token')) {
-          const params = new URLSearchParams(hash.substring(1));
-          const accessToken = params.get('access_token');
-          
-          if (accessToken) {
-              localStorage.setItem('google_classroom_token', accessToken);
-              setIsClassroomLinked(true);
-              window.history.replaceState(null, '', window.location.pathname);
-              setTimeout(() => {
-                  setCurrentView(ViewState.PROFILE);
-                  setProfileInitialTab('settings');
-                  setAutoExpandClassroom(true);
-                  setShowLanding(false);
-                  localStorage.setItem(CACHE_KEYS.WELCOME_SEEN, 'true');
-              }, 100);
+      // Distinguish between SUAP and Google based on state
+      if (code) {
+          if (state === 'google_auth') {
+              // It's Google
+              exchangeGoogleCode(code);
+          } else {
+              // Assume SUAP if no state or different state
+              // (SUAP in LandingPage usually handles this, but if user refreshed on callback url)
+              exchangeSuapCodeForToken(code);
           }
       }
-      return () => window.removeEventListener('storage', checkClassroomToken);
   }, []);
 
   // --- KEYBOARD SHORTCUTS ---
@@ -675,6 +778,20 @@ const App: React.FC = () => {
               }));
               setClassroomWork(hydrated);
           }
+          
+          // Check Token Status
+          const gTokens = SecureStorage.loadItem(matricula, 'google_tokens') as GoogleTokens;
+          if (gTokens && gTokens.access_token) {
+              setIsClassroomLinked(true);
+              if (gTokens.expiry_date && gTokens.expiry_date < Date.now()) {
+                  setClassroomStatus('expired');
+              } else {
+                  setClassroomStatus('connected');
+              }
+          } else {
+              setIsClassroomLinked(false);
+              setClassroomStatus('disconnected');
+          }
 
           // Apply visual settings that might be stored
           applySettingsFromCache();
@@ -762,27 +879,59 @@ const App: React.FC = () => {
   };
 
   const fetchClassroomData = async (currentMatricula: string) => {
-    // Check Cache (30 min TTL)
+    if (!navigator.onLine) return;
+
+    let tokens = SecureStorage.loadItem(currentMatricula, 'google_tokens') as GoogleTokens;
+    if (!tokens || !tokens.access_token) {
+        setIsClassroomLinked(false);
+        setClassroomStatus('disconnected');
+        return;
+    }
+
+    // Check Expiry and Refresh if needed
+    if (tokens.expiry_date && tokens.expiry_date <= Date.now() + 60000) { // Buffer 1 min
+        if (tokens.refresh_token) {
+             const newAccessToken = await refreshGoogleToken(tokens.refresh_token, currentMatricula);
+             if (newAccessToken) {
+                 tokens.access_token = newAccessToken; // Update local ref
+                 setClassroomStatus('connected'); // Reconnected successfully
+             } else {
+                 setClassroomStatus('expired');
+                 return; // Stop if refresh failed
+             }
+        } else {
+             // No refresh token available, must reconnect
+             setClassroomStatus('expired');
+             return;
+        }
+    } else {
+        setIsClassroomLinked(true);
+        setClassroomStatus('connected');
+    }
+    
+    // Check Cache (30 min TTL) - Only do this AFTER token check so we don't fetch if disconnected
     if (SecureStorage.isCacheValid(currentMatricula, 'classroom', 30)) {
         return;
     }
 
-    const token = localStorage.getItem('google_classroom_token');
-    if (!token || !navigator.onLine) {
-        setIsClassroomLinked(false);
-        return;
-    }
-    setIsClassroomLinked(true);
     try {
         const coursesRes = await fetch('https://classroom.googleapis.com/v1/courses?courseStates=ACTIVE', {
-            headers: { Authorization: `Bearer ${token}` }
+            headers: { Authorization: `Bearer ${tokens.access_token}` }
         });
+        
+        if (coursesRes.status === 401) {
+            // Token rejected even after check (revoked?)
+             setClassroomStatus('expired');
+             return;
+        }
+
         if (!coursesRes.ok) return;
+
         const coursesData = await coursesRes.json();
         const courses: ClassroomCourse[] = coursesData.courses || [];
         const workPromises = courses.map(async (course) => {
             const workRes = await fetch(`https://classroom.googleapis.com/v1/courses/${course.id}/courseWork?orderBy=dueDate desc`, {
-                headers: { Authorization: `Bearer ${token}` }
+                headers: { Authorization: `Bearer ${tokens.access_token}` }
             });
             if (!workRes.ok) return [];
             const workData = await workRes.json();
@@ -798,7 +947,9 @@ const App: React.FC = () => {
         setClassroomWork(futureWork);
         SecureStorage.saveItem(currentMatricula, 'classroom', futureWork);
 
-    } catch (e) { console.error("Failed to fetch classroom data", e); }
+    } catch (e) { 
+        console.error("Failed to fetch classroom data", e); 
+    }
   };
 
   // --- BACKGROUND SYNC ENGINE ---
@@ -816,6 +967,17 @@ const App: React.FC = () => {
         const cloudResult = await SecureStorage.syncFromCloud(currentMatricula);
         if (cloudResult && cloudResult.hasData && cloudResult.settings) {
             applySettingsFromCache(); 
+        }
+
+        // Check classroom status from cloud data
+        const gTokens = SecureStorage.loadItem(currentMatricula, 'google_tokens') as GoogleTokens;
+        if (gTokens?.access_token) {
+            setIsClassroomLinked(true);
+            if (gTokens.expiry_date && gTokens.expiry_date < Date.now() && !gTokens.refresh_token) {
+                 setClassroomStatus('expired');
+            } else {
+                 setClassroomStatus('connected');
+            }
         }
 
         if (shouldFetch('profile', 1440)) {
@@ -1052,6 +1214,7 @@ const App: React.FC = () => {
       setViewingPeriod(null);
       setTodos([]);
       setIsClassroomLinked(false);
+      setClassroomStatus('disconnected');
       
       setIsLoggedIn(false);
       setCurrentView(ViewState.DASHBOARD);
@@ -1226,6 +1389,7 @@ const App: React.FC = () => {
                     onAddTodo={handleAddTodo}
                     onToggleTodo={handleToggleTodo}
                     onRemoveTodo={handleRemoveTodo}
+                    classroomStatus={classroomStatus}
                 />
             </Suspense>
 
@@ -1285,7 +1449,8 @@ const App: React.FC = () => {
                         // Classroom Props
                         classroomWork={classroomWork}
                         isClassroomLinked={isClassroomLinked}
-                        onLinkClassroom={handleOpenSettings}
+                        onLinkClassroom={initiateGoogleAuth}
+                        classroomStatus={classroomStatus}
                     />
                 </Suspense>
                 )}
