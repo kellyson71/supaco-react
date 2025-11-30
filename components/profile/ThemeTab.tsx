@@ -3,6 +3,7 @@ import { motion } from 'framer-motion';
 import { Eye, Sun, Moon, Palette, ImageIcon, Link2 } from 'lucide-react';
 
 const WALLPAPERS = [
+    "https://images.alphacoders.com/134/thumb-1920-1347517.png",
     "https://images2.alphacoders.com/134/thumb-1920-1345658.png",
     "https://images7.alphacoders.com/134/thumb-1920-1344447.png",
     "https://images7.alphacoders.com/140/thumb-1920-1402439.jpg",

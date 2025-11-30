@@ -1,4 +1,6 @@
 
+
+
 import React, { useState, useEffect } from 'react';
 import { motion, PanInfo } from 'framer-motion';
 import { X } from 'lucide-react';
@@ -59,6 +61,7 @@ interface OverlayViewProps {
   onOpenChatWithContext?: (messages: ChatMessage[], pendingMessage?: string) => void;
   onOpenSettings?: () => void;
   onRefreshClassroom?: () => void;
+  googleUser?: { email: string, name: string, picture: string } | null;
 }
 
 export const ContentView: React.FC<OverlayViewProps> = ({ 
@@ -69,7 +72,7 @@ export const ContentView: React.FC<OverlayViewProps> = ({
     customPhotoUrl = '', onUpdateCustomPhoto, useCustomPhoto = false, onToggleCustomPhoto, 
     periods, viewingPeriod, onPeriodChange, isPremium, onOpenPremiumModal, classroomWork = [], 
     isClassroomLinked = false, onLinkClassroom, classroomStatus, internalApiKey, onOpenChatWithContext,
-    onOpenSettings, onRefreshClassroom
+    onOpenSettings, onRefreshClassroom, googleUser
 }) => {
   if (view === ViewState.DASHBOARD) return null;
 
@@ -254,6 +257,7 @@ export const ContentView: React.FC<OverlayViewProps> = ({
                     onLinkClassroom={onLinkClassroom}
                     isClassroomLinked={isClassroomLinked}
                     classroomStatus={classroomStatus}
+                    googleUser={googleUser}
                 />
             )}
         </div>

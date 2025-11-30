@@ -1,5 +1,6 @@
 
 
+
 export enum ViewState {
   DASHBOARD = 'DASHBOARD',
   GRADES = 'GRADES',
@@ -47,6 +48,9 @@ export interface GoogleTokens {
   access_token: string;
   refresh_token?: string;
   expiry_date?: number;
+  email?: string;
+  name?: string;
+  picture?: string;
 }
 
 // --- SUAP API INTERFACES ---

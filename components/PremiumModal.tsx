@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Check, X, Crown, Zap, Shield, Star, Rocket, Loader2, Copy, ArrowRight, AlertTriangle } from 'lucide-react';
+import { X, Check, Copy, Zap, Star, Shield, Rocket, Loader2, AlertTriangle, ArrowRight, Brain, Clock, Smartphone } from 'lucide-react';
 import { supabase } from '../services/supabaseClient';
 
 interface PremiumModalProps {
@@ -57,7 +57,7 @@ export const PremiumModal: React.FC<PremiumModalProps> = ({ onClose, onSubscribe
 
         if (error) {
             console.error("Supabase Function Error:", error);
-            throw new Error("Falha na comunicação com o servidor de pagamento.");
+            throw new Error("Erro de conexão com o servidor de pagamento.");
         }
         
         if (data && data.error) {
@@ -65,6 +65,7 @@ export const PremiumModal: React.FC<PremiumModalProps> = ({ onClose, onSubscribe
         }
 
         if (!data || !data.brCode) {
+             // Fallback handling if response isn't structured as expected but no error thrown
              throw new Error("Resposta inválida do provedor de pagamento.");
         }
 
@@ -76,7 +77,11 @@ export const PremiumModal: React.FC<PremiumModalProps> = ({ onClose, onSubscribe
 
     } catch (err: any) {
         console.error("Payment Creation Logic Error:", err);
-        setErrorMsg(err.message || "Erro desconhecido ao criar pagamento.");
+        // Handle HTML error responses (like 404/500 from generic server errors) which manifest as syntax errors in JSON parsing usually caught by fetch, 
+        // but here supabase.functions.invoke handles it.
+        let msg = err.message || "Erro desconhecido ao criar pagamento.";
+        if (msg.includes('Unexpected token')) msg = "Erro no servidor de pagamento. Tente novamente mais tarde.";
+        setErrorMsg(msg);
     } finally {
         setIsCreating(false);
     }
@@ -115,19 +120,24 @@ export const PremiumModal: React.FC<PremiumModalProps> = ({ onClose, onSubscribe
 
   const benefits = [
     {
-        icon: Zap,
-        title: "Inteligência Artificial",
-        desc: "Resoluções passo a passo para qualquer atividade.",
+        icon: Brain,
+        title: "IA Acadêmica Avançada",
+        desc: "Respostas detalhadas e explicadas para suas dúvidas.",
+    },
+    {
+        icon: Smartphone,
+        title: "Apps & Integrações",
+        desc: "Conexão com Google Classroom e ferramentas exclusivas.",
+    },
+    {
+        icon: Clock,
+        title: "Produtividade Máxima",
+        desc: "Modo Foco, Pomodoro e cálculo estratégico de notas.",
     },
     {
         icon: Star,
-        title: "Funcionalidades Pro",
-        desc: "Temas exclusivos, ícones personalizados e widgets.",
-    },
-    {
-        icon: Shield,
-        title: "Prioridade de Suporte",
-        desc: "Atendimento direto e atualizações antecipadas.",
+        title: "Personalização Pro",
+        desc: "Temas, ícones e wallpapers exclusivos.",
     }
   ];
 
@@ -155,10 +165,10 @@ export const PremiumModal: React.FC<PremiumModalProps> = ({ onClose, onSubscribe
         </button>
 
         {/* LEFT PANEL - VISUAL & BRANDING */}
-        <div className="relative w-full md:w-[40%] p-8 flex flex-col justify-between overflow-hidden bg-black text-white shrink-0">
+        <div className="relative w-full md:w-[45%] p-8 flex flex-col justify-between overflow-hidden bg-black text-white shrink-0">
             {/* Ambient Background */}
-            <div className="absolute top-0 left-0 w-full h-full">
-                <div className="absolute top-[-50%] left-[-50%] w-[200%] h-[200%] bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-violet-900/40 via-black to-black opacity-70" />
+            <div className="absolute top-0 left-0 w-full h-full pointer-events-none">
+                <div className="absolute top-[-50%] left-[-50%] w-[200%] h-[200%] bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-violet-900/30 via-black to-black opacity-60" />
                 <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-20 brightness-100 contrast-150 mix-blend-overlay" />
             </div>
 
@@ -170,17 +180,17 @@ export const PremiumModal: React.FC<PremiumModalProps> = ({ onClose, onSubscribe
                     Supaco <span className="text-transparent bg-clip-text bg-gradient-to-r from-violet-400 to-fuchsia-400">Pro</span>
                 </h2>
                 <p className="text-sm text-zinc-400 font-medium leading-relaxed max-w-[260px]">
-                    Eleve seus estudos. Ferramentas de IA e personalização avançada para quem quer ir além.
+                    A ferramenta definitiva para o estudante do IFRN. Potencialize seus estudos com IA e design premium.
                 </p>
             </div>
 
-            <div className="relative z-10 mt-12">
+            <div className="relative z-10 mt-12 space-y-6">
                 <div className="flex items-center gap-3 bg-white/5 p-3 rounded-2xl border border-white/10 w-fit backdrop-blur-md hover:bg-white/10 transition-colors">
                     <div className="bg-green-500/20 p-2 rounded-xl text-green-400 ring-1 ring-green-500/30">
                         <Shield size={16} fill="currentColor" className="opacity-80" />
                     </div>
                     <div className="flex flex-col">
-                        <span className="text-[9px] uppercase font-black text-zinc-500 tracking-widest">Garantia</span>
+                        <span className="text-[9px] uppercase font-black text-zinc-500 tracking-widest">Segurança</span>
                         <span className="text-xs font-bold text-white flex items-center gap-1">Pagamento Seguro via Pix</span>
                     </div>
                 </div>
@@ -189,9 +199,7 @@ export const PremiumModal: React.FC<PremiumModalProps> = ({ onClose, onSubscribe
 
         {/* RIGHT PANEL - CONTENT SWAPPER */}
         <div className="flex-1 p-6 md:p-8 flex flex-col overflow-y-auto custom-scroll bg-[#0c0c0e] text-white relative">
-            {/* Background Grain/Noise for texture */}
-            <div className="absolute inset-0 opacity-[0.03] pointer-events-none bg-[url('https://grainy-gradients.vercel.app/noise.svg')]" />
-
+            
             {/* STEP 1: PLANS & BENEFITS */}
             {step === 'plans' && (
                 <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex-1 flex flex-col h-full relative z-10">
@@ -219,10 +227,10 @@ export const PremiumModal: React.FC<PremiumModalProps> = ({ onClose, onSubscribe
 
                     {/* Error Message Display */}
                     {errorMsg && (
-                        <div className="mb-4 p-3 rounded-xl bg-red-500/10 border border-red-500/20 flex items-start gap-2">
+                        <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="mb-4 p-3 rounded-xl bg-red-500/10 border border-red-500/20 flex items-start gap-2">
                             <AlertTriangle size={16} className="text-red-400 shrink-0 mt-0.5" />
-                            <p className="text-xs text-red-300">{errorMsg}</p>
-                        </div>
+                            <p className="text-xs text-red-300 font-medium">{errorMsg}</p>
+                        </motion.div>
                     )}
 
                     {/* Plan Selector */}
@@ -268,7 +276,7 @@ export const PremiumModal: React.FC<PremiumModalProps> = ({ onClose, onSubscribe
                             </div>
                         </button>
                         <p className="text-center mt-4 text-[10px] font-medium text-zinc-600">
-                            Acesso imediato após confirmação do Pix.
+                            Acesso imediato após confirmação.
                         </p>
                     </div>
                 </motion.div>
@@ -278,7 +286,7 @@ export const PremiumModal: React.FC<PremiumModalProps> = ({ onClose, onSubscribe
             {step === 'payment' && (
                 <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} className="flex-1 flex flex-col h-full items-center justify-center text-center relative z-10">
                     
-                    <h3 className="text-xl font-bold mb-8 text-white">Pagamento Pix</h3>
+                    <h3 className="text-xl font-bold mb-8 text-white">Escaneie o QR Code</h3>
                     
                     <div className="relative group mb-8">
                         <div className="absolute -inset-1 bg-gradient-to-tr from-violet-500 to-indigo-500 rounded-3xl opacity-20 blur-xl group-hover:opacity-40 transition-opacity duration-1000" />
@@ -300,12 +308,12 @@ export const PremiumModal: React.FC<PremiumModalProps> = ({ onClose, onSubscribe
                             <Loader2 size={12} className="animate-spin" />
                             Aguardando pagamento...
                          </div>
-                         <p className="text-xs opacity-50 text-zinc-400 max-w-[200px]">Abra o app do seu banco e escaneie o código.</p>
+                         <p className="text-xs opacity-50 text-zinc-400 max-w-[200px]">Abra o app do seu banco e pague via Pix.</p>
                     </div>
 
                     <div className="w-full p-4 rounded-2xl border border-white/10 flex items-center gap-3 bg-black/30 hover:bg-black/50 transition-colors">
                         <div className="flex-1 font-mono text-[10px] opacity-60 truncate text-left text-zinc-300 select-all">
-                            {copyPasteCode || "Carregando código..."}
+                            {copyPasteCode || "Gerando código..."}
                         </div>
                         <button 
                             onClick={handleCopy}

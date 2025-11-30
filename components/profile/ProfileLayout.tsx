@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { User, Settings, Palette, Trophy, ArrowRight, LogOut, X, Crown } from 'lucide-react';
@@ -36,7 +37,8 @@ export const ProfileLayout = ({
     onClose,
     onLinkClassroom,
     isClassroomLinked,
-    classroomStatus
+    classroomStatus,
+    googleUser
 }: any) => {
     const [activeTab, setActiveTab] = useState(initialTab || 'profile');
     const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
@@ -176,6 +178,7 @@ export const ProfileLayout = ({
                             onLinkClassroom={onLinkClassroom}
                             isClassroomLinked={isClassroomLinked}
                             classroomStatus={classroomStatus}
+                            googleUser={googleUser}
                         />
                     )}
                     {activeTab === 'wallpaper' && (

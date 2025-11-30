@@ -1,4 +1,3 @@
-
 import React, { useState, useMemo, useEffect, useRef, Suspense } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { SecureStorage } from './services/SecureStorage';
@@ -22,7 +21,7 @@ const AIChatWidget = React.lazy(() => import('./components/AIChatWidget').then(m
 const PomodoroWidget = React.lazy(() => import('./components/PomodoroWidget').then(module => ({ default: module.PomodoroWidget })));
 const UpdateNewsModal = React.lazy(() => import('./components/modals/UpdateNewsModal').then(module => ({ default: module.UpdateNewsModal })));
 
-const DEFAULT_WALLPAPER = "https://images2.alphacoders.com/134/thumb-1920-1345658.png";
+const DEFAULT_WALLPAPER = "https://images.alphacoders.com/134/thumb-1920-1347517.png";
 const DEFAULT_PROFILE_IMG = "https://i.pinimg.com/736x/9c/63/e1/9c63e1cf0546ecd4f83b7df067f440d2.jpg";
 
 // --- INTERNAL CONFIG ---
@@ -61,6 +60,7 @@ interface Palette {
 
 // Wallpaper to Palette Map
 const WALLPAPER_THEMES: Record<string, Palette> = {
+    "https://images.alphacoders.com/134/thumb-1920-1347517.png": { primary: "blue", secondary: "sky" },
     "https://images2.alphacoders.com/134/thumb-1920-1345658.png": { primary: "rose", secondary: "pink" },
     "https://images7.alphacoders.com/134/thumb-1920-1344447.png": { primary: "amber", secondary: "orange" },
     "https://images7.alphacoders.com/140/thumb-1920-1402439.jpg": { primary: "slate", secondary: "zinc" },
@@ -141,6 +141,7 @@ const App: React.FC = () => {
   const [classroomWork, setClassroomWork] = useState<ClassroomWork[]>([]);
   const [classroomStatus, setClassroomStatus] = useState<'connected' | 'disconnected' | 'expired'>('disconnected');
   const [isClassroomLinked, setIsClassroomLinked] = useState(false);
+  const [googleUser, setGoogleUser] = useState<{email: string, name: string, picture: string} | null>(null);
 
   const [todos, setTodos] = useState<TodoItem[]>([]);
   const [autoExpandClassroom, setAutoExpandClassroom] = useState(false);
@@ -416,7 +417,7 @@ const App: React.FC = () => {
         client_id: GOOGLE_CLIENT_ID,
         redirect_uri: REDIRECT_URI,
         response_type: 'code',
-        scope: 'https://www.googleapis.com/auth/classroom.courses.readonly https://www.googleapis.com/auth/classroom.coursework.me.readonly',
+        scope: 'https://www.googleapis.com/auth/classroom.courses.readonly https://www.googleapis.com/auth/classroom.coursework.me.readonly email profile',
         access_type: 'offline', 
         prompt: 'consent', 
         state: 'google_auth'
@@ -443,14 +444,34 @@ const App: React.FC = () => {
             const matricula = localStorage.getItem('suap_username');
             
             if (data.access_token && matricula) {
+                // Fetch User Info
+                let userInfo = {};
+                try {
+                    const userRes = await fetch('https://www.googleapis.com/oauth2/v1/userinfo?alt=json', {
+                        headers: { Authorization: `Bearer ${data.access_token}` }
+                    });
+                    if (userRes.ok) {
+                        userInfo = await userRes.json();
+                    }
+                } catch(e) { console.error("Failed to fetch google user info", e); }
+
                 const tokens: GoogleTokens = {
                     access_token: data.access_token,
                     refresh_token: data.refresh_token, 
-                    expiry_date: Date.now() + (data.expires_in * 1000)
+                    expiry_date: Date.now() + (data.expires_in * 1000),
+                    email: (userInfo as any).email,
+                    name: (userInfo as any).name,
+                    picture: (userInfo as any).picture
                 };
 
                 SecureStorage.saveItem(matricula, 'google_tokens', tokens);
                 SecureStorage.syncToCloud(matricula);
+
+                setGoogleUser({ 
+                    email: tokens.email || '', 
+                    name: tokens.name || '', 
+                    picture: tokens.picture || '' 
+                });
 
                 setIsClassroomLinked(true);
                 setClassroomStatus('connected');
@@ -611,6 +632,7 @@ const App: React.FC = () => {
           const gTokens = SecureStorage.loadItem(matricula, 'google_tokens') as GoogleTokens;
           if (gTokens && gTokens.access_token) {
               setIsClassroomLinked(true);
+              setGoogleUser({ email: gTokens.email || '', name: gTokens.name || '', picture: gTokens.picture || '' });
               if (gTokens.expiry_date && gTokens.expiry_date < Date.now()) {
                   setClassroomStatus('expired');
               } else {
@@ -618,6 +640,7 @@ const App: React.FC = () => {
               }
           } else {
               setIsClassroomLinked(false);
+              setGoogleUser(null);
               setClassroomStatus('disconnected');
           }
           applySettingsFromCache();
@@ -761,6 +784,7 @@ const App: React.FC = () => {
         const gTokens = SecureStorage.loadItem(currentMatricula, 'google_tokens') as GoogleTokens;
         if (gTokens?.access_token) {
             setIsClassroomLinked(true);
+            setGoogleUser({ email: gTokens.email || '', name: gTokens.name || '', picture: gTokens.picture || '' });
             if (gTokens.expiry_date && gTokens.expiry_date < Date.now() && !gTokens.refresh_token) {
                  setClassroomStatus('expired');
             } else {
@@ -962,7 +986,7 @@ const App: React.FC = () => {
   const handleLogout = () => {
       localStorage.clear(); 
       localStorage.setItem(CACHE_KEYS.WALLPAPER, DEFAULT_WALLPAPER);
-      setUserData(null); setAcademicData(null); setProcessedSchedule([]); setProcessedGrades([]); setCompletionData(null); setCurrentPeriod(null); setClassroomWork([]); setPeriods([]); setViewingPeriod(null); setTodos([]); setIsClassroomLinked(false); setClassroomStatus('disconnected'); setIsLoggedIn(false); setCurrentView(ViewState.DASHBOARD); setIsPremium(false);
+      setUserData(null); setAcademicData(null); setProcessedSchedule([]); setProcessedGrades([]); setCompletionData(null); setCurrentPeriod(null); setClassroomWork([]); setPeriods([]); setViewingPeriod(null); setTodos([]); setIsClassroomLinked(false); setClassroomStatus('disconnected'); setIsLoggedIn(false); setCurrentView(ViewState.DASHBOARD); setIsPremium(false); setGoogleUser(null);
   };
 
   const handleFinishLanding = () => {
@@ -1122,6 +1146,7 @@ const App: React.FC = () => {
                         onOpenChatWithContext={handleOpenChatWithContext}
                         onOpenSettings={handleOpenSettings}
                         onRefreshClassroom={() => { if(userData?.matricula) fetchClassroomData(userData.matricula, true); }}
+                        googleUser={googleUser}
                     />
                 </Suspense>
                 )}

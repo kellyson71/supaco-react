@@ -78,7 +78,6 @@ export const ClassroomModal: React.FC<ClassroomModalProps> = ({
       if (onRefresh) {
           setIsRefreshing(true);
           await Promise.resolve(onRefresh());
-          // Minimal delay to show animation if promise resolves too fast
           setTimeout(() => setIsRefreshing(false), 1000);
       }
   };

@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { motion } from 'framer-motion';
 import { 
@@ -38,7 +39,7 @@ const PROFILE_PRESETS = [
 
 const CURRENT_VERSION = "2.6.0";
 
-export const SettingsTabContent = ({ isDark, accentColor, performanceSettings, onUpdatePerformance, customPhotoUrl, onUpdateCustomPhoto, useCustomPhoto, onToggleCustomPhoto, onInstallPwa, canInstall, isPremium, onOpenPremiumModal, userData, onLinkClassroom, isClassroomLinked, classroomStatus }: any) => {
+export const SettingsTabContent = ({ isDark, accentColor, performanceSettings, onUpdatePerformance, customPhotoUrl, onUpdateCustomPhoto, useCustomPhoto, onToggleCustomPhoto, onInstallPwa, canInstall, isPremium, onOpenPremiumModal, userData, onLinkClassroom, isClassroomLinked, classroomStatus, googleUser }: any) => {
     return (
         <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="max-w-3xl mx-auto space-y-8 pb-10">
             
@@ -113,13 +114,28 @@ export const SettingsTabContent = ({ isDark, accentColor, performanceSettings, o
 
                     <div className={`p-5 flex items-center justify-between`}>
                         <div className="flex items-center gap-4">
-                            <div className={`p-2.5 rounded-xl ${classroomStatus === 'connected' ? 'bg-green-500/20 text-green-500' : (classroomStatus === 'expired' ? 'bg-red-500/20 text-red-500' : (isDark ? 'bg-white/5 text-gray-400' : 'bg-gray-100 text-gray-500'))}`}>
-                                <Monitor size={18} />
+                            <div className="relative">
+                                {googleUser?.picture ? (
+                                    <div className="w-10 h-10 rounded-xl overflow-hidden shadow-sm border border-white/10">
+                                        <img src={googleUser.picture} alt="Google Profile" className="w-full h-full object-cover" />
+                                    </div>
+                                ) : (
+                                    <div className={`p-2.5 rounded-xl ${classroomStatus === 'connected' ? 'bg-green-500/20 text-green-500' : (classroomStatus === 'expired' ? 'bg-red-500/20 text-red-500' : (isDark ? 'bg-white/5 text-gray-400' : 'bg-gray-100 text-gray-500'))}`}>
+                                        <Monitor size={18} />
+                                    </div>
+                                )}
+                                {classroomStatus === 'connected' && (
+                                    <div className="absolute -bottom-1 -right-1 w-3.5 h-3.5 bg-green-500 border-2 border-[#0A0A0B] rounded-full" />
+                                )}
                             </div>
                             <div>
                                 <div className={`text-sm font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>Google Classroom</div>
-                                <div className="text-[10px] font-medium opacity-60">
-                                    {classroomStatus === 'connected' ? 'Sincronizado' : (classroomStatus === 'expired' ? 'Sessão Expirada' : 'Não conectado')}
+                                <div className="text-[10px] font-medium opacity-60 flex flex-col">
+                                    {googleUser?.email ? (
+                                        <span className="truncate max-w-[150px] md:max-w-xs">{googleUser.email}</span>
+                                    ) : (
+                                        <span>{classroomStatus === 'connected' ? 'Sincronizado' : (classroomStatus === 'expired' ? 'Sessão Expirada' : 'Não conectado')}</span>
+                                    )}
                                 </div>
                             </div>
                         </div>
