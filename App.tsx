@@ -7,6 +7,7 @@ import { WifiOff, RefreshCw, AlertTriangle, X } from 'lucide-react';
 import { SplashScreen } from './components/SplashScreen';
 import { ViewState, ThemeVariant, SuapProfile, SuapMeusDadosAluno, SuapPeriod, SuapDiario, SuapBoletim, ProcessedClass, GradeInfo, SuapCompletionData, Holiday, ClassroomWork, ClassroomCourse, PerformanceSettings, SuapMeusPeriodosLetivos, TodoItem, GoogleTokens } from './types';
 import { googleCredentials } from './google_credentials';
+import { geminiCredentials } from './gemini_credentials';
 import { CallbackPage } from './components/CallbackPage';
 
 // --- DYNAMIC IMPORTS (Code Splitting) ---
@@ -23,7 +24,7 @@ const DEFAULT_WALLPAPER = "https://images2.alphacoders.com/134/thumb-1920-134565
 const DEFAULT_PROFILE_IMG = "https://i.pinimg.com/736x/9c/63/e1/9c63e1cf0546ecd4f83b7df067f440d2.jpg";
 
 // --- INTERNAL CONFIG ---
-const SUPACO_INTERNAL_KEY = process.env.API_KEY || "AIzaSyD-PREMIUM-PLACEHOLDER-KEY-FOR-SUPACO-APP";
+const SUPACO_INTERNAL_KEY = geminiCredentials.apiKey;
 
 // --- GOOGLE OAUTH CONFIG ---
 const GOOGLE_CLIENT_ID = googleCredentials.web.client_id;
