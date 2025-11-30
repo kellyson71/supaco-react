@@ -1,5 +1,3 @@
-
-
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Sparkles, CornerDownLeft, Settings, MessageCircle, FileText, BarChart2, Crown } from 'lucide-react';
@@ -152,8 +150,8 @@ DIRETRIZES:
     // CHECK FOR API KEY (Custom > Internal Premium)
     let apiKey = localStorage.getItem('gemini_api_key');
     
-    // If no custom key, check premium internal key
-    if (!apiKey && isPremium && internalApiKey) {
+    // If no custom key, check premium internal key (only if valid/not-empty)
+    if (!apiKey && isPremium && internalApiKey && internalApiKey.trim() !== '') {
         apiKey = internalApiKey;
     }
 
@@ -250,8 +248,12 @@ DIRETRIZES:
       console.error(error);
       let text = "Erro de conexão ou configuração.";
       
-      // Check if error suggests invalid key
-      if (error.message?.includes('400') || error.message?.includes('API key')) {
+      const errMsg = error.message || '';
+
+      // Check specific error codes
+      if (errMsg.includes('403') || errMsg.toLowerCase().includes('leaked')) {
+          text = "A chave de API foi bloqueada por segurança (vazamento detectado). Por favor, insira uma nova chave válida nas configurações.";
+      } else if (errMsg.includes('400') || errMsg.includes('API key')) {
           text = "Sua chave de API parece inválida. Por favor, verifique nas configurações.";
       }
 
