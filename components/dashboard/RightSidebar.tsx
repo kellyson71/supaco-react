@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
@@ -315,7 +316,7 @@ export const RightSidebar: React.FC<RightSidebarProps> = ({
             {/* VERSION FOOTER */}
             <div className="mt-4 pt-4 border-t border-dashed border-gray-500/10 flex justify-between items-center opacity-50 hover:opacity-100 transition-opacity">
                 <button onClick={() => setShowChangelog(true)} className="flex items-center gap-2 text-[10px] font-mono font-bold hover:text-blue-500 transition-colors">
-                    <span>v{CURRENT_VERSION}</span>
+                    <span>v2.6.0</span>
                 </button>
                 <div className="text-[10px] font-bold">Electron</div>
             </div>

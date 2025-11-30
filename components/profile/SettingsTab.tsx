@@ -2,7 +2,7 @@ import React from 'react';
 import { motion } from 'framer-motion';
 import { 
   ArrowRight, Crown, Check, Monitor, Zap, ImageIcon, Link2, 
-  HardDrive, Download, Trash2, Fingerprint 
+  HardDrive, Download, Trash2, Fingerprint, Star 
 } from 'lucide-react';
 import { PerformanceSettings } from '../../types';
 import { SecureStorage } from '../../services/SecureStorage';
@@ -36,33 +36,53 @@ const PROFILE_PRESETS = [
     "https://i.pinimg.com/736x/1a/63/13/1a6313cde710d43b3a2c30866c50b0c2.jpg"
 ];
 
-const CURRENT_VERSION = "2.0.0";
+const CURRENT_VERSION = "2.6.0";
 
 export const SettingsTabContent = ({ isDark, accentColor, performanceSettings, onUpdatePerformance, customPhotoUrl, onUpdateCustomPhoto, useCustomPhoto, onToggleCustomPhoto, onInstallPwa, canInstall, isPremium, onOpenPremiumModal, userData, onLinkClassroom, isClassroomLinked, classroomStatus }: any) => {
     return (
         <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="max-w-3xl mx-auto space-y-8 pb-10">
+            
+            {/* REDESIGNED PREMIUM BANNER */}
             {!isPremium ? (
-                <div onClick={onOpenPremiumModal} className="relative overflow-hidden rounded-[2rem] p-8 cursor-pointer group shadow-xl transition-transform hover:scale-[1.01]">
-                    <div className="absolute inset-0 bg-gradient-to-r from-amber-400 to-orange-600" />
-                    <div className="relative z-10 flex items-center justify-between">
-                        <div>
-                            <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-black/20 backdrop-blur-md border border-white/10 text-white text-[10px] font-bold uppercase tracking-wider mb-3">
-                                <Crown size={12} fill="currentColor" /> Recomendado
+                <div onClick={onOpenPremiumModal} className="group relative w-full overflow-hidden rounded-[24px] bg-[#0A0A0B] border border-white/5 cursor-pointer shadow-xl transition-all hover:scale-[1.01] hover:shadow-violet-500/10">
+                    {/* Abstract Shapes */}
+                    <div className="absolute top-[-50%] right-[-10%] w-[300px] h-[300px] rounded-full bg-violet-600/20 blur-[80px] pointer-events-none group-hover:bg-violet-600/30 transition-colors" />
+                    <div className="absolute bottom-[-50%] left-[-10%] w-[200px] h-[200px] rounded-full bg-indigo-600/10 blur-[60px] pointer-events-none" />
+                    
+                    <div className="relative z-10 p-6 sm:p-8 flex items-center justify-between">
+                        <div className="flex flex-col gap-2">
+                            <div className="flex items-center gap-2 mb-1">
+                                <div className="px-2.5 py-1 rounded-md bg-white/10 border border-white/5 text-[10px] font-bold text-white uppercase tracking-wider backdrop-blur-md">
+                                    Upgrade
+                                </div>
+                                <span className="text-[10px] font-bold text-violet-400 uppercase tracking-wider flex items-center gap-1">
+                                    <Star size={10} fill="currentColor" /> Recomendado
+                                </span>
                             </div>
-                            <h3 className="text-3xl font-black text-white mb-2">Seja Premium</h3>
-                            <p className="text-white/80 text-sm font-medium max-w-sm">Desbloqueie IA ilimitada, temas exclusivos e suporte o desenvolvimento.</p>
+                            
+                            <div>
+                                <h3 className="text-3xl font-bold text-white tracking-tight">Supaco <span className="text-violet-400">Pro</span></h3>
+                                <p className="text-gray-400 text-sm font-medium mt-1 max-w-sm leading-relaxed">
+                                    Desbloqueie o potencial máximo da IA, temas exclusivos e suporte o projeto.
+                                </p>
+                            </div>
                         </div>
-                        <div className="hidden md:flex h-16 w-16 rounded-full bg-white text-orange-500 items-center justify-center shadow-lg group-hover:scale-110 transition-transform"><ArrowRight size={28} /></div>
+
+                        <div className="hidden sm:flex items-center justify-center w-14 h-14 rounded-full bg-white/5 border border-white/10 text-white group-hover:bg-violet-600 group-hover:border-violet-500 transition-all duration-300">
+                            <ArrowRight size={24} className="group-hover:translate-x-0.5 transition-transform" />
+                        </div>
                     </div>
                 </div>
             ) : (
-                <div className="relative overflow-hidden rounded-[2rem] p-8 shadow-xl">
-                    <div className="absolute inset-0 bg-gradient-to-br from-amber-300 via-orange-400 to-amber-500" />
-                    <div className="relative z-10 flex items-center justify-between">
+                <div className="relative w-full overflow-hidden rounded-[24px] bg-gradient-to-br from-violet-900 to-[#0A0A0B] border border-white/10 shadow-xl">
+                    <div className="absolute top-0 right-0 w-64 h-64 bg-violet-500/20 blur-[80px]" />
+                    <div className="relative z-10 p-8 flex items-center justify-between">
                         <div>
-                             <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white/20 backdrop-blur-md border border-white/30 text-white text-[10px] font-bold uppercase tracking-wider mb-3 shadow-sm"><Check size={12} strokeWidth={4} /> Assinatura Ativa</div>
-                            <h3 className="text-3xl font-black text-white mb-2 flex items-center gap-2">Membro Premium <Crown size={28} fill="currentColor" className="text-white" /></h3>
-                            <p className="text-white/90 text-sm font-medium max-w-sm leading-relaxed">Muito obrigado pelo seu apoio!</p>
+                             <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-black/30 border border-white/10 text-violet-200 text-[10px] font-bold uppercase tracking-wider mb-3">
+                                 <Check size={10} strokeWidth={4} /> Assinatura Ativa
+                             </div>
+                            <h3 className="text-2xl font-bold text-white mb-1 flex items-center gap-2">Membro Pro <Crown size={20} fill="currentColor" className="text-violet-400" /></h3>
+                            <p className="text-white/60 text-xs font-medium max-w-sm">Obrigado por apoiar o desenvolvimento do Supaco.</p>
                         </div>
                     </div>
                 </div>

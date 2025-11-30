@@ -1,8 +1,9 @@
+
 import React, { useState, useMemo, useEffect, useRef, Suspense } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { SecureStorage } from './services/SecureStorage';
 import { supabase } from './services/supabaseClient';
-import { WifiOff, RefreshCw, AlertTriangle, X } from 'lucide-react';
+import { WifiOff, RefreshCw, AlertTriangle, X, Sparkles } from 'lucide-react';
 
 import { SplashScreen } from './components/SplashScreen';
 import { ViewState, ThemeVariant, SuapProfile, SuapMeusDadosAluno, SuapPeriod, SuapDiario, SuapBoletim, ProcessedClass, GradeInfo, SuapCompletionData, Holiday, ClassroomWork, ClassroomCourse, PerformanceSettings, SuapMeusPeriodosLetivos, TodoItem, GoogleTokens } from './types';
@@ -19,12 +20,14 @@ const TutorialOverlay = React.lazy(() => import('./components/TutorialOverlay').
 const PremiumModal = React.lazy(() => import('./components/PremiumModal').then(module => ({ default: module.PremiumModal })));
 const AIChatWidget = React.lazy(() => import('./components/AIChatWidget').then(module => ({ default: module.AIChatWidget })));
 const PomodoroWidget = React.lazy(() => import('./components/PomodoroWidget').then(module => ({ default: module.PomodoroWidget })));
+const UpdateNewsModal = React.lazy(() => import('./components/modals/UpdateNewsModal').then(module => ({ default: module.UpdateNewsModal })));
 
 const DEFAULT_WALLPAPER = "https://images2.alphacoders.com/134/thumb-1920-1345658.png";
 const DEFAULT_PROFILE_IMG = "https://i.pinimg.com/736x/9c/63/e1/9c63e1cf0546ecd4f83b7df067f440d2.jpg";
 
 // --- INTERNAL CONFIG ---
 const SUPACO_INTERNAL_KEY = geminiCredentials.apiKey;
+const CURRENT_APP_VERSION = "2.6.0";
 
 // --- GOOGLE OAUTH CONFIG ---
 const GOOGLE_CLIENT_ID = googleCredentials.web.client_id;
@@ -41,7 +44,8 @@ const CACHE_KEYS = {
     PERFORMANCE: 'suap_performance_settings',
     WELCOME_SEEN: 'suap_welcome_seen',
     TUTORIAL_SEEN: 'suap_tutorial_completed_v1',
-    IS_PREMIUM: 'suap_user_is_premium' 
+    IS_PREMIUM: 'suap_user_is_premium',
+    LAST_VERSION_SEEN: 'suap_last_version_seen'
 };
 
 const DEFAULT_PERFORMANCE: PerformanceSettings = {
@@ -122,6 +126,7 @@ const App: React.FC = () => {
   const [isOffline, setIsOffline] = useState(!navigator.onLine);
   const [isSyncing, setIsSyncing] = useState(false);
   const [showTutorial, setShowTutorial] = useState(false);
+  const [showUpdateNews, setShowUpdateNews] = useState(false);
 
   const [userData, setUserData] = useState<SuapProfile | null>(null);
   const [academicData, setAcademicData] = useState<SuapMeusDadosAluno | null>(null);
@@ -174,6 +179,28 @@ const App: React.FC = () => {
 
     initApp();
   }, []);
+
+  // Update News Modal Check
+  useEffect(() => {
+      if (isAppReady && !showLanding && !isCallbackRoute) {
+          const lastSeen = localStorage.getItem(CACHE_KEYS.LAST_VERSION_SEEN);
+          // Show update news if the version is new, regardless of tutorial status
+          if (lastSeen !== CURRENT_APP_VERSION) {
+              const t = setTimeout(() => setShowUpdateNews(true), 2000);
+              return () => clearTimeout(t);
+          }
+      }
+  }, [isAppReady, showLanding, isCallbackRoute]);
+
+  const handleCloseUpdateNews = () => {
+      setShowUpdateNews(false);
+      localStorage.setItem(CACHE_KEYS.LAST_VERSION_SEEN, CURRENT_APP_VERSION);
+  };
+
+  const handleGoToClassroomFromNews = () => {
+      handleCloseUpdateNews();
+      setCurrentView(ViewState.CLASSROOM);
+  };
 
   const addToast = (message: string, type: 'warning' | 'info') => {
       const id = Date.now().toString();
@@ -657,7 +684,7 @@ const App: React.FC = () => {
       } catch (error) { console.warn("Failed to update holidays (offline)", error); }
   };
 
-  const fetchClassroomData = async (currentMatricula: string) => {
+  const fetchClassroomData = async (currentMatricula: string, forceRefresh = false) => {
     if (!navigator.onLine) return;
     let tokens = SecureStorage.loadItem(currentMatricula, 'google_tokens') as GoogleTokens;
     if (!tokens || !tokens.access_token) {
@@ -685,7 +712,7 @@ const App: React.FC = () => {
         setClassroomStatus('connected');
     }
     
-    if (SecureStorage.isCacheValid(currentMatricula, 'classroom', 30)) return;
+    if (!forceRefresh && SecureStorage.isCacheValid(currentMatricula, 'classroom', 30)) return;
 
     try {
         const coursesRes = await fetch('https://classroom.googleapis.com/v1/courses?courseStates=ACTIVE', {
@@ -802,7 +829,7 @@ const App: React.FC = () => {
                 await fetchAcademicDetails(activePeriod.semestre, currentMatricula, true);
             }
         }
-        await fetchClassroomData(currentMatricula);
+        await fetchClassroomData(currentMatricula, forceRefresh);
         if (forceRefresh) await SecureStorage.syncToCloud(currentMatricula);
 
     } catch (error) { console.error("[App] Error in background sync:", error); } 
@@ -987,6 +1014,19 @@ const App: React.FC = () => {
       </AnimatePresence>
 
       <AnimatePresence>
+          {showUpdateNews && (
+              <Suspense fallback={null}>
+                  <UpdateNewsModal 
+                      onClose={handleCloseUpdateNews}
+                      onGoToClassroom={handleGoToClassroomFromNews}
+                      isDark={isDarkMode}
+                      primaryColor={palette.primary}
+                  />
+              </Suspense>
+          )}
+      </AnimatePresence>
+
+      <AnimatePresence>
         {isSyncing && (
             <motion.div initial={{ opacity: 0, scale: 0.8 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.8 }} className="fixed top-4 right-4 z-[300] pointer-events-none">
                 <div className={`p-2 rounded-full shadow-lg backdrop-blur-md ${isDarkMode ? 'bg-white/10 text-white' : 'bg-white text-gray-800'}`}>
@@ -1079,8 +1119,9 @@ const App: React.FC = () => {
                         onLinkClassroom={initiateGoogleAuth}
                         classroomStatus={classroomStatus}
                         internalApiKey={SUPACO_INTERNAL_KEY}
-                        // New prop to handle chat transfer
                         onOpenChatWithContext={handleOpenChatWithContext}
+                        onOpenSettings={handleOpenSettings}
+                        onRefreshClassroom={() => { if(userData?.matricula) fetchClassroomData(userData.matricula, true); }}
                     />
                 </Suspense>
                 )}

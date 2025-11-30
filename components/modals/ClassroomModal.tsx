@@ -1,7 +1,7 @@
 
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Monitor, Calendar, Clock, Sparkles, Lock, AlertCircle, Check } from 'lucide-react';
+import { Monitor, Calendar, Clock, Sparkles, Lock, AlertCircle, Check, RefreshCw } from 'lucide-react';
 import { ClassroomWork } from '../../types';
 import { ClassroomAIOverlay } from './ClassroomAIOverlay';
 
@@ -16,6 +16,8 @@ interface ClassroomModalProps {
   onOpenPremiumModal?: () => void;
   internalApiKey?: string;
   onOpenChatWithContext?: (messages: any[], pendingMessage?: string) => void;
+  onOpenSettings?: () => void;
+  onRefresh?: () => void;
 }
 
 export const ClassroomModal: React.FC<ClassroomModalProps> = ({ 
@@ -28,10 +30,13 @@ export const ClassroomModal: React.FC<ClassroomModalProps> = ({
     isPremium,
     onOpenPremiumModal,
     internalApiKey,
-    onOpenChatWithContext 
+    onOpenChatWithContext,
+    onOpenSettings,
+    onRefresh
 }) => {
   const [filter, setFilter] = useState<'pending' | 'history'>('pending');
   const [solvingWork, setSolvingWork] = useState<ClassroomWork | null>(null);
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   if (!isClassroomLinked) {
       return (
@@ -69,6 +74,15 @@ export const ClassroomModal: React.FC<ClassroomModalProps> = ({
       setSolvingWork(work);
   };
 
+  const handleManualRefresh = async () => {
+      if (onRefresh) {
+          setIsRefreshing(true);
+          await Promise.resolve(onRefresh());
+          // Minimal delay to show animation if promise resolves too fast
+          setTimeout(() => setIsRefreshing(false), 1000);
+      }
+  };
+
   const filteredWork = classroomWork.filter(w => {
       if (filter === 'pending') return !w.jsDate || w.jsDate >= new Date();
       return w.jsDate && w.jsDate < new Date();
@@ -78,7 +92,7 @@ export const ClassroomModal: React.FC<ClassroomModalProps> = ({
     <div className="h-full flex flex-col pb-20 relative">
         
         {/* Header Toolbar */}
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6 shrink-0 relative z-10">
+        <div id="classroom-header" className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6 shrink-0 relative z-10">
              <div>
                  <h2 className={`text-2xl font-black tracking-tight flex items-center gap-2 ${isDark ? 'text-white' : 'text-gray-900'}`}>
                     <Monitor size={24} className={`text-${accentColor}-500`} />
@@ -87,19 +101,29 @@ export const ClassroomModal: React.FC<ClassroomModalProps> = ({
                  <p className="text-xs font-medium opacity-60">Gerencie suas entregas e atividades pendentes.</p>
              </div>
 
-             <div className={`p-1 rounded-xl flex border self-start md:self-auto ${isDark ? 'bg-black/20 border-white/10' : 'bg-gray-100 border-gray-200'}`}>
+             <div className="flex items-center gap-2 self-start md:self-auto">
                 <button 
-                    onClick={() => setFilter('pending')}
-                    className={`px-5 py-2.5 rounded-lg text-xs font-bold uppercase transition-all ${filter === 'pending' ? (isDark ? 'bg-white/10 text-white shadow-sm' : 'bg-white text-black shadow-sm') : 'opacity-50 hover:opacity-100'}`}
+                    onClick={handleManualRefresh}
+                    className={`p-2.5 rounded-xl transition-all border ${isDark ? 'bg-black/20 border-white/10 hover:bg-white/10 text-white' : 'bg-gray-100 border-gray-200 hover:bg-gray-200 text-gray-800'}`}
+                    title="Recarregar Atividades"
                 >
-                    Pendentes
+                    <RefreshCw size={16} className={isRefreshing ? 'animate-spin' : ''} />
                 </button>
-                <button 
-                    onClick={() => setFilter('history')}
-                    className={`px-5 py-2.5 rounded-lg text-xs font-bold uppercase transition-all ${filter === 'history' ? (isDark ? 'bg-white/10 text-white shadow-sm' : 'bg-white text-black shadow-sm') : 'opacity-50 hover:opacity-100'}`}
-                >
-                    Histórico
-                </button>
+
+                <div className={`p-1 rounded-xl flex border ${isDark ? 'bg-black/20 border-white/10' : 'bg-gray-100 border-gray-200'}`}>
+                    <button 
+                        onClick={() => setFilter('pending')}
+                        className={`px-5 py-2.5 rounded-lg text-xs font-bold uppercase transition-all ${filter === 'pending' ? (isDark ? 'bg-white/10 text-white shadow-sm' : 'bg-white text-black shadow-sm') : 'opacity-50 hover:opacity-100'}`}
+                    >
+                        Pendentes
+                    </button>
+                    <button 
+                        onClick={() => setFilter('history')}
+                        className={`px-5 py-2.5 rounded-lg text-xs font-bold uppercase transition-all ${filter === 'history' ? (isDark ? 'bg-white/10 text-white shadow-sm' : 'bg-white text-black shadow-sm') : 'opacity-50 hover:opacity-100'}`}
+                    >
+                        Histórico
+                    </button>
+                </div>
             </div>
         </div>
 
@@ -132,6 +156,7 @@ export const ClassroomModal: React.FC<ClassroomModalProps> = ({
 
                 return (
                     <motion.div
+                        id={idx === 0 ? "classroom-item-0" : undefined}
                         key={work.id}
                         initial={{ opacity: 0, y: 20 }}
                         animate={{ opacity: 1, y: 0 }}
@@ -188,13 +213,18 @@ export const ClassroomModal: React.FC<ClassroomModalProps> = ({
                         </div>
 
                         {/* Action Bar - Slides up or appears on hover */}
-                        <div className="absolute bottom-6 left-6 right-6 z-20 opacity-0 translate-y-2 group-hover:opacity-100 group-hover:translate-y-0 transition-all duration-300 delay-75">
+                        <div 
+                            id={idx === 0 ? "classroom-action-0" : undefined}
+                            className={`absolute bottom-6 left-6 right-6 z-20 transition-all duration-300 delay-75
+                                opacity-0 translate-y-2 group-hover:opacity-100 group-hover:translate-y-0
+                            `}
+                        >
                              <button 
                                 onClick={() => startAnalysis(work)}
                                 className={`w-full py-3 rounded-2xl flex items-center justify-center gap-2 text-xs font-bold uppercase tracking-wide transition-transform hover:scale-105 active:scale-95 shadow-lg
                                     ${isPremium 
                                         ? `bg-violet-600 text-white shadow-violet-600/30`
-                                        : `bg-gray-200 dark:bg-white/10 text-gray-500 cursor-not-allowed`}
+                                        : `bg-gray-200 dark:bg-white/10 text-gray-500`}
                                 `}
                             >
                                 {isPremium ? <Sparkles size={14} fill="currentColor" /> : <Lock size={14} />}

@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { motion, PanInfo } from 'framer-motion';
 import { X } from 'lucide-react';
@@ -56,6 +57,8 @@ interface OverlayViewProps {
   classroomStatus?: 'connected' | 'disconnected' | 'expired';
   internalApiKey?: string;
   onOpenChatWithContext?: (messages: ChatMessage[], pendingMessage?: string) => void;
+  onOpenSettings?: () => void;
+  onRefreshClassroom?: () => void;
 }
 
 export const ContentView: React.FC<OverlayViewProps> = ({ 
@@ -65,7 +68,8 @@ export const ContentView: React.FC<OverlayViewProps> = ({
     initialProfileTab, onInstallPwa, canInstall, performanceSettings, onUpdatePerformance, 
     customPhotoUrl = '', onUpdateCustomPhoto, useCustomPhoto = false, onToggleCustomPhoto, 
     periods, viewingPeriod, onPeriodChange, isPremium, onOpenPremiumModal, classroomWork = [], 
-    isClassroomLinked = false, onLinkClassroom, classroomStatus, internalApiKey, onOpenChatWithContext
+    isClassroomLinked = false, onLinkClassroom, classroomStatus, internalApiKey, onOpenChatWithContext,
+    onOpenSettings, onRefreshClassroom
 }) => {
   if (view === ViewState.DASHBOARD) return null;
 
@@ -196,6 +200,8 @@ export const ContentView: React.FC<OverlayViewProps> = ({
                         onOpenPremiumModal={onOpenPremiumModal}
                         internalApiKey={internalApiKey}
                         onOpenChatWithContext={onOpenChatWithContext}
+                        onOpenSettings={onOpenSettings}
+                        onRefresh={onRefreshClassroom}
                     />
                 </div>
             )}
