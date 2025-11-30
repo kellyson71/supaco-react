@@ -1,8 +1,9 @@
+
 import React from 'react';
 import { motion } from 'framer-motion';
 import { 
-  Home, BookOpen, AlertTriangle, Calendar as CalendarIcon, 
-  Monitor, Flag, Shield, RefreshCw, Moon, Sun 
+  BookOpen, Calendar as CalendarIcon, 
+  Monitor, Flag, Shield, RefreshCw, Moon, Sun, Sparkles
 } from 'lucide-react';
 import { InvertedCorner } from '../InvertedCorner';
 import { ViewState } from '../../types';
@@ -56,11 +57,13 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
       <div className={`text-xl font-black italic mb-10 transition-colors duration-500 ${frameText}`}>SUPACO</div>
       
       <nav className="flex flex-col gap-6 w-full items-center flex-1">
-        <NavItem isDark={isDarkMode} icon={<Home />} active={activeNav === ViewState.DASHBOARD} onClick={() => onNavClick(ViewState.DASHBOARD)} label="Dash" activeColor={primaryColor} />
-        <NavItem isDark={isDarkMode} icon={<BookOpen />} active={activeNav === ViewState.GRADES} onClick={() => onNavClick(ViewState.GRADES)} label="Notas" activeColor={primaryColor} />
-        <NavItem isDark={isDarkMode} icon={<AlertTriangle />} active={activeNav === ViewState.ABSENCES} onClick={() => onNavClick(ViewState.ABSENCES)} label="Faltas" activeColor={primaryColor} />
+        <NavItem isDark={isDarkMode} icon={<BookOpen />} active={activeNav === ViewState.GRADES} onClick={() => onNavClick(ViewState.GRADES)} label="Boletim" activeColor={primaryColor} />
         <NavItem isDark={isDarkMode} icon={<CalendarIcon />} active={activeNav === ViewState.SCHEDULE} onClick={() => onNavClick(ViewState.SCHEDULE)} label="Horário" activeColor={primaryColor} />
         <NavItem isDark={isDarkMode} icon={<Monitor />} active={activeNav === ViewState.CLASSROOM} onClick={() => onNavClick(ViewState.CLASSROOM)} label="Classroom" activeColor={primaryColor} />
+        
+        {/* Premium Feature: AI Studio */}
+        <NavItem isDark={isDarkMode} icon={<Sparkles />} active={activeNav === ViewState.AI_STUDIO} onClick={() => onNavClick(ViewState.AI_STUDIO)} label="Estúdio IA" activeColor={primaryColor} />
+
         <NavItem isDark={isDarkMode} icon={<Flag />} active={activeNav === ViewState.CONCLUSION} onClick={() => onNavClick(ViewState.CONCLUSION)} label="Conclusão" activeColor={primaryColor} />
         
         {SecureStorage.isAdmin(userData?.matricula) && (

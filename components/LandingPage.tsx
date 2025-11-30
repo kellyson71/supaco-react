@@ -1,7 +1,7 @@
 
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ArrowRight, Lock, User, AlertTriangle, ArrowLeft, Fingerprint, ChevronRight } from 'lucide-react';
+import { ArrowRight, Lock, User, AlertTriangle, ArrowLeft, Fingerprint, ChevronRight, Github, Monitor } from 'lucide-react';
 
 interface LandingPageProps {
   onComplete: () => void;
@@ -91,6 +91,18 @@ export const LandingPage: React.FC<LandingPageProps> = ({
         transition={{ duration: 1.5, ease: "easeInOut" }}
       />
       <div className={`absolute inset-0 z-0 backdrop-blur-xl ${isDarkMode ? 'bg-black/70' : 'bg-black/40'}`} />
+
+      {/* GitHub / Desktop App Link - Discreet Top Right */}
+      <a 
+        href="https://github.com/kellyson71/electron_supaco_IFRN-API" 
+        target="_blank" 
+        rel="noopener noreferrer"
+        className="absolute top-6 right-6 z-50 flex items-center gap-2 p-2 rounded-full transition-all duration-300 opacity-30 hover:opacity-100 hover:bg-white/10 group text-white"
+        title="Baixar Versão Desktop"
+      >
+          <span className="text-[10px] font-bold uppercase tracking-widest hidden sm:block opacity-0 group-hover:opacity-100 transition-opacity">App Desktop</span>
+          <Github size={20} />
+      </a>
 
       {/* Main Content Area */}
       <AnimatePresence mode="wait">

@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { Home, BookOpen, AlertTriangle, Calendar, Monitor, Shield } from 'lucide-react';
+import { BookOpen, Calendar, Monitor, Shield, Sparkles } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { ViewState } from '../types';
 import { SecureStorage } from '../services/SecureStorage';
@@ -14,12 +14,11 @@ interface MobileNavBarProps {
 
 export const MobileNavBar: React.FC<MobileNavBarProps> = ({ currentView, onChangeView, isDarkMode, primaryColor }) => {
   
-  // Basic Nav Items
+  // Basic Nav Items (Home and Absences removed)
   const navItems = [
-    { id: ViewState.DASHBOARD, icon: Home, label: 'Início' },
-    { id: ViewState.GRADES, icon: BookOpen, label: 'Notas' },
-    { id: ViewState.ABSENCES, icon: AlertTriangle, label: 'Faltas' },
+    { id: ViewState.GRADES, icon: BookOpen, label: 'Boletim' },
     { id: ViewState.SCHEDULE, icon: Calendar, label: 'Horário' },
+    { id: ViewState.AI_STUDIO, icon: Sparkles, label: 'AI Studio' },
     { id: ViewState.CLASSROOM, icon: Monitor, label: 'Class' },
   ];
 

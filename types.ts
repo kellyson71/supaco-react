@@ -1,6 +1,7 @@
 
 
 
+
 export enum ViewState {
   DASHBOARD = 'DASHBOARD',
   GRADES = 'GRADES',
@@ -9,7 +10,8 @@ export enum ViewState {
   CLASSROOM = 'CLASSROOM',
   PROFILE = 'PROFILE',
   CONCLUSION = 'CONCLUSION',
-  ADMIN = 'ADMIN'
+  ADMIN = 'ADMIN',
+  AI_STUDIO = 'AI_STUDIO'
 }
 
 export type ThemeVariant = 'default' | 'monochrome' | 'saturated' | 'dynamic' | 'sepia';
