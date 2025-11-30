@@ -7,9 +7,9 @@ import { WifiOff, RefreshCw, AlertTriangle, X } from 'lucide-react';
 import { SplashScreen } from './components/SplashScreen';
 import { ViewState, ThemeVariant, SuapProfile, SuapMeusDadosAluno, SuapPeriod, SuapDiario, SuapBoletim, ProcessedClass, GradeInfo, SuapCompletionData, Holiday, ClassroomWork, ClassroomCourse, PerformanceSettings, SuapMeusPeriodosLetivos, TodoItem, GoogleTokens } from './types';
 import { googleCredentials } from './google_credentials';
+import { CallbackPage } from './components/CallbackPage';
 
 // --- DYNAMIC IMPORTS (Code Splitting) ---
-// We handle named exports by destructuring the module in the promise result.
 const DashboardLayout = React.lazy(() => import('./components/DashboardLayout').then(module => ({ default: module.DashboardLayout })));
 const ContentView = React.lazy(() => import('./components/ContentViews').then(module => ({ default: module.ContentView })));
 const LandingPage = React.lazy(() => import('./components/LandingPage').then(module => ({ default: module.LandingPage })));
@@ -122,12 +122,16 @@ interface Toast {
 }
 
 const App: React.FC = () => {
+  // --- ROUTING STATE ---
+  // Simple manual routing check for callback since we aren't using React Router
+  const [isCallbackRoute, setIsCallbackRoute] = useState(() => window.location.pathname === '/callback');
+
   // --- APPLICATION READY STATE ---
   const [isAppReady, setIsAppReady] = useState(false);
 
   // --- LANDING PAGE STATE ---
   const [showLanding, setShowLanding] = useState(() => {
-      return !localStorage.getItem(CACHE_KEYS.WELCOME_SEEN);
+      return !localStorage.getItem(CACHE_KEYS.WELCOME_SEEN) && window.location.pathname !== '/callback';
   });
 
   const [currentView, setCurrentView] = useState<ViewState>(ViewState.DASHBOARD);
@@ -331,7 +335,7 @@ const App: React.FC = () => {
 
   // Check Tutorial Status whenever Login or Landing changes
   useEffect(() => {
-      if (isLoggedIn && !showLanding) {
+      if (isLoggedIn && !showLanding && !isCallbackRoute) {
           const matricula = localStorage.getItem('suap_username');
           // If we have a user, check cloud for existing data to SKIP tutorial
           if (matricula) {
@@ -354,7 +358,7 @@ const App: React.FC = () => {
              });
           }
       }
-  }, [isLoggedIn, showLanding]);
+  }, [isLoggedIn, showLanding, isCallbackRoute]);
 
   const handleFinishTutorial = () => {
       setShowTutorial(false);
@@ -571,18 +575,21 @@ const App: React.FC = () => {
 
                 // UI Feedback
                 addToast("Google Classroom conectado com sucesso!", "info");
-                setTimeout(() => {
-                    setCurrentView(ViewState.CLASSROOM);
-                }, 500);
+                
+                // Route to Classroom View and turn off callback loader
+                setIsCallbackRoute(false);
+                setCurrentView(ViewState.CLASSROOM);
             }
         } else {
              const errText = await response.text();
              console.error("Google Token Exchange Failed", errText);
              addToast("Falha ao conectar Classroom. Tente novamente.", "warning");
+             setIsCallbackRoute(false); // Go back to app on fail
         }
     } catch (e) {
         console.error("Google Token Exchange Error", e);
         addToast("Erro de conexão com Google.", "warning");
+        setIsCallbackRoute(false); // Go back to app on fail
     }
   };
 
@@ -629,28 +636,26 @@ const App: React.FC = () => {
   // --- OAUTH CALLBACK HANDLER ---
   useEffect(() => {
       // Check current path to see if we are in a callback
-      const path = window.location.pathname;
       const searchParams = new URLSearchParams(window.location.search);
       const code = searchParams.get('code');
       const state = searchParams.get('state');
 
-      // Distinguish between SUAP and Google based on state
+      // Distinguish between SUAP and Google based on state or route
       if (code) {
-          if (state === 'google_auth') {
+          if (isCallbackRoute && state === 'google_auth') {
               // It's Google
               exchangeGoogleCode(code);
-          } else {
-              // Assume SUAP if no state or different state
-              // (SUAP in LandingPage usually handles this, but if user refreshed on callback url)
+          } else if (!isCallbackRoute) {
+              // Assume SUAP if no state or different state (Landing Page Flow)
               exchangeSuapCodeForToken(code);
           }
       }
-  }, []);
+  }, [isCallbackRoute]);
 
   // --- KEYBOARD SHORTCUTS ---
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-        if (showLanding) return; 
+        if (showLanding || isCallbackRoute) return; 
 
         if (e.repeat) return; 
         if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
@@ -674,7 +679,7 @@ const App: React.FC = () => {
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [showLanding]);
+  }, [showLanding, isCallbackRoute]);
 
   // --- PROCESSING LOGIC ---
   const processGradesFromBoletim = (boletim: SuapBoletim[]): GradeInfo[] => {
@@ -1239,6 +1244,11 @@ const App: React.FC = () => {
           default: return { primary: 'emerald', secondary: 'rose' };
       }
   }, [themeVariant, currentWallpaper]);
+
+  // If we are in callback route, show the loading screen
+  if (isCallbackRoute) {
+      return <CallbackPage isDarkMode={isDarkMode} primaryColor={palette.primary} />;
+  }
 
   if (!isAppReady) {
     return <SplashScreen />;
