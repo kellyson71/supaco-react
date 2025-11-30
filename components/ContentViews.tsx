@@ -306,6 +306,7 @@ export const ContentView: React.FC<OverlayViewProps> = ({ view, onClose, onChang
   );
 };
 
+// ... (Rest of the file containing ProfileContent, SettingsTabContent, etc. remains unchanged) ...
 const ProfileContent = ({ 
     isDark, 
     onToggleTheme, 

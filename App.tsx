@@ -2,14 +2,15 @@
 
 import React, { useState, useMemo, useEffect, useRef, Suspense } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { SecureStorage, DEFAULT_PREFERENCES } from './services/SecureStorage';
+import { SecureStorage } from './services/SecureStorage';
 import { supabase } from './services/supabaseClient';
 import { WifiOff, RefreshCw, AlertTriangle, X } from 'lucide-react';
 
 import { SplashScreen } from './components/SplashScreen';
-import { ViewState, ThemeVariant, SuapProfile, SuapMeusDadosAluno, SuapPeriod, SuapDiario, SuapBoletim, ProcessedClass, GradeInfo, SuapCompletionData, Holiday, ClassroomWork, ClassroomCourse, PerformanceSettings, SuapMeusPeriodosLetivos, TodoItem, GoogleTokens, UserPreferences } from './types';
+import { ViewState, ThemeVariant, SuapProfile, SuapMeusDadosAluno, SuapPeriod, SuapDiario, SuapBoletim, ProcessedClass, GradeInfo, SuapCompletionData, Holiday, ClassroomWork, ClassroomCourse, PerformanceSettings, SuapMeusPeriodosLetivos, TodoItem, GoogleTokens } from './types';
 
 // --- DYNAMIC IMPORTS (Code Splitting) ---
+// We handle named exports by destructuring the module in the promise result.
 const DashboardLayout = React.lazy(() => import('./components/DashboardLayout').then(module => ({ default: module.DashboardLayout })));
 const ContentView = React.lazy(() => import('./components/ContentViews').then(module => ({ default: module.ContentView })));
 const LandingPage = React.lazy(() => import('./components/LandingPage').then(module => ({ default: module.LandingPage })));
@@ -19,21 +20,34 @@ const PremiumModal = React.lazy(() => import('./components/PremiumModal').then(m
 const AIChatWidget = React.lazy(() => import('./components/AIChatWidget').then(module => ({ default: module.AIChatWidget })));
 const PomodoroWidget = React.lazy(() => import('./components/PomodoroWidget').then(module => ({ default: module.PomodoroWidget })));
 
+const DEFAULT_WALLPAPER = "https://images2.alphacoders.com/134/thumb-1920-1345658.png";
 const DEFAULT_PROFILE_IMG = "https://i.pinimg.com/736x/9c/63/e1/9c63e1cf0546ecd4f83b7df067f440d2.jpg";
 
 // --- INTERNAL CONFIG ---
 const SUPACO_INTERNAL_KEY = process.env.API_KEY || "AIzaSyD-PREMIUM-PLACEHOLDER-KEY-FOR-SUPACO-APP";
 
 // --- GOOGLE OAUTH CONFIG ---
-const GOOGLE_CLIENT_ID = '493737247808-0rv9jbldtskqdg78l122foess6h1t7ll.apps.googleusercontent.com'; 
-const GOOGLE_CLIENT_SECRET = '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'; 
+// IMPORTANT: You must add your Client ID and Client Secret here.
+// For production, these should be environment variables.
+const GOOGLE_CLIENT_ID = 'YOUR_GOOGLE_CLIENT_ID'; 
+const GOOGLE_CLIENT_SECRET = 'YOUR_GOOGLE_CLIENT_SECRET'; 
 const REDIRECT_URI = window.location.hostname === 'localhost' ? 'http://localhost:5173/' : 'https://supaco.vercel.app/';
 
 // Cache Keys (Settings only - Data is now in SecureStorage)
 const CACHE_KEYS = {
+    WALLPAPER: 'suap_saved_wallpaper',
+    THEME_VARIANT: 'suap_saved_theme_variant',
+    THEME_MODE: 'suap_saved_theme_mode',
+    PERFORMANCE: 'suap_performance_settings',
     WELCOME_SEEN: 'suap_welcome_seen',
     TUTORIAL_SEEN: 'suap_tutorial_completed_v1',
     IS_PREMIUM: 'suap_user_is_premium' 
+};
+
+const DEFAULT_PERFORMANCE: PerformanceSettings = {
+    reduceMotion: false,
+    disableBlur: false,
+    disableGlow: false
 };
 
 // Define palette structure
@@ -118,13 +132,29 @@ const App: React.FC = () => {
 
   const [currentView, setCurrentView] = useState<ViewState>(ViewState.DASHBOARD);
   
-  // --- UNIFIED PREFERENCES STATE ---
-  const [preferences, setPreferences] = useState<UserPreferences>(DEFAULT_PREFERENCES);
+  // Settings State (Initialize from cache if available)
+  const [isDarkMode, setIsDarkMode] = useState(() => {
+      return localStorage.getItem(CACHE_KEYS.THEME_MODE) === 'dark';
+  });
+  const [themeVariant, setThemeVariant] = useState<ThemeVariant>(() => {
+      return (localStorage.getItem(CACHE_KEYS.THEME_VARIANT) as ThemeVariant) || 'dynamic';
+  });
+  const [currentWallpaper, setCurrentWallpaper] = useState(() => {
+      return localStorage.getItem(CACHE_KEYS.WALLPAPER) || DEFAULT_WALLPAPER;
+  });
+  const [performanceSettings, setPerformanceSettings] = useState<PerformanceSettings>(() => {
+      const saved = localStorage.getItem(CACHE_KEYS.PERFORMANCE);
+      return saved ? JSON.parse(saved) : DEFAULT_PERFORMANCE;
+  });
 
   // Premium State
-  const [isPremium, setIsPremium] = useState(false);
+  const [isPremium, setIsPremium] = useState(false); // Initial state false, will check DB
   const [showPremiumModal, setShowPremiumModal] = useState(false);
 
+  // Profile Photo State
+  const [customPhotoUrl, setCustomPhotoUrl] = useState(localStorage.getItem('suap_custom_photo') || '');
+  const [useCustomPhoto, setUseCustomPhoto] = useState(localStorage.getItem('suap_use_custom_photo') === 'true');
+  
   // UI State
   const [rightSidebarTab, setRightSidebarTab] = useState<'overview' | 'tasks' | 'holidays' | 'achievements'>('overview');
   const [profileInitialTab, setProfileInitialTab] = useState<'profile' | 'settings' | 'wallpaper' | 'performance' | 'achievements'>('profile');
@@ -154,35 +184,19 @@ const App: React.FC = () => {
   
   // Classroom State
   const [classroomStatus, setClassroomStatus] = useState<'connected' | 'disconnected' | 'expired'>('disconnected');
-  const [isClassroomLinked, setIsClassroomLinked] = useState(false);
+  const [isClassroomLinked, setIsClassroomLinked] = useState(false); // Legacy boolean, kept for compatibility
 
   // Todo List State
   const [todos, setTodos] = useState<TodoItem[]>([]);
+
+  // Auto Expand Classroom Setting Logic
+  const [autoExpandClassroom, setAutoExpandClassroom] = useState(false);
 
   // PWA Install State
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
 
   // Notifications State
   const [toasts, setToasts] = useState<Toast[]>([]);
-
-  // --- AUTO-SAVE PREFERENCES DEBOUNCER ---
-  const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  useEffect(() => {
-    // Only save if logged in
-    if (!isLoggedIn || !userData?.matricula) return;
-
-    if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
-
-    saveTimeoutRef.current = setTimeout(() => {
-        SecureStorage.savePreferences(userData.matricula!, preferences);
-    }, 1000); // 1 second debounce
-
-    return () => {
-        if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
-    };
-  }, [preferences, isLoggedIn, userData]);
-
 
   // --- INITIAL LOAD SEQUENCE ---
   useEffect(() => {
@@ -202,38 +216,6 @@ const App: React.FC = () => {
       if (token && matricula) {
         setIsLoggedIn(true);
         loadUserCache(matricula);
-        
-        // --- PREFERENCE LOADING ---
-        // Try to load preferences from Supabase before opening (Blocking if needed, or fast fallback)
-        try {
-            if (navigator.onLine) {
-                const cloudPrefs = await SecureStorage.getPreferencesFromCloud(matricula);
-                if (cloudPrefs) {
-                    // Merge with defaults to ensure all keys exist
-                    const merged = { ...DEFAULT_PREFERENCES, ...cloudPrefs };
-                    
-                    // Deep merge specific objects to prevent overwriting whole sections if keys missing
-                    merged.visual = { ...DEFAULT_PREFERENCES.visual, ...(cloudPrefs.visual || {}) };
-                    merged.widgets = { ...DEFAULT_PREFERENCES.widgets, ...(cloudPrefs.widgets || {}) };
-                    merged.widgets.pomodoro = { ...DEFAULT_PREFERENCES.widgets.pomodoro, ...(cloudPrefs.widgets?.pomodoro || {}) };
-                    merged.behavior = { ...DEFAULT_PREFERENCES.behavior, ...(cloudPrefs.behavior || {}) };
-                    merged.performance = { ...DEFAULT_PREFERENCES.performance, ...(cloudPrefs.performance || {}) };
-                    merged.notifications = { ...DEFAULT_PREFERENCES.notifications, ...(cloudPrefs.notifications || {}) };
-
-                    setPreferences(merged);
-                } else {
-                    // Fallback to local storage if cloud fails or empty
-                    const localPrefs = SecureStorage.loadItem(matricula, 'preferences');
-                    if (localPrefs) setPreferences({ ...DEFAULT_PREFERENCES, ...localPrefs });
-                }
-            } else {
-                 const localPrefs = SecureStorage.loadItem(matricula, 'preferences');
-                 if (localPrefs) setPreferences({ ...DEFAULT_PREFERENCES, ...localPrefs });
-            }
-        } catch (e) {
-            console.warn("Failed to load preferences on startup", e);
-        }
-
         // Start async background fetch
         if (navigator.onLine) {
           fetchAllUserDataBackground(matricula, false);
@@ -242,9 +224,10 @@ const App: React.FC = () => {
       }
 
       // 3. Preload Wallpaper Image to avoid white flash
-      if (preferences.visual.wallpaper) {
+      if (currentWallpaper) {
           const img = new Image();
-          img.src = preferences.visual.wallpaper;
+          img.src = currentWallpaper;
+          // We don't await the image fully loading, just kickoff
       }
 
       // 4. Force a minimum splash screen duration for aesthetics
@@ -280,13 +263,15 @@ const App: React.FC = () => {
 
   // --- ATTENDANCE RISK CHECKER ---
   useEffect(() => {
-      if (preferences.notifications.absenceAlerts && processedGrades.length > 0) {
+      if (processedGrades.length > 0) {
           processedGrades.forEach(grade => {
               if (grade.limit > 0) {
                   const percentage = grade.absences / grade.limit;
                   const remaining = grade.limit - grade.absences;
+                  // Unique ID for this specific alert to avoid spamming every render
                   const alertId = `risk-${grade.code}-${grade.absences}`;
                   
+                  // Trigger if > 75% used AND not already notified for this exact absence count
                   if (percentage >= 0.75 && remaining >= 0) {
                       const sessionKey = `notified_${alertId}`;
                       if (!sessionStorage.getItem(sessionKey)) {
@@ -301,18 +286,72 @@ const App: React.FC = () => {
               }
           });
       }
-  }, [processedGrades, preferences.notifications.absenceAlerts]);
+  }, [processedGrades]);
 
-  // Check Tutorial Status
+
+  // --- PERSISTENCE HELPERS ---
+
+  useEffect(() => {
+      localStorage.setItem(CACHE_KEYS.THEME_MODE, isDarkMode ? 'dark' : 'light');
+  }, [isDarkMode]);
+
+  useEffect(() => {
+      localStorage.setItem(CACHE_KEYS.THEME_VARIANT, themeVariant);
+  }, [themeVariant]);
+
+  useEffect(() => {
+      localStorage.setItem(CACHE_KEYS.WALLPAPER, currentWallpaper);
+  }, [currentWallpaper]);
+
+  useEffect(() => {
+      localStorage.setItem(CACHE_KEYS.PERFORMANCE, JSON.stringify(performanceSettings));
+  }, [performanceSettings]);
+
+  // --- APPLY SETTINGS HELPER (New) ---
+  const applySettingsFromCache = () => {
+      console.log("[App] Applying visual settings from cache...");
+      const mode = localStorage.getItem(CACHE_KEYS.THEME_MODE);
+      if (mode) setIsDarkMode(mode === 'dark');
+
+      const variant = localStorage.getItem(CACHE_KEYS.THEME_VARIANT);
+      if (variant) setThemeVariant(variant as ThemeVariant);
+
+      const wall = localStorage.getItem(CACHE_KEYS.WALLPAPER);
+      if (wall) setCurrentWallpaper(wall);
+
+      const perf = localStorage.getItem(CACHE_KEYS.PERFORMANCE);
+      if (perf) setPerformanceSettings(JSON.parse(perf));
+
+      const photo = localStorage.getItem('suap_custom_photo');
+      if (photo) setCustomPhotoUrl(photo);
+
+      const usePhoto = localStorage.getItem('suap_use_custom_photo');
+      if (usePhoto) setUseCustomPhoto(usePhoto === 'true');
+  };
+
+  // Check Tutorial Status whenever Login or Landing changes
   useEffect(() => {
       if (isLoggedIn && !showLanding) {
           const matricula = localStorage.getItem('suap_username');
+          // If we have a user, check cloud for existing data to SKIP tutorial
           if (matricula) {
-             const seen = localStorage.getItem(CACHE_KEYS.TUTORIAL_SEEN);
-             if (!seen) {
-                 const t = setTimeout(() => setShowTutorial(true), 1500);
-                 return () => clearTimeout(t);
-             }
+             // We do this check first
+             SecureStorage.syncFromCloud(matricula).then((result) => {
+                if (result && result.hasData) {
+                    console.log("[App] User has cloud data. Skipping tutorial.");
+                    localStorage.setItem(CACHE_KEYS.TUTORIAL_SEEN, 'true');
+                    setShowTutorial(false);
+                    // Also apply settings if found
+                    if(result.settings) applySettingsFromCache();
+                } else {
+                    // Normal flow for new/local users
+                    const seen = localStorage.getItem(CACHE_KEYS.TUTORIAL_SEEN);
+                    if (!seen) {
+                        const t = setTimeout(() => setShowTutorial(true), 1500);
+                        return () => clearTimeout(t);
+                    }
+                }
+             });
           }
       }
   }, [isLoggedIn, showLanding]);
@@ -322,45 +361,68 @@ const App: React.FC = () => {
       localStorage.setItem(CACHE_KEYS.TUTORIAL_SEEN, 'true');
   };
 
-  // Update Preference Helper
-  const handleUpdatePreference = (section: keyof UserPreferences, key: string, value: any) => {
-      setPreferences(prev => ({
-          ...prev,
-          [section]: {
-              ...prev[section],
-              [key]: value
+  // Profile Photo Handlers
+  const handleUpdateCustomPhoto = (url: string) => {
+      setCustomPhotoUrl(url);
+      if(url) {
+          localStorage.setItem('suap_custom_photo', url);
+          // Auto-enable if setting a new valid URL and currently not using custom
+          if (!useCustomPhoto) {
+              setUseCustomPhoto(true);
+              localStorage.setItem('suap_use_custom_photo', 'true');
           }
-      }));
+      } else {
+          localStorage.removeItem('suap_custom_photo');
+      }
   };
 
-  // Specific Helpers for ContentViews
-  const handleUpdatePerformance = (settings: PerformanceSettings) => {
-      setPreferences(prev => ({
-          ...prev,
-          performance: settings
-      }));
+  const handleToggleCustomPhoto = (enable: boolean) => {
+      setUseCustomPhoto(enable);
+      localStorage.setItem('suap_use_custom_photo', String(enable));
   };
 
   const handleSubscribe = () => {
       setIsPremium(true);
       addToast("Bem-vindo ao Supaco Premium!", "info");
+      // Trigger re-check
       if (userData?.matricula) checkSubscription(userData.matricula);
   };
 
+  // --- AUTO SYNC FOR SETTINGS ---
+  const syncTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+      if (isLoggedIn && userData?.matricula && !isOffline) {
+          if (syncTimeoutRef.current) clearTimeout(syncTimeoutRef.current);
+          
+          setIsSyncing(true);
+          syncTimeoutRef.current = setTimeout(async () => {
+              console.log("[App] Auto-syncing settings to cloud...");
+              await SecureStorage.syncToCloud(userData.matricula!);
+              setIsSyncing(false);
+          }, 3000); 
+      }
+  }, [currentView, currentWallpaper, customPhotoUrl, useCustomPhoto, themeVariant, isDarkMode, performanceSettings, isLoggedIn, userData?.matricula]);
+
+
   // Calculate Active User Photo
   const activeUserPhoto = useMemo(() => {
-      if (preferences.visual.useCustomPhoto && preferences.visual.customPhotoUrl) return preferences.visual.customPhotoUrl;
+      // 1. Custom Photo (Highest Priority)
+      if (useCustomPhoto && customPhotoUrl) return customPhotoUrl;
       
+      // 2. SUAP High Res
       if (userData?.url_foto_150x200) {
           return userData.url_foto_150x200.startsWith('http') ? userData.url_foto_150x200 : `https://suap.ifrn.edu.br${userData.url_foto_150x200}`;
       }
       
+      // 3. SUAP Default
       if (userData?.foto) {
           return userData.foto.startsWith('http') ? userData.foto : `https://suap.ifrn.edu.br${userData.foto}`;
       }
       
+      // 4. Fallback
       return DEFAULT_PROFILE_IMG;
-  }, [preferences.visual.useCustomPhoto, preferences.visual.customPhotoUrl, userData]);
+  }, [useCustomPhoto, customPhotoUrl, userData]);
 
 
   // --- OFFLINE DETECTION & PWA PROMPT ---
@@ -418,10 +480,15 @@ const App: React.FC = () => {
               if (data.access_token) {
                   localStorage.setItem('suap_access_token', data.access_token);
                   if (data.refresh_token) localStorage.setItem('suap_refresh_token', data.refresh_token);
+                  
+                  // Clean URL
                   window.history.replaceState({}, document.title, window.location.pathname);
                   
+                  // Fetch Profile to get username (matricula) since OAuth doesn't return it directly in token response usually
                   const profileRes = await fetch('https://suap.ifrn.edu.br/api/v2/minhas-informacoes/meus-dados/', {
-                      headers: { 'Authorization': `Bearer ${data.access_token}` }
+                      headers: {
+                          'Authorization': `Bearer ${data.access_token}`
+                      }
                   });
                   
                   if (profileRes.ok) {
@@ -432,16 +499,14 @@ const App: React.FC = () => {
                           setIsLoggedIn(true);
                           setShowLanding(false);
                           localStorage.setItem(CACHE_KEYS.WELCOME_SEEN, 'true');
-                          
-                          // First fetch of prefs
-                          const prefs = await SecureStorage.getPreferencesFromCloud(profile.matricula);
-                          if(prefs) setPreferences(prev => ({...prev, ...prefs}));
-                          
                           fetchAllUserDataBackground(profile.matricula, true);
+                          // Check Premium Status
                           checkSubscription(profile.matricula);
                       }
                   }
               }
+          } else {
+              console.error("Failed to exchange token", await response.text());
           }
       } catch (error) {
           console.error("OAuth Exchange Error", error);
@@ -485,34 +550,44 @@ const App: React.FC = () => {
             if (data.access_token && matricula) {
                 const tokens: GoogleTokens = {
                     access_token: data.access_token,
-                    refresh_token: data.refresh_token,
+                    refresh_token: data.refresh_token, // Only returned if access_type=offline and prompt=consent
                     expiry_date: Date.now() + (data.expires_in * 1000)
                 };
 
                 SecureStorage.saveItem(matricula, 'google_tokens', tokens);
                 
-                // Trigger sync to save refresh token to Supabase
+                // Also trigger sync to save refresh token to Supabase for other devices
                 SecureStorage.syncToCloud(matricula);
 
                 setIsClassroomLinked(true);
                 setClassroomStatus('connected');
+                
+                // Clean URL
                 window.history.replaceState({}, document.title, window.location.pathname);
+                
+                // Fetch data immediately
                 fetchClassroomData(matricula);
+
+                // UI Feedback
                 addToast("Google Classroom conectado com sucesso!", "info");
                 setTimeout(() => {
                     setCurrentView(ViewState.CLASSROOM);
                 }, 500);
             }
         } else {
+             const errText = await response.text();
+             console.error("Google Token Exchange Failed", errText);
              addToast("Falha ao conectar Classroom. Tente novamente.", "warning");
         }
     } catch (e) {
+        console.error("Google Token Exchange Error", e);
         addToast("Erro de conexão com Google.", "warning");
     }
   };
 
   const refreshGoogleToken = async (refreshToken: string, matricula: string): Promise<string | null> => {
       try {
+          console.log("[Classroom] Refreshing access token...");
           const response = await fetch('https://oauth2.googleapis.com/token', {
               method: 'POST',
               headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
@@ -531,12 +606,17 @@ const App: React.FC = () => {
                   const newTokens: GoogleTokens = {
                       ...currentTokens,
                       access_token: data.access_token,
+                      // Important: Google might return a new refresh token (rarely) or just access token.
+                      // If it returns a new refresh_token, we should update it.
                       refresh_token: data.refresh_token || currentTokens.refresh_token, 
                       expiry_date: Date.now() + (data.expires_in * 1000)
                   };
                   SecureStorage.saveItem(matricula, 'google_tokens', newTokens);
+                  // Sync updated access token (optional, mainly for local usage)
                   return data.access_token;
               }
+          } else {
+              console.error("[Classroom] Refresh failed. Token might be revoked.");
           }
       } catch (e) {
           console.error("[Classroom] Refresh error", e);
@@ -544,16 +624,21 @@ const App: React.FC = () => {
       return null;
   };
 
+
   // --- OAUTH CALLBACK HANDLER ---
   useEffect(() => {
       const searchParams = new URLSearchParams(window.location.search);
       const code = searchParams.get('code');
       const state = searchParams.get('state');
 
+      // Distinguish between SUAP and Google based on state
       if (code) {
           if (state === 'google_auth') {
+              // It's Google
               exchangeGoogleCode(code);
           } else {
+              // Assume SUAP if no state or different state
+              // (SUAP in LandingPage usually handles this, but if user refreshed on callback url)
               exchangeSuapCodeForToken(code);
           }
       }
@@ -588,9 +673,72 @@ const App: React.FC = () => {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [showLanding]);
 
+  // --- PROCESSING LOGIC ---
+  const processGradesFromBoletim = (boletim: SuapBoletim[]): GradeInfo[] => {
+      return boletim.map(b => {
+          const cleanSubject = b.disciplina.includes(' - ') 
+              ? b.disciplina.split(' - ').slice(1).join(' - ') 
+              : b.disciplina;
+
+          return {
+              subject: cleanSubject,
+              code: b.codigo_diario,
+              status: b.situacao,
+              n1: b.nota_etapa_1?.nota ?? '-',
+              n2: b.nota_etapa_2?.nota ?? '-',
+              n3: b.nota_etapa_3?.nota ?? '-',
+              n4: b.nota_etapa_4?.nota ?? '-',
+              finalGrade: b.nota_avaliacao_final?.nota ?? '-',
+              average: b.media_disciplina ?? '-',
+              frequency: b.percentual_carga_horaria_frequentada || 0,
+              absences: b.numero_faltas || 0,
+              totalHours: b.carga_horaria || 0,
+              limit: Math.floor((b.carga_horaria || 0) * 0.25)
+          };
+      });
+  };
+
+  const processScheduleFromDiarios = (diarios: SuapDiario[]): ProcessedClass[] => {
+      const dayMap: Record<string, number> = {
+          'Segunda': 2, 'Terça': 3, 'Quarta': 4, 'Quinta': 5, 'Sexta': 6, 'Sábado': 7, 'Domingo': 1
+      };
+
+      const classes: ProcessedClass[] = [];
+
+      diarios.forEach(diario => {
+          if (!diario.horarios) return;
+          diario.horarios.forEach((h: any) => {
+              if (!h.horario) return;
+              const [start, end] = h.horario.split(' - ');
+              const dayInt = dayMap[h.dia] || 0;
+
+              classes.push({
+                  day: h.dia,
+                  dayInt: dayInt,
+                  startTime: start ? start.trim() : '',
+                  endTime: end ? end.trim() : '',
+                  timeLabel: h.horario,
+                  name: diario.disciplina?.descricao || 'Disciplina',
+                  shortName: diario.disciplina?.sigla || '',
+                  room: diario.local?.sala || 'N/A',
+                  fullRoom: diario.local?.sala || 'N/A',
+                  professors: diario.professores?.map((p:any) => p.nome) || [],
+                  type: 'Regular'
+              });
+          });
+      });
+
+      return classes.sort((a, b) => {
+          if (a.dayInt !== b.dayInt) return a.dayInt - b.dayInt;
+          return a.startTime.localeCompare(b.startTime);
+      });
+  };
+
   // --- CACHE LOADING (DECRYPTED) ---
   const loadUserCache = (matricula: string) => {
       try {
+          console.log(`[App] Loading encrypted cache for user: ${matricula}`);
+          
           const profile = SecureStorage.loadItem(matricula, 'profile');
           if (profile) setUserData(profile);
 
@@ -621,6 +769,7 @@ const App: React.FC = () => {
           const cachedHolidays = localStorage.getItem('suap_cache_holidays');
           if (cachedHolidays) setHolidays(JSON.parse(cachedHolidays));
           
+          // Load Classroom from Cache (Hydrate Dates)
           const classroom = SecureStorage.loadItem(matricula, 'classroom');
           if (classroom) {
               const hydrated = classroom.map((w: any) => ({
@@ -630,6 +779,7 @@ const App: React.FC = () => {
               setClassroomWork(hydrated);
           }
           
+          // Check Token Status
           const gTokens = SecureStorage.loadItem(matricula, 'google_tokens') as GoogleTokens;
           if (gTokens && gTokens.access_token) {
               setIsClassroomLinked(true);
@@ -643,7 +793,8 @@ const App: React.FC = () => {
               setClassroomStatus('disconnected');
           }
 
-          // Preferences are handled in initApp now
+          // Apply visual settings that might be stored
+          applySettingsFromCache();
 
       } catch (e) {
           console.error("[App] Error loading secure cache:", e);
@@ -651,6 +802,7 @@ const App: React.FC = () => {
   };
 
   // --- API FETCHING ---
+
   const refreshSuapToken = async () => {
       if (!navigator.onLine) return false;
       const refresh = localStorage.getItem('suap_refresh_token');
@@ -677,8 +829,12 @@ const App: React.FC = () => {
     if (!navigator.onLine) return null; 
 
     try {
+        console.log(`[App] Fetching API: ${url}`);
         let response = await fetch(url, {
-            headers: { 'Authorization': `Bearer ${token}`, 'Accept': 'application/json' }
+            headers: {
+                'Authorization': `Bearer ${token}`,
+                'Accept': 'application/json'
+            }
         });
 
         if (response.status === 401) {
@@ -702,9 +858,13 @@ const App: React.FC = () => {
   };
 
   const fetchHolidays = async () => {
+      // Very basic caching for holidays (weekly)
       const lastFetch = localStorage.getItem('suap_cache_holidays_ts');
       const now = Date.now();
-      if (lastFetch && (now - parseInt(lastFetch)) < 1000 * 60 * 60 * 24 * 7) return;
+      if (lastFetch && (now - parseInt(lastFetch)) < 1000 * 60 * 60 * 24 * 7) {
+          // Valid cache, do nothing as loaded in loadUserCache/Initial
+          return;
+      }
 
       const year = new Date().getFullYear();
       try {
@@ -728,17 +888,19 @@ const App: React.FC = () => {
         return;
     }
 
-    if (tokens.expiry_date && tokens.expiry_date <= Date.now() + 60000) {
+    // Check Expiry and Refresh if needed
+    if (tokens.expiry_date && tokens.expiry_date <= Date.now() + 60000) { // Buffer 1 min
         if (tokens.refresh_token) {
              const newAccessToken = await refreshGoogleToken(tokens.refresh_token, currentMatricula);
              if (newAccessToken) {
-                 tokens.access_token = newAccessToken;
-                 setClassroomStatus('connected');
+                 tokens.access_token = newAccessToken; // Update local ref
+                 setClassroomStatus('connected'); // Reconnected successfully
              } else {
                  setClassroomStatus('expired');
-                 return;
+                 return; // Stop if refresh failed
              }
         } else {
+             // No refresh token available, must reconnect
              setClassroomStatus('expired');
              return;
         }
@@ -747,7 +909,10 @@ const App: React.FC = () => {
         setClassroomStatus('connected');
     }
     
-    if (SecureStorage.isCacheValid(currentMatricula, 'classroom', 30)) return;
+    // Check Cache (30 min TTL) - Only do this AFTER token check so we don't fetch if disconnected
+    if (SecureStorage.isCacheValid(currentMatricula, 'classroom', 30)) {
+        return;
+    }
 
     try {
         const coursesRes = await fetch('https://classroom.googleapis.com/v1/courses?courseStates=ACTIVE', {
@@ -755,9 +920,11 @@ const App: React.FC = () => {
         });
         
         if (coursesRes.status === 401) {
+            // Token rejected even after check (revoked?)
              setClassroomStatus('expired');
              return;
         }
+
         if (!coursesRes.ok) return;
 
         const coursesData = await coursesRes.json();
@@ -787,6 +954,8 @@ const App: React.FC = () => {
 
   // --- BACKGROUND SYNC ENGINE ---
   const fetchAllUserDataBackground = async (currentMatricula: string, forceRefresh = false) => {
+    console.log(`[App] Syncing data for ${currentMatricula} (Force: ${forceRefresh})`);
+    
     const shouldFetch = (key: string, ttlMinutes: number = 60) => {
         if (forceRefresh) return true;
         return !SecureStorage.isCacheValid(currentMatricula, key, ttlMinutes); 
@@ -795,12 +964,12 @@ const App: React.FC = () => {
     try {
         setIsSyncing(true);
 
-        // Fetch preferences if syncing
         const cloudResult = await SecureStorage.syncFromCloud(currentMatricula);
-        if (cloudResult && cloudResult.hasData && cloudResult.preferences) {
-             setPreferences(cloudResult.preferences);
+        if (cloudResult && cloudResult.hasData && cloudResult.settings) {
+            applySettingsFromCache(); 
         }
 
+        // Check classroom status from cloud data
         const gTokens = SecureStorage.loadItem(currentMatricula, 'google_tokens') as GoogleTokens;
         if (gTokens?.access_token) {
             setIsClassroomLinked(true);
@@ -819,10 +988,62 @@ const App: React.FC = () => {
             }
         }
 
-        // ... (Other fetches same as before, omitted for brevity but present in logic)
-        // Fetched academic, completion, periods, activePeriod, grades, schedule...
-        // Assuming fetchClassroomData is called below
+        if (shouldFetch('academic', 1440)) {
+            const academic = await fetchWithAuth('https://suap.ifrn.edu.br/api/ensino/meus-dados-aluno/');
+            if (academic) {
+                setAcademicData(academic);
+                SecureStorage.saveItem(currentMatricula, 'academic', academic);
+            }
+        }
 
+        if (shouldFetch('completion', 1440)) {
+            const completion = await fetchWithAuth('https://suap.ifrn.edu.br/api/ensino/requisitos-conclusao/');
+            if (completion) {
+                setCompletionData(completion);
+                SecureStorage.saveItem(currentMatricula, 'completion', completion);
+            }
+        }
+
+        let periodList = SecureStorage.loadItem(currentMatricula, 'periods');
+        let activePeriod = SecureStorage.loadItem(currentMatricula, 'active_period');
+
+        if (!periodList || shouldFetch('periods', 1440)) {
+            const data = await fetchWithAuth('https://suap.ifrn.edu.br/api/ensino/meus-periodos-letivos/');
+            if (data && data.results) {
+                const mappedPeriods: SuapPeriod[] = data.results.map((p: SuapMeusPeriodosLetivos) => ({
+                    id: p.ano_letivo * 10 + p.periodo_letivo, 
+                    semestre: `${p.ano_letivo}.${p.periodo_letivo}`
+                }));
+
+                mappedPeriods.sort((a, b) => b.semestre.localeCompare(a.semestre));
+                
+                periodList = mappedPeriods;
+                setPeriods(mappedPeriods);
+                SecureStorage.saveItem(currentMatricula, 'periods', mappedPeriods);
+
+                if (mappedPeriods.length > 0) {
+                    activePeriod = mappedPeriods[0];
+                    setCurrentPeriod(activePeriod);
+                    SecureStorage.saveItem(currentMatricula, 'active_period', activePeriod);
+                    
+                    if (!viewingPeriod) setViewingPeriod(activePeriod);
+                }
+            }
+        } else {
+             setPeriods(periodList);
+             setCurrentPeriod(activePeriod);
+             if (!viewingPeriod) setViewingPeriod(activePeriod);
+        }
+
+        if (activePeriod) {
+            const cacheKeyGrades = `grades_${activePeriod.semestre}`;
+            const cacheKeySchedule = `schedule_${activePeriod.semestre}`;
+
+            if (shouldFetch(cacheKeyGrades, 60) || shouldFetch(cacheKeySchedule, 60) || forceRefresh) {
+                await fetchAcademicDetails(activePeriod.semestre, currentMatricula, true);
+            }
+        }
+        
         await fetchClassroomData(currentMatricula);
 
         if (forceRefresh) {
@@ -836,9 +1057,111 @@ const App: React.FC = () => {
     }
   };
 
+  const fetchAcademicDetails = async (semestre: string, matricula: string, forceUIUpdate = false) => {
+      console.log(`[App] Fetching details for ${semestre}`);
+
+      const diariesResponse = await fetchWithAuth(`https://suap.ifrn.edu.br/api/ensino/diarios/${semestre}/`);
+      
+      let diariesList: SuapDiario[] = [];
+      if (Array.isArray(diariesResponse)) diariesList = diariesResponse;
+      else if (diariesResponse?.results) diariesList = diariesResponse.results;
+
+      if (diariesList.length > 0) {
+          const processedScheduleData = processScheduleFromDiarios(diariesList);
+          SecureStorage.saveItem(matricula, `schedule_${semestre}`, processedScheduleData);
+          setProcessedSchedule(prev => {
+              if (forceUIUpdate || viewingPeriod?.semestre === semestre) return processedScheduleData;
+              return prev;
+          });
+      }
+
+      const [ano, periodo] = semestre.split('.').map(Number);
+      if (ano && periodo) {
+          const boletimResponse = await fetchWithAuth(`https://suap.ifrn.edu.br/api/ensino/meu-boletim/${ano}/${periodo}/`);
+          
+          let boletimList: SuapBoletim[] = [];
+          if (Array.isArray(boletimResponse)) boletimList = boletimResponse;
+          else if (boletimResponse?.results) boletimList = boletimResponse.results;
+
+          if (boletimList.length > 0) {
+              const processedGradesData = processGradesFromBoletim(boletimList);
+              SecureStorage.saveItem(matricula, `grades_${semestre}`, processedGradesData);
+              setProcessedGrades(prev => {
+                  if (forceUIUpdate || viewingPeriod?.semestre === semestre) return processedGradesData;
+                  return prev;
+              });
+          }
+      }
+  };
+
   const handlePeriodChange = async (semestre: string) => {
-      // Logic for changing periods
-      // ... (Same as previous implementation)
+      const targetPeriod = periods.find(p => p.semestre === semestre);
+      if (!targetPeriod) return;
+
+      setViewingPeriod(targetPeriod);
+      const matricula = localStorage.getItem('suap_username');
+      if (!matricula) return;
+
+      const cachedGrades = SecureStorage.loadItem(matricula, `grades_${semestre}`);
+      const cachedSchedule = SecureStorage.loadItem(matricula, `schedule_${semestre}`);
+
+      if (cachedGrades) setProcessedGrades(cachedGrades);
+      else setProcessedGrades([]); 
+
+      if (cachedSchedule) setProcessedSchedule(cachedSchedule);
+      else setProcessedSchedule([]);
+
+      if (!cachedGrades || !cachedSchedule || !SecureStorage.isCacheValid(matricula, `grades_${semestre}`, 60)) {
+           setIsSyncing(true);
+           try {
+               await fetchAcademicDetails(semestre, matricula, true); 
+           } finally {
+               setIsSyncing(false);
+           }
+      }
+  };
+
+  // --- TODO HANDLERS ---
+  const handleAddTodo = (text: string) => {
+      if (!text.trim()) return;
+      const newTodo: TodoItem = {
+          id: Date.now().toString(),
+          text: text,
+          completed: false
+      };
+      const updatedTodos = [newTodo, ...todos];
+      setTodos(updatedTodos);
+      
+      const matricula = localStorage.getItem('suap_username');
+      if (matricula) {
+          SecureStorage.saveItem(matricula, 'todos', updatedTodos);
+          if (syncTimeoutRef.current) clearTimeout(syncTimeoutRef.current);
+          syncTimeoutRef.current = setTimeout(() => SecureStorage.syncToCloud(matricula), 2000);
+      }
+  };
+
+  const handleToggleTodo = (id: string) => {
+      const updatedTodos = todos.map(t => t.id === id ? { ...t, completed: !t.completed } : t);
+      setTodos(updatedTodos);
+
+      const matricula = localStorage.getItem('suap_username');
+      if (matricula) {
+          SecureStorage.saveItem(matricula, 'todos', updatedTodos);
+          if (syncTimeoutRef.current) clearTimeout(syncTimeoutRef.current);
+          syncTimeoutRef.current = setTimeout(() => SecureStorage.syncToCloud(matricula), 2000);
+      }
+  };
+
+  const handleRemoveTodo = (id: string) => {
+      const updatedTodos = todos.filter(t => t.id !== id);
+      setTodos(updatedTodos);
+
+      const matricula = localStorage.getItem('suap_username');
+      if (matricula) {
+          SecureStorage.saveItem(matricula, 'todos', updatedTodos);
+          if (syncTimeoutRef.current) clearTimeout(syncTimeoutRef.current);
+          syncTimeoutRef.current = setTimeout(() => SecureStorage.syncToCloud(matricula), 2000);
+      }
   };
 
   const handleManualRefresh = () => {
@@ -864,17 +1187,13 @@ const App: React.FC = () => {
   };
 
   const toggleTheme = () => {
-    handleUpdatePreference('visual', 'themeMode', preferences.visual.themeMode === 'dark' ? 'light' : 'dark');
+    setIsDarkMode(!isDarkMode);
   };
 
   const handleLogin = () => {
       const matricula = localStorage.getItem('suap_username');
       if (matricula) {
           setIsLoggedIn(true);
-          // Initial Prefs load
-          SecureStorage.getPreferencesFromCloud(matricula).then(p => {
-              if (p) setPreferences(prev => ({...prev, ...p}));
-          });
           fetchAllUserDataBackground(matricula, true);
           checkSubscription(matricula);
       }
@@ -882,7 +1201,8 @@ const App: React.FC = () => {
 
   const handleLogout = () => {
       localStorage.clear(); 
-      setPreferences(DEFAULT_PREFERENCES); // Reset to default
+      localStorage.setItem(CACHE_KEYS.WALLPAPER, DEFAULT_WALLPAPER);
+      
       setUserData(null);
       setAcademicData(null);
       setProcessedSchedule([]);
@@ -895,6 +1215,7 @@ const App: React.FC = () => {
       setTodos([]);
       setIsClassroomLinked(false);
       setClassroomStatus('disconnected');
+      
       setIsLoggedIn(false);
       setCurrentView(ViewState.DASHBOARD);
       setIsPremium(false);
@@ -906,27 +1227,25 @@ const App: React.FC = () => {
   };
 
   const palette = useMemo((): Palette => {
-      switch (preferences.visual.themeVariant) {
+      switch (themeVariant) {
           case 'monochrome': return { primary: 'zinc', secondary: 'zinc' };
           case 'saturated': return { primary: 'fuchsia', secondary: 'cyan' };
           case 'sepia': return { primary: 'amber', secondary: 'stone' };
-          case 'dynamic': return WALLPAPER_THEMES[preferences.visual.wallpaper] || { primary: 'emerald', secondary: 'rose' };
+          case 'dynamic': return WALLPAPER_THEMES[currentWallpaper] || { primary: 'emerald', secondary: 'rose' };
           default: return { primary: 'emerald', secondary: 'rose' };
       }
-  }, [preferences.visual.themeVariant, preferences.visual.wallpaper]);
+  }, [themeVariant, currentWallpaper]);
 
   if (!isAppReady) {
     return <SplashScreen />;
   }
-
-  const isDarkMode = preferences.visual.themeMode === 'dark';
 
   return (
     <div className={`font-sans antialiased transition-colors duration-500 ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
       
       <style>
         {`
-            ${preferences.performance.disableBlur ? `
+            ${performanceSettings.disableBlur ? `
                 .backdrop-blur-xl, .backdrop-blur-md, .backdrop-blur-2xl, .backdrop-blur-lg, .backdrop-blur-sm, .backdrop-blur { 
                     backdrop-filter: none !important; 
                     -webkit-backdrop-filter: none !important;
@@ -934,7 +1253,7 @@ const App: React.FC = () => {
                 }
             ` : ''}
             
-            ${preferences.performance.reduceMotion ? `
+            ${performanceSettings.reduceMotion ? `
                 *, *::before, *::after {
                     animation-duration: 0.01s !important;
                     animation-iteration-count: 1 !important;
@@ -946,7 +1265,7 @@ const App: React.FC = () => {
                 }
             ` : ''}
 
-            ${preferences.performance.disableGlow ? `
+            ${performanceSettings.disableGlow ? `
                 .shadow-2xl, .shadow-xl, .shadow-lg, .shadow-md, .shadow-sm, .shadow {
                     box-shadow: none !important;
                 }
@@ -1031,13 +1350,13 @@ const App: React.FC = () => {
 
       <div className={showLanding ? 'fixed inset-0' : ''}>
         
-        {preferences.visual.themeVariant === 'sepia' && (
+        {themeVariant === 'sepia' && (
             <div className="fixed inset-0 z-[1] pointer-events-none opacity-[0.12] mix-blend-overlay" 
                  style={{backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E")`}} 
             />
         )}
         
-        <div style={{ filter: preferences.visual.themeVariant === 'sepia' ? 'sepia(80%) contrast(90%)' : 'none', transition: 'filter 0.5s ease' }} className="h-full w-full absolute inset-0 z-0" />
+        <div style={{ filter: themeVariant === 'sepia' ? 'sepia(80%) contrast(90%)' : 'none', transition: 'filter 0.5s ease' }} className="h-full w-full absolute inset-0 z-0" />
 
         <div className="relative z-10 h-full">
             <Suspense fallback={null}>
@@ -1047,7 +1366,7 @@ const App: React.FC = () => {
                     onChangeView={handleViewChange} 
                     isDarkMode={isDarkMode}
                     onToggleTheme={toggleTheme}
-                    currentWallpaper={preferences.visual.wallpaper}
+                    currentWallpaper={currentWallpaper}
                     primaryColor={palette.primary}
                     secondaryColor={palette.secondary}
                     isLoggedIn={isLoggedIn}
@@ -1067,21 +1386,9 @@ const App: React.FC = () => {
                     onRefresh={handleManualRefresh}
                     isClassroomLinked={isClassroomLinked}
                     todos={todos}
-                    onAddTodo={(t) => {
-                        const newTodos = [{ id: Date.now().toString(), text: t, completed: false }, ...todos];
-                        setTodos(newTodos);
-                        SecureStorage.saveItem(userData?.matricula || '', 'todos', newTodos);
-                    }}
-                    onToggleTodo={(id) => {
-                        const newTodos = todos.map(t => t.id === id ? { ...t, completed: !t.completed } : t);
-                        setTodos(newTodos);
-                        SecureStorage.saveItem(userData?.matricula || '', 'todos', newTodos);
-                    }}
-                    onRemoveTodo={(id) => {
-                        const newTodos = todos.filter(t => t.id !== id);
-                        setTodos(newTodos);
-                        SecureStorage.saveItem(userData?.matricula || '', 'todos', newTodos);
-                    }}
+                    onAddTodo={handleAddTodo}
+                    onToggleTodo={handleToggleTodo}
+                    onRemoveTodo={handleRemoveTodo}
                     classroomStatus={classroomStatus}
                 />
             </Suspense>
@@ -1109,10 +1416,10 @@ const App: React.FC = () => {
                         onChangeView={handleViewChange}
                         isDarkMode={isDarkMode}
                         onToggleTheme={toggleTheme}
-                        currentWallpaper={preferences.visual.wallpaper}
-                        onWallpaperChange={(url) => handleUpdatePreference('visual', 'wallpaper', url)}
-                        themeVariant={preferences.visual.themeVariant}
-                        onThemeVariantChange={(v) => handleUpdatePreference('visual', 'themeVariant', v)}
+                        currentWallpaper={currentWallpaper}
+                        onWallpaperChange={setCurrentWallpaper}
+                        themeVariant={themeVariant}
+                        onThemeVariantChange={setThemeVariant}
                         primaryColor={palette.primary}
                         secondaryColor={palette.secondary}
                         userData={userData}
@@ -1121,24 +1428,21 @@ const App: React.FC = () => {
                         schedule={processedSchedule}
                         completionData={completionData}
                         onLogout={handleLogout}
-                        autoExpandClassroom={preferences.behavior.autoExpandClassroom}
-                        onAutoExpandClassroom={(v) => handleUpdatePreference('behavior', 'autoExpandClassroom', v)}
+                        autoExpandClassroom={autoExpandClassroom}
+                        onAutoExpandClassroom={setAutoExpandClassroom}
                         initialProfileTab={profileInitialTab}
                         onInstallPwa={handleInstallPwa}
                         canInstall={!!deferredPrompt}
-                        performanceSettings={preferences.performance}
-                        onUpdatePerformance={handleUpdatePerformance}
-                        customPhotoUrl={preferences.visual.customPhotoUrl}
-                        onUpdateCustomPhoto={(url) => handleUpdatePreference('visual', 'customPhotoUrl', url)}
-                        useCustomPhoto={preferences.visual.useCustomPhoto}
-                        onToggleCustomPhoto={(v) => handleUpdatePreference('visual', 'useCustomPhoto', v)}
+                        performanceSettings={performanceSettings}
+                        onUpdatePerformance={setPerformanceSettings}
+                        customPhotoUrl={customPhotoUrl}
+                        onUpdateCustomPhoto={handleUpdateCustomPhoto}
+                        useCustomPhoto={useCustomPhoto}
+                        onToggleCustomPhoto={handleToggleCustomPhoto}
                         // New Props for Period Selection
                         periods={periods}
                         viewingPeriod={viewingPeriod}
-                        onPeriodChange={(semestre) => {
-                             const p = periods.find(pp => pp.semestre === semestre);
-                             if(p) setViewingPeriod(p);
-                        }}
+                        onPeriodChange={handlePeriodChange}
                         // Premium Props
                         isPremium={isPremium}
                         onOpenPremiumModal={() => setShowPremiumModal(true)}
@@ -1159,12 +1463,7 @@ const App: React.FC = () => {
                 >
                     <div className="pointer-events-auto flex items-end gap-4 w-full max-w-md md:w-auto justify-center md:justify-start">
                         <Suspense fallback={null}>
-                            <PomodoroWidget 
-                                isDarkMode={isDarkMode} 
-                                primaryColor={palette.primary} 
-                                settings={preferences.widgets.pomodoro}
-                                onUpdateSettings={(s) => handleUpdatePreference('widgets', 'pomodoro', s)}
-                            />
+                            <PomodoroWidget isDarkMode={isDarkMode} primaryColor={palette.primary} />
                         </Suspense>
                         <Suspense fallback={null}>
                             <AIChatWidget 
@@ -1205,7 +1504,7 @@ const App: React.FC = () => {
                     onLogin={handleLogin} 
                     isDarkMode={isDarkMode} 
                     primaryColor={palette.primary}
-                    currentWallpaper={preferences.visual.wallpaper}
+                    currentWallpaper={currentWallpaper}
                 />
             </Suspense>
         )}

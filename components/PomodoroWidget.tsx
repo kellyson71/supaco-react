@@ -1,8 +1,13 @@
-
-
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Play, Pause, RotateCcw, Timer, X, Coffee, Brain, Zap, Settings, ChevronLeft, Volume2, VolumeX, Bell, BellOff, Check } from 'lucide-react';
+
+interface PomodoroWidgetProps {
+  isDarkMode: boolean;
+  primaryColor: string;
+}
+
+type Mode = 'focus' | 'short' | 'long';
 
 interface PomodoroSettings {
   focus: number;
@@ -12,14 +17,13 @@ interface PomodoroSettings {
   notification: boolean;
 }
 
-interface PomodoroWidgetProps {
-  isDarkMode: boolean;
-  primaryColor: string;
-  settings: PomodoroSettings;
-  onUpdateSettings: (settings: PomodoroSettings) => void;
-}
-
-type Mode = 'focus' | 'short' | 'long';
+const DEFAULT_SETTINGS: PomodoroSettings = {
+  focus: 25,
+  short: 5,
+  long: 15,
+  sound: true,
+  notification: true
+};
 
 const MODES: Record<Mode, { label: string; icon: any }> = {
   focus: { label: 'Foco', icon: Brain },
@@ -54,13 +58,24 @@ const playNotificationSound = () => {
   }
 };
 
-export const PomodoroWidget: React.FC<PomodoroWidgetProps> = ({ isDarkMode, primaryColor, settings, onUpdateSettings }) => {
+export const PomodoroWidget: React.FC<PomodoroWidgetProps> = ({ isDarkMode, primaryColor }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [isActive, setIsActive] = useState(false);
   const [mode, setMode] = useState<Mode>('focus');
   const [timeLeft, setTimeLeft] = useState(25 * 60);
   const [isMobile, setIsMobile] = useState(false);
+
+  // Settings State with Persistence
+  const [settings, setSettings] = useState<PomodoroSettings>(() => {
+    const saved = localStorage.getItem('supaco_pomodoro_settings');
+    return saved ? JSON.parse(saved) : DEFAULT_SETTINGS;
+  });
+
+  // Persist Settings
+  useEffect(() => {
+    localStorage.setItem('supaco_pomodoro_settings', JSON.stringify(settings));
+  }, [settings]);
 
   // Handle Resize
   useEffect(() => {
@@ -244,7 +259,7 @@ export const PomodoroWidget: React.FC<PomodoroWidgetProps> = ({ isDarkMode, prim
                                                         min="1" 
                                                         max="60"
                                                         value={settings[key as Mode]}
-                                                        onChange={(e) => onUpdateSettings({...settings, [key]: parseInt(e.target.value) || 1})}
+                                                        onChange={(e) => setSettings({...settings, [key]: parseInt(e.target.value) || 1})}
                                                         className={`w-16 p-2 rounded-lg text-center font-bold text-sm outline-none transition-colors ${isDarkMode ? 'bg-black/40 text-white focus:bg-black/60' : 'bg-white text-gray-900 border border-gray-200 focus:border-gray-400'}`}
                                                     />
                                                 </div>
@@ -270,7 +285,7 @@ export const PomodoroWidget: React.FC<PomodoroWidgetProps> = ({ isDarkMode, prim
                                                       </div>
                                                   </div>
                                                   <button 
-                                                    onClick={() => onUpdateSettings({...settings, sound: !settings.sound})}
+                                                    onClick={() => setSettings({...settings, sound: !settings.sound})}
                                                     className={`w-12 h-7 rounded-full transition-colors relative ${settings.sound ? `bg-${primaryColor}-500` : (isDarkMode ? 'bg-white/10' : 'bg-gray-300')}`}
                                                   >
                                                       <div className={`absolute top-1 left-1 w-5 h-5 rounded-full bg-white shadow-sm transition-transform ${settings.sound ? 'translate-x-5' : 'translate-x-0'}`} />
@@ -294,7 +309,7 @@ export const PomodoroWidget: React.FC<PomodoroWidgetProps> = ({ isDarkMode, prim
                                                         if (!settings.notification) {
                                                             Notification.requestPermission();
                                                         }
-                                                        onUpdateSettings({...settings, notification: !settings.notification})
+                                                        setSettings({...settings, notification: !settings.notification})
                                                     }}
                                                     className={`w-12 h-7 rounded-full transition-colors relative ${settings.notification ? `bg-${primaryColor}-500` : (isDarkMode ? 'bg-white/10' : 'bg-gray-300')}`}
                                                   >
