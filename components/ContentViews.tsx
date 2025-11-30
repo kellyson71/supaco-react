@@ -10,6 +10,12 @@ import { ConclusionModal } from './modals/ConclusionModal';
 import { AdminModal } from './modals/AdminModal';
 import { ProfileLayout } from './profile/ProfileLayout';
 
+interface ChatMessage {
+  id: string;
+  role: 'user' | 'model';
+  text: string;
+}
+
 interface OverlayViewProps {
   view: ViewState;
   onClose: () => void;
@@ -48,9 +54,19 @@ interface OverlayViewProps {
   isClassroomLinked?: boolean;
   onLinkClassroom?: () => void;
   classroomStatus?: 'connected' | 'disconnected' | 'expired';
+  internalApiKey?: string;
+  onOpenChatWithContext?: (messages: ChatMessage[], pendingMessage?: string) => void;
 }
 
-export const ContentView: React.FC<OverlayViewProps> = ({ view, onClose, onChangeView, isDarkMode, onToggleTheme, currentWallpaper, onWallpaperChange, themeVariant, onThemeVariantChange, primaryColor, secondaryColor, userData, academicData, grades, schedule, completionData, onLogout, autoExpandClassroom, onAutoExpandClassroom, initialProfileTab, onInstallPwa, canInstall, performanceSettings, onUpdatePerformance, customPhotoUrl = '', onUpdateCustomPhoto, useCustomPhoto = false, onToggleCustomPhoto, periods, viewingPeriod, onPeriodChange, isPremium, onOpenPremiumModal, classroomWork = [], isClassroomLinked = false, onLinkClassroom, classroomStatus }) => {
+export const ContentView: React.FC<OverlayViewProps> = ({ 
+    view, onClose, onChangeView, isDarkMode, onToggleTheme, currentWallpaper, onWallpaperChange, 
+    themeVariant, onThemeVariantChange, primaryColor, secondaryColor, userData, academicData, 
+    grades, schedule, completionData, onLogout, autoExpandClassroom, onAutoExpandClassroom, 
+    initialProfileTab, onInstallPwa, canInstall, performanceSettings, onUpdatePerformance, 
+    customPhotoUrl = '', onUpdateCustomPhoto, useCustomPhoto = false, onToggleCustomPhoto, 
+    periods, viewingPeriod, onPeriodChange, isPremium, onOpenPremiumModal, classroomWork = [], 
+    isClassroomLinked = false, onLinkClassroom, classroomStatus, internalApiKey, onOpenChatWithContext
+}) => {
   if (view === ViewState.DASHBOARD) return null;
 
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
@@ -176,6 +192,10 @@ export const ContentView: React.FC<OverlayViewProps> = ({ view, onClose, onChang
                         isDark={isDarkMode} 
                         accentColor={primaryColor} 
                         secondaryColor={secondaryColor}
+                        isPremium={isPremium}
+                        onOpenPremiumModal={onOpenPremiumModal}
+                        internalApiKey={internalApiKey}
+                        onOpenChatWithContext={onOpenChatWithContext}
                     />
                 </div>
             )}

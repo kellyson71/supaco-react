@@ -1,9 +1,16 @@
+
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Sparkles, CornerDownLeft, Settings, MessageCircle, FileText, BarChart2, Crown } from 'lucide-react';
+import { X, Sparkles, CornerDownLeft, Settings, MessageCircle, FileText, BarChart2, Crown, Maximize2, Minimize2 } from 'lucide-react';
 import { GoogleGenAI, FunctionDeclaration, Type } from "@google/genai";
 import ReactMarkdown from 'react-markdown';
 import { GradeInfo, ProcessedClass, SuapProfile, Holiday } from '../types';
+
+interface Message {
+  id: string;
+  role: 'user' | 'model';
+  text: string;
+}
 
 interface AIChatWidgetProps {
   isDarkMode: boolean;
@@ -15,16 +22,15 @@ interface AIChatWidgetProps {
   onRequestSettings: () => void;
   isPremium?: boolean;
   internalApiKey?: string;
+  initialContext?: Message[] | null;
+  pendingMessage?: string;
 }
 
-interface Message {
-  id: string;
-  role: 'user' | 'model';
-  text: string;
-}
-
-export const AIChatWidget: React.FC<AIChatWidgetProps> = ({ isDarkMode, accentColor, userData, grades, schedule, holidays, onRequestSettings, isPremium, internalApiKey }) => {
+export const AIChatWidget: React.FC<AIChatWidgetProps> = ({ 
+    isDarkMode, accentColor, userData, grades, schedule, holidays, onRequestSettings, isPremium, internalApiKey, initialContext, pendingMessage 
+}) => {
   const [isOpen, setIsOpen] = useState(false);
+  const [isMaximized, setIsMaximized] = useState(false);
   const [input, setInput] = useState('');
   const [messages, setMessages] = useState<Message[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -32,6 +38,21 @@ export const AIChatWidget: React.FC<AIChatWidgetProps> = ({ isDarkMode, accentCo
   
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  // Automatically open and populate if initialContext is provided
+  useEffect(() => {
+      if (initialContext && initialContext.length > 0) {
+          setMessages(initialContext);
+          setIsOpen(true);
+      }
+  }, [initialContext]);
+
+  // Handle pending message (auto-send)
+  useEffect(() => {
+      if (pendingMessage && isOpen && !isLoading) {
+          handleSend(pendingMessage);
+      }
+  }, [pendingMessage, isOpen]); // Trigger when opened via prop change
 
   useEffect(() => {
       const checkMobile = () => setIsMobile(window.innerWidth < 768);
@@ -44,7 +65,6 @@ export const AIChatWidget: React.FC<AIChatWidgetProps> = ({ isDarkMode, accentCo
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
 
-  // Handle Focus when opening
   useEffect(() => {
     if (isOpen) {
         const timer = setTimeout(() => {
@@ -53,22 +73,18 @@ export const AIChatWidget: React.FC<AIChatWidgetProps> = ({ isDarkMode, accentCo
         }, 500);
         return () => clearTimeout(timer);
     }
-  }, [isOpen]);
+  }, [isOpen, isMaximized]);
 
-  // Handle scroll on new messages
   useEffect(() => {
       scrollToBottom();
   }, [messages]);
 
-  // --- DYNAMIC SYSTEM PROMPT ---
   const getSystemPrompt = () => {
-      // Calculate GPA / Trends
       const validGrades = grades.filter(g => typeof g.average === 'number' || (typeof g.average === 'string' && g.average !== '-'));
       const overallAverage = validGrades.length > 0 
         ? (validGrades.reduce((acc, g) => acc + (typeof g.average === 'number' ? g.average : parseFloat(g.average as string)), 0) / validGrades.length).toFixed(1)
         : 'N/A';
 
-      // Identify critical risks
       const risks = grades.filter(g => (g.limit - g.absences) <= 4).map(g => `${g.subject} (Restam ${g.limit - g.absences} aulas)`);
       
       return `
@@ -87,16 +103,9 @@ Você tem acesso a ferramentas para consultar dados em tempo real. Use-as sempre
 - Notas ou boletim (ferramenta: get_grades)
 - Horários de aula ou "onde estou agora" (ferramenta: get_schedule)
 - Próximos feriados (ferramenta: get_next_holiday)
-
-DIRETRIZES:
-1. Se perguntarem sobre "minhas notas", use a ferramenta 'get_grades' para ver os detalhes antes de responder.
-2. Se perguntarem sobre "posso faltar", verifique as faltas atuais e o limite.
-3. Mantenha o tom de um assistente futurista e prestativo.
-4. Se perguntarem por "Relatório de Desempenho", faça uma análise completa das notas, parabenize conquistas (médias > 85), alerte sobre perigos e sugira uma estratégia de estudos. Use a lista de notas que será fornecida no prompt do usuário.
 `;
   };
 
-  // --- TOOLS DEFINITION ---
   const toolsDefinition: FunctionDeclaration[] = [
       {
           name: 'get_grades',
@@ -120,7 +129,6 @@ DIRETRIZES:
       }
   ];
 
-  // --- LOCAL TOOL EXECUTION ---
   const executeTool = (name: string, args: any) => {
       console.log(`Executing tool: ${name}`, args);
       switch(name) {
@@ -147,15 +155,10 @@ DIRETRIZES:
     const userText = overrideText || input;
     if (!userText.trim()) return;
 
-    // CHECK FOR API KEY (Custom > Internal Premium)
     let apiKey = localStorage.getItem('gemini_api_key');
-    
-    // If no custom key, check premium internal key (only if valid/not-empty)
     if (!apiKey && isPremium && internalApiKey && internalApiKey.trim() !== '') {
         apiKey = internalApiKey;
     }
-
-    // Fallback to Env if defined (e.g. self-hosting)
     if (!apiKey && process.env.API_KEY) {
         apiKey = process.env.API_KEY;
     }
@@ -184,16 +187,21 @@ DIRETRIZES:
     try {
       const ai = new GoogleGenAI({ apiKey });
       
-      // Inject context for report requests to ensure high quality without extra tool calls
       let promptText = userText;
       if (userText.includes("Relatório")) {
           promptText = `${userText}\n\nDados Atuais:\n${JSON.stringify(grades, null, 2)}`;
       }
 
-      // 1. Initial Request with Tools
+      // If we have history, format it for the model
+      const historyContents = messages.map(m => ({
+          role: m.role,
+          parts: [{ text: m.text }]
+      }));
+
       const modelParams = {
         model: 'gemini-2.5-flash',
         contents: [
+            ...historyContents,
             { role: 'user', parts: [{ text: promptText }] }
         ],
         config: {
@@ -207,10 +215,7 @@ DIRETRIZES:
       const functionCall = response.candidates?.[0]?.content?.parts?.find(p => p.functionCall)?.functionCall;
 
       if (functionCall) {
-          // 2. Execute Tool
           const toolResult = executeTool(functionCall.name, functionCall.args);
-          
-          // 3. Send Tool Response back to model
           const toolResponsePart = {
               functionResponse: {
                   name: functionCall.name,
@@ -221,9 +226,10 @@ DIRETRIZES:
           const finalResponse = await ai.models.generateContent({
               ...modelParams,
               contents: [
+                  ...historyContents,
                   { role: 'user', parts: [{ text: promptText }] },
-                  { role: 'model', parts: [{ functionCall: functionCall }] }, // Model's decision to call
-                  { role: 'user', parts: [toolResponsePart] } // The result
+                  { role: 'model', parts: [{ functionCall: functionCall }] },
+                  { role: 'user', parts: [toolResponsePart] }
               ]
           });
 
@@ -235,7 +241,6 @@ DIRETRIZES:
           setMessages(prev => [...prev, aiMsg]);
 
       } else {
-          // No tool called, just text
           const aiMsg: Message = { 
             id: (Date.now() + 1).toString(), 
             role: 'model', 
@@ -247,21 +252,13 @@ DIRETRIZES:
     } catch (error: any) {
       console.error(error);
       let text = "Erro de conexão ou configuração.";
-      
       const errMsg = error.message || '';
-
-      // Check specific error codes
       if (errMsg.includes('403') || errMsg.toLowerCase().includes('leaked')) {
-          text = "A chave de API foi bloqueada por segurança (vazamento detectado). Por favor, insira uma nova chave válida nas configurações.";
+          text = "A chave de API foi bloqueada por segurança. Verifique nas configurações.";
       } else if (errMsg.includes('400') || errMsg.includes('API key')) {
-          text = "Sua chave de API parece inválida. Por favor, verifique nas configurações.";
+          text = "Sua chave de API parece inválida. Verifique nas configurações.";
       }
-
-      const errorMsg: Message = { 
-        id: (Date.now() + 1).toString(), 
-        role: 'model', 
-        text: text
-      };
+      const errorMsg: Message = { id: (Date.now() + 1).toString(), role: 'model', text };
       setMessages(prev => [...prev, errorMsg]);
     } finally {
       setIsLoading(false);
@@ -280,27 +277,22 @@ DIRETRIZES:
       handleSend("Gere um Relatório de Desempenho acadêmico detalhado e estratégico. Analise minhas notas, faltas e identifique onde estou indo bem e onde preciso focar.");
   };
 
-  // --- Styles ---
+  const toggleMaximize = (e: React.MouseEvent) => {
+      e.stopPropagation();
+      setIsMaximized(!isMaximized);
+  };
+
   const glassClass = isDarkMode 
     ? 'bg-slate-900/95 border-white/10 shadow-2xl shadow-black/80' 
     : `bg-white/95 border-white/20 shadow-2xl shadow-${accentColor}-500/20`;
 
-  // Animation Variables
-  const width = isOpen 
-    ? (isMobile ? '100vw' : 500) 
-    : (isMobile ? 48 : 140);
-
-  const height = isOpen 
-    ? (isMobile ? '100dvh' : 450) 
-    : (isMobile ? 48 : 42);
-
-  const borderRadius = isOpen 
-    ? (isMobile ? 0 : 32) 
-    : 99;
+  const width = isOpen ? (isMobile || isMaximized ? '100vw' : 500) : (isMobile ? 48 : 140);
+  const height = isOpen ? (isMobile || isMaximized ? '100dvh' : 550) : (isMobile ? 48 : 42);
+  const borderRadius = isOpen ? (isMobile || isMaximized ? 0 : 32) : 99;
 
   return (
     <>
-      {isOpen && <div className="fixed inset-0 z-[240] bg-black/30 backdrop-blur-[2px]" onClick={() => setIsOpen(false)} />}
+      {isOpen && !isMaximized && <div className="fixed inset-0 z-[240] bg-black/30 backdrop-blur-[2px]" onClick={() => setIsOpen(false)} />}
 
       <motion.div
         layout
@@ -308,7 +300,7 @@ DIRETRIZES:
         animate={{ width, height, borderRadius }}
         transition={{ type: 'spring', stiffness: 280, damping: 24 }}
         className={`overflow-hidden flex flex-col z-[1000]
-          ${isOpen && isMobile ? 'fixed inset-0 m-0' : 'relative'} 
+          ${isOpen && (isMobile || isMaximized) ? 'fixed inset-0 m-0' : 'relative'} 
           ${glassClass}
           ${!isOpen && isMobile ? 'rounded-full' : 'backdrop-blur-xl border'}
         `}
@@ -323,7 +315,6 @@ DIRETRIZES:
               transition={{ duration: 0.2 }}
               className="flex-1 flex flex-col h-full relative"
             >
-              {/* Header */}
               <div className={`flex items-center justify-between px-5 py-3 shrink-0 border-b ${isDarkMode ? 'border-white/5' : 'border-black/5'} pt-safe-area-top`}>
                   <div className="flex items-center gap-2">
                       <MonochromeIcon accentColor={accentColor} />
@@ -337,12 +328,17 @@ DIRETRIZES:
                       )}
                   </div>
                   <div className="flex items-center gap-1">
+                      {!isMobile && (
+                          <button
+                              onClick={toggleMaximize}
+                              className={`p-2 rounded-full transition-colors ${isDarkMode ? 'hover:bg-white/10 text-white/50' : 'hover:bg-black/5 text-black/50'}`}
+                              title={isMaximized ? "Restaurar" : "Maximizar"}
+                          >
+                              {isMaximized ? <Minimize2 size={18} /> : <Maximize2 size={18} />}
+                          </button>
+                      )}
                       <button 
-                          onClick={(e) => {
-                              e.stopPropagation();
-                              setIsOpen(false);
-                              onRequestSettings();
-                          }}
+                          onClick={(e) => { e.stopPropagation(); setIsOpen(false); onRequestSettings(); }}
                           className={`p-2 rounded-full transition-colors ${isDarkMode ? 'hover:bg-white/10 text-white/50' : 'hover:bg-black/5 text-black/50'}`}
                           title="Configurações"
                       >
@@ -357,18 +353,10 @@ DIRETRIZES:
                   </div>
               </div>
 
-              {/* Messages Area */}
               <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4 custom-scroll">
-                
-                {/* SUGGESTION CHIP */}
                 {messages.length === 0 && (
                      <div className="w-full mb-4">
-                         <button 
-                            onClick={handleReportRequest}
-                            className={`w-full p-3 rounded-xl flex items-center gap-3 transition-colors text-left group
-                                ${isDarkMode ? 'bg-white/5 hover:bg-white/10 text-white' : 'bg-gray-100 hover:bg-gray-200 text-gray-800'}
-                            `}
-                         >
+                         <button onClick={handleReportRequest} className={`w-full p-3 rounded-xl flex items-center gap-3 transition-colors text-left group ${isDarkMode ? 'bg-white/5 hover:bg-white/10 text-white' : 'bg-gray-100 hover:bg-gray-200 text-gray-800'}`}>
                              <div className={`p-2 rounded-lg ${isDarkMode ? `bg-${accentColor}-500/20 text-${accentColor}-400` : `bg-${accentColor}-100 text-${accentColor}-600`}`}>
                                  <BarChart2 size={18} />
                              </div>
@@ -383,42 +371,17 @@ DIRETRIZES:
                 {messages.length === 0 && (
                   <div className="h-full flex flex-col items-center justify-center opacity-50 gap-3 select-none py-10">
                       <MonochromeIcon size={32} pulse accentColor={accentColor} />
-                      <p className={`text-[10px] font-bold uppercase tracking-widest ${isDarkMode ? 'text-white' : 'text-black'}`}>
-                          Como posso ajudar?
-                      </p>
+                      <p className={`text-[10px] font-bold uppercase tracking-widest ${isDarkMode ? 'text-white' : 'text-black'}`}>Como posso ajudar?</p>
                   </div>
                 )}
                 
                 {messages.map((msg) => (
-                  <motion.div 
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    key={msg.id} 
-                    className={`flex gap-3 ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
-                  >
+                  <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} key={msg.id} className={`flex gap-3 ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
                     {msg.role === 'model' && (
-                       <div className="mt-1 shrink-0 opacity-80">
-                           <MonochromeIcon size={16} accentColor={accentColor} />
-                       </div>
+                       <div className="mt-1 shrink-0 opacity-80"><MonochromeIcon size={16} accentColor={accentColor} /></div>
                     )}
-                    <div 
-                      className={`max-w-[85%] py-2 px-3.5 rounded-2xl text-sm leading-relaxed border ${
-                        msg.role === 'user' 
-                          ? (isDarkMode ? `bg-${accentColor}-500/20 border-${accentColor}-500/30 text-white rounded-tr-sm` : `bg-${accentColor}-500 text-white border-${accentColor}-600 rounded-tr-sm`)
-                          : (isDarkMode ? 'bg-white/10 text-white rounded-tl-sm border-white/5' : 'bg-white/60 text-gray-800 rounded-tl-sm border-white/40 shadow-sm')
-                      }`}
-                    >
-                       <ReactMarkdown
-                          components={{
-                              p: ({node, ...props}) => <p className="mb-2 last:mb-0" {...props} />,
-                              strong: ({node, ...props}) => <strong className="font-black" {...props} />,
-                              em: ({node, ...props}) => <em className="opacity-80" {...props} />,
-                              ul: ({node, ...props}) => <ul className="list-disc pl-4 mb-2 space-y-1" {...props} />,
-                              ol: ({node, ...props}) => <ol className="list-decimal pl-4 mb-2 space-y-1" {...props} />,
-                              code: ({node, ...props}) => <code className="bg-black/20 rounded px-1 text-xs font-mono" {...props} />,
-                              a: ({node, ...props}) => <a className="underline decoration-white/50 hover:decoration-white" target="_blank" rel="noopener noreferrer" {...props} />
-                          }}
-                       >
+                    <div className={`max-w-[85%] py-2 px-3.5 rounded-2xl text-sm leading-relaxed border overflow-x-hidden ${msg.role === 'user' ? (isDarkMode ? `bg-${accentColor}-500/20 border-${accentColor}-500/30 text-white rounded-tr-sm` : `bg-${accentColor}-500 text-white border-${accentColor}-600 rounded-tr-sm`) : (isDarkMode ? 'bg-white/10 text-white rounded-tl-sm border-white/5' : 'bg-white/60 text-gray-800 rounded-tl-sm border-white/40 shadow-sm')}`}>
+                       <ReactMarkdown components={{ p: ({node, ...props}) => <p className="mb-2 last:mb-0" {...props} />, strong: ({node, ...props}) => <strong className="font-black" {...props} />, code: ({node, ...props}) => <code className="bg-black/20 rounded px-1 text-xs font-mono break-all whitespace-pre-wrap" {...props} />, a: ({node, ...props}) => <a className="underline decoration-white/50 hover:decoration-white" target="_blank" rel="noopener noreferrer" {...props} /> }}>
                           {msg.text}
                        </ReactMarkdown>
                     </div>
@@ -437,33 +400,16 @@ DIRETRIZES:
                 <div ref={messagesEndRef} />
               </div>
 
-              {/* Input Area - Adjusted Padding for Mobile Nav / Keyboard */}
               <div className="p-4 pt-0 pb-8 md:pb-4 mb-14 md:mb-0">
                   <div className={`flex items-center gap-2 rounded-2xl p-1 pl-4 border transition-colors ${isDarkMode ? 'bg-black/40 border-white/10' : 'bg-white/40 border-white/20'}`}>
-                      <input
-                          ref={inputRef}
-                          value={input}
-                          onChange={(e) => setInput(e.target.value)}
-                          onKeyDown={handleKeyDown}
-                          placeholder="Pergunte sobre notas, horários..."
-                          className={`flex-1 bg-transparent outline-none text-sm font-medium placeholder:font-medium ${isDarkMode ? 'text-white placeholder:text-white/20' : 'text-gray-800 placeholder:text-gray-500/40'}`}
-                      />
-                      <button 
-                          onClick={() => handleSend()}
-                          disabled={!input.trim()}
-                          className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all ${
-                              input.trim() 
-                               ? `bg-${accentColor}-500 text-white shadow-lg shadow-${accentColor}-500/30 hover:scale-105` 
-                               : 'bg-transparent text-gray-400 opacity-50'
-                          }`}
-                      >
+                      <input ref={inputRef} value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={handleKeyDown} placeholder="Pergunte sobre notas, horários..." className={`flex-1 bg-transparent outline-none text-sm font-medium placeholder:font-medium ${isDarkMode ? 'text-white placeholder:text-white/20' : 'text-gray-800 placeholder:text-gray-500/40'}`} />
+                      <button onClick={() => handleSend()} disabled={!input.trim()} className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all ${input.trim() ? `bg-${accentColor}-500 text-white shadow-lg shadow-${accentColor}-500/30 hover:scale-105` : 'bg-transparent text-gray-400 opacity-50'}`}>
                            <CornerDownLeft size={20} />
                       </button>
                   </div>
               </div>
             </motion.div>
           ) : (
-            /* --- IDLE STATE (Capsule/Button) --- */
             <motion.button 
               key="idle-capsule"
               initial={{ opacity: 0 }}
@@ -475,9 +421,7 @@ DIRETRIZES:
             >
                 <MonochromeIcon size={isMobile ? 24 : 18} accentColor={accentColor} />
                 {!isMobile && (
-                    <span className={`text-xs font-bold tracking-wider uppercase ${isDarkMode ? 'text-white/80' : `text-gray-600 group-hover:text-${accentColor}-600`}`}>
-                        AI Chat
-                    </span>
+                    <span className={`text-xs font-bold tracking-wider uppercase ${isDarkMode ? 'text-white/80' : `text-gray-600 group-hover:text-${accentColor}-600`}`}>AI Chat</span>
                 )}
             </motion.button>
           )}
@@ -490,14 +434,8 @@ DIRETRIZES:
 const MonochromeIcon: React.FC<{ size?: number, pulse?: boolean, accentColor: string }> = ({ size = 18, pulse, accentColor }) => {
     return (
         <div className={`relative flex items-center justify-center text-${accentColor}-500`}>
-            <Sparkles 
-                size={size} 
-                strokeWidth={2.5} 
-                className={pulse ? 'animate-pulse' : ''}
-            />
-            {pulse && (
-                <div className={`absolute inset-0 bg-${accentColor}-500 rounded-full opacity-20 blur-md animate-ping`} />
-            )}
+            <Sparkles size={size} strokeWidth={2.5} className={pulse ? 'animate-pulse' : ''} />
+            {pulse && <div className={`absolute inset-0 bg-${accentColor}-500 rounded-full opacity-20 blur-md animate-ping`} />}
         </div>
     )
 }

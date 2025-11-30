@@ -1,7 +1,9 @@
+
 import React, { useState } from 'react';
-import { motion } from 'framer-motion';
-import { Book, AlertCircle, ExternalLink, Filter, CheckCircle, Monitor, Calendar, Clock, ArrowUpRight } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { Monitor, Calendar, Clock, Sparkles, Lock, AlertCircle, Check } from 'lucide-react';
 import { ClassroomWork } from '../../types';
+import { ClassroomAIOverlay } from './ClassroomAIOverlay';
 
 interface ClassroomModalProps {
   classroomWork: ClassroomWork[];
@@ -10,10 +12,26 @@ interface ClassroomModalProps {
   isDark: boolean;
   accentColor: string;
   secondaryColor: string;
+  isPremium?: boolean;
+  onOpenPremiumModal?: () => void;
+  internalApiKey?: string;
+  onOpenChatWithContext?: (messages: any[], pendingMessage?: string) => void;
 }
 
-export const ClassroomModal: React.FC<ClassroomModalProps> = ({ classroomWork, isClassroomLinked, onRequestSettings, isDark, accentColor, secondaryColor }) => {
+export const ClassroomModal: React.FC<ClassroomModalProps> = ({ 
+    classroomWork, 
+    isClassroomLinked, 
+    onRequestSettings, 
+    isDark, 
+    accentColor, 
+    secondaryColor,
+    isPremium,
+    onOpenPremiumModal,
+    internalApiKey,
+    onOpenChatWithContext 
+}) => {
   const [filter, setFilter] = useState<'pending' | 'history'>('pending');
+  const [solvingWork, setSolvingWork] = useState<ClassroomWork | null>(null);
 
   if (!isClassroomLinked) {
       return (
@@ -37,16 +55,30 @@ export const ClassroomModal: React.FC<ClassroomModalProps> = ({ classroomWork, i
       )
   }
 
+  const getApiKey = () => {
+      let key = localStorage.getItem('gemini_api_key') || internalApiKey;
+      if (!key && process.env.API_KEY) key = process.env.API_KEY;
+      return key;
+  };
+
+  const startAnalysis = (work: ClassroomWork) => {
+      if (!isPremium) {
+          onOpenPremiumModal?.();
+          return;
+      }
+      setSolvingWork(work);
+  };
+
   const filteredWork = classroomWork.filter(w => {
       if (filter === 'pending') return !w.jsDate || w.jsDate >= new Date();
       return w.jsDate && w.jsDate < new Date();
   });
 
   return (
-    <div className="h-full flex flex-col pb-20">
+    <div className="h-full flex flex-col pb-20 relative">
         
         {/* Header Toolbar */}
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6 shrink-0">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6 shrink-0 relative z-10">
              <div>
                  <h2 className={`text-2xl font-black tracking-tight flex items-center gap-2 ${isDark ? 'text-white' : 'text-gray-900'}`}>
                     <Monitor size={24} className={`text-${accentColor}-500`} />
@@ -71,68 +103,111 @@ export const ClassroomModal: React.FC<ClassroomModalProps> = ({ classroomWork, i
             </div>
         </div>
 
-        {/* Masonry Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 overflow-y-auto pr-1">
+        {/* AI SOLVER OVERLAY */}
+        <AnimatePresence>
+            {solvingWork && (
+                <motion.div
+                    initial={{ opacity: 0, scale: 0.95, y: 20 }}
+                    animate={{ opacity: 1, scale: 1, y: 0 }}
+                    exit={{ opacity: 0, scale: 0.95, y: 20 }}
+                    className={`absolute inset-0 z-50 rounded-[2.5rem] overflow-hidden shadow-2xl border ${isDark ? 'border-white/20' : 'border-gray-200'}`}
+                >
+                    <ClassroomAIOverlay 
+                        work={solvingWork}
+                        onClose={() => setSolvingWork(null)}
+                        isDark={isDark}
+                        apiKey={getApiKey()}
+                        onOpenChatWithContext={onOpenChatWithContext}
+                    />
+                </motion.div>
+            )}
+        </AnimatePresence>
+
+        {/* Masonry Grid of Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 overflow-y-auto pr-2 pb-10">
             {filteredWork.map((work, idx) => {
                 const isLate = work.jsDate && work.jsDate < new Date();
                 const dueStr = work.jsDate?.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' });
                 const timeStr = work.jsDate?.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
 
                 return (
-                    <motion.a 
+                    <motion.div
                         key={work.id}
-                        href={work.alternateLink}
-                        target="_blank"
-                        rel="noopener noreferrer"
                         initial={{ opacity: 0, y: 20 }}
                         animate={{ opacity: 1, y: 0 }}
                         transition={{ delay: idx * 0.05 }}
-                        className={`group relative flex flex-col p-6 rounded-[2rem] border transition-all hover:-translate-y-1 hover:shadow-xl
-                            ${isDark ? 'bg-white/5 border-white/5 hover:bg-white/10' : 'bg-white border-gray-100 shadow-sm'}
+                        className={`group relative flex flex-col rounded-[2.5rem] border transition-all duration-300 overflow-hidden
+                            ${isDark ? 'bg-white/5 border-white/5 hover:bg-white/10' : 'bg-white border-gray-100 shadow-sm hover:shadow-xl'}
                         `}
+                        whileHover={{ scale: 1.02, zIndex: 10 }}
                     >
-                        {/* Status Pill */}
-                        <div className="flex justify-between items-start mb-4">
-                            <div className={`px-2.5 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider max-w-[70%] truncate
-                                ${isDark ? 'bg-white/10 text-gray-300' : 'bg-gray-100 text-gray-600'}
-                            `}>
-                                {work.courseName}
+                        {/* Interactive Area */}
+                        <div className="flex flex-col h-full p-8 pb-20 relative z-10">
+                            {/* Course Pill */}
+                            <div className="flex justify-between items-start mb-6">
+                                <div className={`px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-wider max-w-[70%] truncate shadow-sm
+                                    ${isDark ? 'bg-white/10 text-gray-300' : 'bg-gray-100 text-gray-600'}
+                                `}>
+                                    {work.courseName}
+                                </div>
+                                {isLate ? (
+                                    <div className="flex items-center gap-1 text-[9px] font-bold text-red-500 bg-red-500/10 px-2 py-1 rounded-lg">
+                                        <AlertCircle size={10} /> Atrasado
+                                    </div>
+                                ) : (
+                                    <div className={`w-2.5 h-2.5 rounded-full bg-${accentColor}-500 shadow-[0_0_10px_var(--color-${accentColor}-500)]`} />
+                                )}
                             </div>
-                            {isLate ? (
-                                <div className="w-2 h-2 rounded-full bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.6)]" />
-                            ) : (
-                                <div className={`w-2 h-2 rounded-full bg-${accentColor}-500 shadow-[0_0_8px_var(--color-${accentColor}-500)]`} />
-                            )}
-                        </div>
 
-                        {/* Content */}
-                        <h3 className={`text-base font-bold leading-snug mb-4 line-clamp-3 group-hover:underline decoration-2 decoration-${accentColor}-500 ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                            {work.title}
-                        </h3>
+                            <a href={work.alternateLink} target="_blank" rel="noopener noreferrer" className="block mb-4 group/title">
+                                <h3 className={`text-lg font-black leading-tight group-hover/title:underline decoration-2 underline-offset-4 decoration-${accentColor}-500 ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                                    {work.title}
+                                </h3>
+                            </a>
+                            
+                            {/* Description - Expanded on Hover via CSS/Layout */}
+                            <div className="relative overflow-hidden mb-4 max-h-[60px] group-hover:max-h-[300px] transition-all duration-500 ease-in-out cursor-default">
+                                <p className={`text-xs opacity-60 leading-relaxed ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
+                                    {work.description || "Sem descrição disponível."}
+                                </p>
+                                {/* Fade out for truncated text */}
+                                <div className={`absolute bottom-0 left-0 right-0 h-6 bg-gradient-to-t group-hover:opacity-0 transition-opacity duration-300 ${isDark ? 'from-[#1e293b]' : 'from-white'}`} />
+                            </div>
 
-                        {/* Footer Info */}
-                        <div className="mt-auto pt-4 border-t border-dashed border-gray-500/20 flex items-center justify-between">
-                            <div className="flex flex-col">
-                                <div className="flex items-center gap-1.5 text-xs font-bold opacity-80">
+                            {/* Footer Info */}
+                            <div className="mt-auto flex items-center gap-4 opacity-50 text-xs font-bold">
+                                <div className="flex items-center gap-1.5">
                                     <Calendar size={12} /> {dueStr || 'S/ Data'}
                                 </div>
                                 {timeStr && (
-                                    <div className="flex items-center gap-1.5 text-[10px] font-medium opacity-50 mt-0.5 ml-0.5">
-                                        <Clock size={10} /> {timeStr}
+                                    <div className="flex items-center gap-1.5">
+                                        <Clock size={12} /> {timeStr}
                                     </div>
                                 )}
                             </div>
-                            <div className={`p-2 rounded-full transition-colors ${isDark ? 'bg-white/5 group-hover:bg-white/20' : 'bg-gray-100 group-hover:bg-gray-200'}`}>
-                                <ArrowUpRight size={16} />
-                            </div>
                         </div>
-                    </motion.a>
+
+                        {/* Action Bar - Slides up or appears on hover */}
+                        <div className="absolute bottom-6 left-6 right-6 z-20 opacity-0 translate-y-2 group-hover:opacity-100 group-hover:translate-y-0 transition-all duration-300 delay-75">
+                             <button 
+                                onClick={() => startAnalysis(work)}
+                                className={`w-full py-3 rounded-2xl flex items-center justify-center gap-2 text-xs font-bold uppercase tracking-wide transition-transform hover:scale-105 active:scale-95 shadow-lg
+                                    ${isPremium 
+                                        ? `bg-violet-600 text-white shadow-violet-600/30`
+                                        : `bg-gray-200 dark:bg-white/10 text-gray-500 cursor-not-allowed`}
+                                `}
+                            >
+                                {isPremium ? <Sparkles size={14} fill="currentColor" /> : <Lock size={14} />}
+                                {isPremium ? 'Resolver com IA' : 'IA (Premium)'}
+                            </button>
+                        </div>
+                    </motion.div>
                 )
             })}
             
             {filteredWork.length === 0 && (
                 <div className="col-span-full flex flex-col items-center justify-center py-20 opacity-40">
-                    <CheckCircle size={64} className="mb-4" />
+                    <Check size={64} className="mb-4" />
                     <p className="text-lg font-bold uppercase">Nada Pendente</p>
                 </div>
             )}
