@@ -1,11 +1,11 @@
 
-import React from 'react';
-import { motion } from 'framer-motion';
+import React, { useState } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { 
   ArrowRight, Crown, Check, Zap, ImageIcon, Link2, 
-  HardDrive, Download, Trash2, Fingerprint, Star 
+  HardDrive, Download, Trash2, Fingerprint, Star, MessageSquare, Mail, Send, Lightbulb, Rocket, Copy, Loader2
 } from 'lucide-react';
-import { PerformanceSettings } from '../../types';
+import { PerformanceSettings, UserFeedback } from '../../types';
 import { SecureStorage } from '../../services/SecureStorage';
 
 const ToggleSwitch = ({ checked, onChange, color }: { checked: boolean, onChange: () => void, color: string }) => (
@@ -59,6 +59,7 @@ const PROFILE_PRESETS = [
 const CURRENT_VERSION = "2.6.0";
 
 export const SettingsTabContent = ({ isDark, accentColor, performanceSettings, onUpdatePerformance, customPhotoUrl, onUpdateCustomPhoto, useCustomPhoto, onToggleCustomPhoto, onInstallPwa, canInstall, isPremium, onOpenPremiumModal, userData, onLinkClassroom, isClassroomLinked, classroomStatus, googleUser }: any) => {
+    
     return (
         <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="max-w-3xl mx-auto space-y-8 pb-10">
             
@@ -174,6 +175,7 @@ export const SettingsTabContent = ({ isDark, accentColor, performanceSettings, o
                 </div>
             </div>
 
+            {/* PERFORMANCE & VISUAL */}
             <div>
                 <SectionHeader icon={Zap} title="Performance & Visual" color={accentColor} />
                 <div className={`rounded-[2rem] border overflow-hidden ${isDark ? 'bg-white/5 border-white/5' : 'bg-white border-gray-100 shadow-sm'}`}>
@@ -185,6 +187,8 @@ export const SettingsTabContent = ({ isDark, accentColor, performanceSettings, o
                     ))}
                 </div>
             </div>
+
+            {/* CUSTOMIZATION */}
             <div>
                 <SectionHeader icon={ImageIcon} title="Personalização" color={accentColor} />
                 <div className={`rounded-[2rem] border overflow-hidden ${isDark ? 'bg-white/5 border-white/5' : 'bg-white border-gray-100 shadow-sm'}`}>
@@ -209,6 +213,8 @@ export const SettingsTabContent = ({ isDark, accentColor, performanceSettings, o
                      </div>
                 </div>
             </div>
+
+            {/* DATA & STORAGE */}
             <div>
                  <SectionHeader icon={HardDrive} title="Dados e Armazenamento" color={accentColor} />
                  <div className={`rounded-[2rem] border overflow-hidden ${isDark ? 'bg-white/5 border-white/5' : 'bg-white border-gray-100 shadow-sm'}`}>
@@ -229,6 +235,7 @@ export const SettingsTabContent = ({ isDark, accentColor, performanceSettings, o
                         </div>
                  </div>
             </div>
+
             <div className="text-center opacity-30 text-[10px] font-mono font-bold">SUPACO v{CURRENT_VERSION} • Developed by Electron</div>
         </motion.div>
     );

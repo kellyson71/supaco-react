@@ -1,8 +1,6 @@
 
-
-
 import { supabase } from './supabaseClient';
-import { AIHistoryItem, AIHistoryType } from '../types';
+import { AIHistoryItem, AIHistoryType, UserFeedback, FeedbackItem } from '../types';
 
 // Helper for robust Supabase calls with retry logic
 const safeSupabaseCall = async <T>(
@@ -427,5 +425,35 @@ export const SecureStorage = {
         } catch (e) {
             return false;
         }
+    },
+
+    /**
+     * Send user feedback to Supabase
+     */
+    sendFeedback: async (matricula: string, feedback: UserFeedback) => {
+        return await safeSupabaseCall(() => supabase.from('feedbacks').insert({
+            user_id: matricula,
+            type: feedback.type,
+            message: feedback.message,
+            contact_email: feedback.contact_email
+        }));
+    },
+
+    /**
+     * Get all feedbacks (Admin Only)
+     */
+    getFeedbacks: async () => {
+        const { data, error } = await safeSupabaseCall(() => 
+            supabase
+                .from('feedbacks')
+                .select('*')
+                .order('created_at', { ascending: false })
+        );
+
+        if (error) {
+            console.error("[Storage] Get feedbacks failed:", error);
+            return [];
+        }
+        return (data as FeedbackItem[]) || [];
     }
 };

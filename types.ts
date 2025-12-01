@@ -1,13 +1,4 @@
 
-
-
-
-
-
-
-
-
-
 export enum ViewState {
   DASHBOARD = 'DASHBOARD',
   GRADES = 'GRADES',
@@ -50,6 +41,21 @@ export interface TodoItem {
     id: string;
     text: string;
     completed: boolean;
+}
+
+export interface UserFeedback {
+    type: 'suggestion' | 'feature';
+    message: string;
+    contact_email?: string;
+}
+
+export interface FeedbackItem {
+    id: string;
+    user_id: string;
+    type: 'suggestion' | 'feature';
+    message: string;
+    contact_email: string;
+    created_at: string;
 }
 
 export interface SupacoNotification {

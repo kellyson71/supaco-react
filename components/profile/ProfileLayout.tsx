@@ -1,11 +1,12 @@
 
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { User, Settings, Palette, Trophy, ArrowRight, LogOut, X, Crown } from 'lucide-react';
+import { User, Settings, Palette, Trophy, ArrowRight, LogOut, X, Crown, LifeBuoy } from 'lucide-react';
 import { ProfileTabContent } from './ProfileTab';
 import { SettingsTabContent } from './SettingsTab';
 import { ThemeTabContent } from './ThemeTab';
 import { AchievementsTabContent } from './AchievementsTab';
+import { SupportTabContent } from './SupportTab';
 
 const DEFAULT_PROFILE_IMG = "https://i.pinimg.com/736x/9c/63/e1/9c63e1cf0546ecd4f83b7df067f440d2.jpg";
 const CURRENT_VERSION = "2.0.0";
@@ -76,6 +77,7 @@ export const ProfileLayout = ({
         { id: 'settings', label: 'Ajustes', icon: Settings },
         { id: 'wallpaper', label: 'Aparência', icon: Palette },
         { id: 'achievements', label: 'Troféus', icon: Trophy },
+        { id: 'support', label: 'Suporte', icon: LifeBuoy },
     ];
 
     return (
@@ -199,6 +201,14 @@ export const ProfileLayout = ({
                             isDark={isDark} 
                             accentColor={accentColor} 
                             grades={grades} 
+                            userData={userData} 
+                        />
+                    )}
+                    {activeTab === 'support' && (
+                        <SupportTabContent 
+                            key="support" 
+                            isDark={isDark} 
+                            accentColor={accentColor} 
                             userData={userData} 
                         />
                     )}

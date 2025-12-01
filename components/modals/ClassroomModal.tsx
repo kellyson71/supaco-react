@@ -147,22 +147,24 @@ export const ClassroomModal: React.FC<ClassroomModalProps> = ({
             </div>
         </div>
 
-        {/* AI SOLVER OVERLAY */}
+        {/* AI SOLVER OVERLAY - Fixed Full Screen */}
         <AnimatePresence>
             {solvingWork && (
                 <motion.div
-                    initial={{ opacity: 0, scale: 0.95, y: 20 }}
-                    animate={{ opacity: 1, scale: 1, y: 0 }}
-                    exit={{ opacity: 0, scale: 0.95, y: 20 }}
-                    className={`absolute inset-0 z-50 rounded-[2.5rem] overflow-hidden shadow-2xl border ${isDark ? 'border-white/20' : 'border-gray-200'}`}
+                    initial={{ opacity: 0, scale: 0.95 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    exit={{ opacity: 0, scale: 0.95 }}
+                    className={`fixed inset-0 z-[200] overflow-hidden bg-black/60 backdrop-blur-sm p-4 md:p-8 flex items-center justify-center`}
                 >
-                    <ClassroomAIOverlay 
-                        work={solvingWork}
-                        onClose={() => setSolvingWork(null)}
-                        isDark={isDark}
-                        apiKey={getApiKey()}
-                        onOpenChatWithContext={onOpenChatWithContext}
-                    />
+                    <div className={`w-full h-full max-w-5xl rounded-[2.5rem] relative overflow-hidden shadow-2xl border ${isDark ? 'bg-slate-950 border-white/20' : 'bg-white border-gray-200'}`}>
+                        <ClassroomAIOverlay 
+                            work={solvingWork}
+                            onClose={() => setSolvingWork(null)}
+                            isDark={isDark}
+                            apiKey={getApiKey()}
+                            onOpenChatWithContext={onOpenChatWithContext}
+                        />
+                    </div>
                 </motion.div>
             )}
         </AnimatePresence>
