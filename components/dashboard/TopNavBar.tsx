@@ -1,10 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
-  ArrowLeft, GraduationCap, Flag, AlertTriangle, ChevronRight, 
-  Clock, MapPin, RefreshCw 
+  GraduationCap, Flag, AlertTriangle, ChevronRight, 
+  Clock, MapPin, RefreshCw, Bell, X, Check, ArrowRight, Sparkles, ShieldAlert
 } from 'lucide-react';
-import { ViewState } from '../../types';
+import { ViewState, SupacoNotification } from '../../types';
 
 interface TopNavBarProps {
   showContent: boolean;
@@ -21,6 +21,9 @@ interface TopNavBarProps {
   isRefreshing: boolean;
   isPremium: boolean;
   userPhoto: string;
+  notifications?: SupacoNotification[];
+  onMarkAsRead?: (id: string) => void;
+  onViewAllNotifications?: () => void;
 }
 
 const TopBarItem = ({ icon, label, onClick, active, indicator, indicatorColor, rightIcon, children, isDark }: any) => {
@@ -72,8 +75,34 @@ const TopBarItem = ({ icon, label, onClick, active, indicator, indicatorColor, r
 export const TopNavBar: React.FC<TopNavBarProps> = ({
   showContent, isDarkMode, handleNavClick, currentPeriod, primaryColor, completionData,
   classroomStatus, onOpenSettings, nextClass, setIsFocusMode, handleRefreshClick,
-  isRefreshing, isPremium, userPhoto
+  isRefreshing, isPremium, userPhoto, notifications = [], onMarkAsRead, onViewAllNotifications
 }) => {
+  const [showNotifications, setShowNotifications] = useState(false);
+  const notificationRef = useRef<HTMLDivElement>(null);
+
+  const unreadCount = notifications.filter(n => !n.read).length;
+  const recentNotifications = notifications.slice(0, 5);
+
+  useEffect(() => {
+      const handleClickOutside = (event: MouseEvent) => {
+          if (notificationRef.current && !notificationRef.current.contains(event.target as Node)) {
+              setShowNotifications(false);
+          }
+      };
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const handleNotificationClick = (e: React.MouseEvent, id: string) => {
+      e.stopPropagation();
+      onMarkAsRead?.(id);
+  };
+
+  const handleViewAll = () => {
+      setShowNotifications(false);
+      onViewAllNotifications?.();
+  };
+
   return (
     <div className="relative w-full flex justify-center z-[60]">
         <motion.div 
@@ -84,12 +113,121 @@ export const TopNavBar: React.FC<TopNavBarProps> = ({
                 ${isDarkMode ? 'bg-slate-950/80 border-white/10' : 'bg-white/90 border-white/40'}
             `}
         >
-            <button 
-                onClick={() => handleNavClick(ViewState.DASHBOARD)}
-                className={`w-8 h-8 md:w-10 md:h-10 rounded-full transition-colors flex items-center justify-center group ${isDarkMode ? 'bg-white/10 text-white hover:bg-white hover:text-black' : 'bg-gray-100 hover:bg-black hover:text-white'}`}
-            >
-                <ArrowLeft size={14} className="group-hover:-translate-x-0.5 transition-transform" />
-            </button>
+            {/* Notification Bell (Bubble Trigger) */}
+            <div className="relative" ref={notificationRef}>
+                <button 
+                    onClick={() => setShowNotifications(!showNotifications)}
+                    className={`w-8 h-8 md:w-10 md:h-10 rounded-full transition-colors flex items-center justify-center group relative z-50
+                        ${showNotifications 
+                            ? (isDarkMode ? 'bg-white text-black' : 'bg-black text-white') 
+                            : (isDarkMode ? 'bg-white/10 text-white hover:bg-white hover:text-black' : 'bg-black/5 text-gray-700 hover:bg-black hover:text-white')
+                        }
+                    `}
+                >
+                    {showNotifications ? <X size={18} /> : <Bell size={18} />}
+                    
+                    {!showNotifications && unreadCount > 0 && (
+                        <span className="absolute top-0 right-0 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-[#020617] animate-pulse" />
+                    )}
+                </button>
+
+                {/* The "Bubble" Dropdown */}
+                <AnimatePresence>
+                    {showNotifications && (
+                        <motion.div
+                            initial={{ opacity: 0, scale: 0.8, y: -20, filter: 'blur(10px)' }}
+                            animate={{ opacity: 1, scale: 1, y: 15, filter: 'blur(0px)' }}
+                            exit={{ opacity: 0, scale: 0.8, y: -20, filter: 'blur(10px)' }}
+                            transition={{ type: 'spring', stiffness: 350, damping: 25 }}
+                            style={{ transformOrigin: 'top left' }}
+                            className={`absolute top-full left-0 w-[340px] max-w-[90vw] rounded-[2rem] shadow-2xl border flex flex-col overflow-hidden
+                                ${isDarkMode 
+                                    ? 'bg-slate-950/90 border-white/10 shadow-black/80' 
+                                    : 'bg-white/90 border-white/50 shadow-xl shadow-indigo-500/10'
+                                } backdrop-blur-2xl
+                            `}
+                        >
+                            {/* Header */}
+                            <div className={`p-5 pb-2 flex items-center justify-between`}>
+                                <div className="flex items-center gap-2">
+                                    <span className={`text-xs font-black uppercase tracking-widest ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>Notificações</span>
+                                    {unreadCount > 0 && (
+                                        <div className={`px-2 py-0.5 rounded-full text-[9px] font-bold ${isDarkMode ? 'bg-white/10 text-white' : 'bg-black/5 text-black'}`}>
+                                            {unreadCount}
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+
+                            {/* List */}
+                            <div className="flex-1 overflow-y-auto custom-scroll p-2 max-h-[350px]">
+                                {recentNotifications.length > 0 ? (
+                                    recentNotifications.map((notif, i) => (
+                                        <motion.div 
+                                            initial={{ opacity: 0, x: -10 }}
+                                            animate={{ opacity: 1, x: 0 }}
+                                            transition={{ delay: i * 0.05 }}
+                                            key={notif.id}
+                                            onClick={(e) => handleNotificationClick(e, notif.id)}
+                                            className={`p-3 mb-1 rounded-2xl cursor-pointer transition-all group relative border border-transparent
+                                                ${notif.read ? 'opacity-60' : 'opacity-100'}
+                                                ${isDarkMode 
+                                                    ? 'hover:bg-white/5 hover:border-white/5 active:bg-white/10' 
+                                                    : 'hover:bg-white hover:shadow-sm hover:border-gray-100 active:bg-gray-50'
+                                                }
+                                            `}
+                                        >
+                                            <div className="flex gap-3">
+                                                <div className={`mt-1 w-8 h-8 rounded-full flex items-center justify-center shrink-0 
+                                                    ${notif.type === 'risk' 
+                                                        ? 'bg-red-500/10 text-red-500' 
+                                                        : (notif.type === 'suap' 
+                                                            ? 'bg-green-500/10 text-green-500' 
+                                                            : (isDarkMode ? 'bg-white/10 text-gray-400' : 'bg-gray-100 text-gray-500'))
+                                                    }`}
+                                                >
+                                                    {notif.type === 'risk' ? <ShieldAlert size={14} /> : (notif.type === 'suap' ? <Bell size={14} /> : <Sparkles size={14} />)}
+                                                </div>
+                                                
+                                                <div className="flex-1 min-w-0">
+                                                    <div className="flex justify-between items-start">
+                                                        <h4 className={`text-xs font-bold leading-tight mb-0.5 ${isDarkMode ? 'text-white' : 'text-gray-900'} ${!notif.read ? 'pr-2' : ''}`}>{notif.title}</h4>
+                                                        {!notif.read && <div className={`w-1.5 h-1.5 rounded-full shrink-0 bg-${primaryColor}-500`} />}
+                                                    </div>
+                                                    <p className={`text-[10px] line-clamp-2 leading-relaxed ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>{notif.message}</p>
+                                                    <span className="text-[9px] opacity-30 mt-1 block font-mono">{new Date(notif.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
+                                                </div>
+                                            </div>
+                                        </motion.div>
+                                    ))
+                                ) : (
+                                    <div className="py-12 text-center opacity-40 flex flex-col items-center">
+                                        <div className={`w-12 h-12 rounded-full flex items-center justify-center mb-3 ${isDarkMode ? 'bg-white/5' : 'bg-gray-100'}`}>
+                                            <Bell size={20} />
+                                        </div>
+                                        <p className="text-xs font-bold">Tudo limpo por aqui</p>
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* Footer Action */}
+                            <div className="p-3 mt-1">
+                                <button 
+                                    onClick={handleViewAll}
+                                    className={`w-full py-3 rounded-2xl flex items-center justify-center gap-2 text-xs font-bold uppercase tracking-widest transition-all
+                                        ${isDarkMode 
+                                            ? 'bg-white/5 hover:bg-white/10 text-white border border-white/5' 
+                                            : 'bg-gray-50 hover:bg-gray-100 text-gray-800 border border-gray-100'
+                                        }
+                                    `}
+                                >
+                                    Ver Histórico <ArrowRight size={12} />
+                                </button>
+                            </div>
+                        </motion.div>
+                    )}
+                </AnimatePresence>
+            </div>
             
             <div className={`h-4 w-[1px] ${isDarkMode ? 'bg-white/20' : 'bg-gray-300'}`} />
             

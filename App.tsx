@@ -1,5 +1,3 @@
-
-
 import React, { useState, useMemo, useEffect, useRef, Suspense } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { SecureStorage } from './services/SecureStorage';
@@ -1225,6 +1223,8 @@ const App: React.FC = () => {
                     onToggleTodo={handleToggleTodo} 
                     onRemoveTodo={handleRemoveTodo} 
                     classroomStatus={classroomStatus} 
+                    notifications={notifications}
+                    onMarkAsRead={markNotificationAsRead}
                 />
             </Suspense>
 

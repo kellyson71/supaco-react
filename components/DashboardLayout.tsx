@@ -13,7 +13,7 @@ import {
   Book
 } from 'lucide-react';
 import { InvertedCorner } from './InvertedCorner';
-import { ViewState, ClassroomWork, SuapProfile, SuapPeriod, GradeInfo, ProcessedClass, SuapCompletionData, Holiday, TodoItem, SuapMeusDadosAluno, Achievement } from '../types';
+import { ViewState, ClassroomWork, SuapProfile, SuapPeriod, GradeInfo, ProcessedClass, SuapCompletionData, Holiday, TodoItem, SuapMeusDadosAluno, Achievement, SupacoNotification } from '../types';
 import { ACHIEVEMENTS_LIST } from '../achievements';
 import { SecureStorage } from '../services/SecureStorage';
 import { ChangelogModal } from './modals/ChangelogModal';
@@ -66,6 +66,8 @@ interface DashboardProps {
   onRemoveTodo?: (id: string) => void;
   classroomStatus?: 'connected' | 'disconnected' | 'expired';
   onLinkClassroom?: () => void;
+  notifications?: SupacoNotification[];
+  onMarkAsRead?: (id: string) => void;
 }
 
 // --- CALENDAR HELPERS ---
@@ -77,7 +79,7 @@ export const DashboardLayout: React.FC<DashboardProps> = ({
   currentPeriod, grades, schedule, completionData, holidays = [], classroomWork = [],
   rightTab, onRightTabChange, onOpenSettings, userPhoto, onRefresh,
   isClassroomLinked = false, todos = [], onAddTodo, onToggleTodo, onRemoveTodo,
-  classroomStatus, onLinkClassroom
+  classroomStatus, onLinkClassroom, notifications = [], onMarkAsRead
 }) => {
   const [activeNav, setActiveNav] = useState<ViewState>(ViewState.DASHBOARD);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -485,6 +487,9 @@ export const DashboardLayout: React.FC<DashboardProps> = ({
                 isRefreshing={isRefreshing}
                 isPremium={isPremium}
                 userPhoto={userPhoto}
+                notifications={notifications}
+                onMarkAsRead={onMarkAsRead}
+                onViewAllNotifications={() => onRightTabChange('notifications')}
             />
 
             {/* Main Content Body */}
