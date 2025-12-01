@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Clock, MapPin, Coffee, Calendar, User, ArrowRight } from 'lucide-react';
+import { Clock, MapPin, Coffee, Calendar, User, ArrowRight, Layers } from 'lucide-react';
 import { ProcessedClass } from '../../types';
 
 interface ScheduleModalProps {
@@ -34,6 +34,33 @@ export const ScheduleModal: React.FC<ScheduleModalProps> = ({ schedule, isDark, 
       let hash = 0;
       for (let i = 0; i < subjectName.length; i++) hash = subjectName.charCodeAt(i) + ((hash << 5) - hash);
       return SUBJECT_COLORS[Math.abs(hash) % SUBJECT_COLORS.length];
+  };
+
+  const groupConsecutiveClasses = (classes: ProcessedClass[]) => {
+      if (classes.length === 0) return [];
+      
+      const grouped: Array<ProcessedClass & { periods: number }> = [];
+      
+      classes.forEach((current, index) => {
+          if (index === 0) {
+              grouped.push({ ...current, periods: 1 });
+              return;
+          }
+
+          const prev = grouped[grouped.length - 1];
+          
+          // Check if same subject and same room (consecutive block)
+          if (prev.name === current.name && prev.room === current.room) {
+              // Extend the previous block
+              prev.endTime = current.endTime;
+              prev.periods += 1;
+          } else {
+              // New block
+              grouped.push({ ...current, periods: 1 });
+          }
+      });
+
+      return grouped;
   };
 
   const todayIndex = new Date().getDay(); // 0-6
@@ -79,6 +106,7 @@ export const ScheduleModal: React.FC<ScheduleModalProps> = ({ schedule, isDark, 
                 <div className="h-full grid grid-cols-5 gap-4">
                     {DAYS.map((day, idx) => {
                          const dayClasses = schedule.filter(c => c.day.includes(day));
+                         const groupedClasses = groupConsecutiveClasses(dayClasses);
                          const isToday = (idx + 1) === todayIndex; // 1=Mon
 
                          return (
@@ -89,20 +117,29 @@ export const ScheduleModal: React.FC<ScheduleModalProps> = ({ schedule, isDark, 
                                   </div>
                                   
                                   {/* Classes Scroll Area */}
-                                  <div className="flex-1 overflow-y-auto custom-scroll p-3 space-y-3">
-                                      {dayClasses.map((c, i) => {
+                                  <div className="flex-1 overflow-y-auto custom-scroll p-2 space-y-2">
+                                      {groupedClasses.map((c, i) => {
                                           const color = getSubjectColor(c.name);
                                           return (
-                                              <div key={i} className={`p-3 rounded-2xl border-l-4 transition-all hover:scale-[1.02] ${isDark ? 'bg-white/5 hover:bg-white/10' : 'bg-white shadow-sm hover:shadow-md'} border-${color}-500`}>
-                                                   <div className="flex justify-between items-start mb-2">
-                                                       <span className={`text-[10px] font-black ${isDark ? 'text-white' : 'text-gray-900'}`}>{c.startTime}</span>
-                                                       <span className="text-[9px] font-mono opacity-50">{c.room}</span>
+                                              <div key={i} className={`p-3 rounded-2xl border-l-4 transition-all hover:scale-[1.02] group relative ${isDark ? 'bg-white/5 hover:bg-white/10' : 'bg-white shadow-sm hover:shadow-md'} border-${color}-500`}>
+                                                   <div className="flex justify-between items-center mb-2">
+                                                       <div className={`text-[10px] font-mono font-bold opacity-60 flex items-center gap-1 ${isDark ? 'text-white' : 'text-gray-700'}`}>
+                                                            {c.startTime} <ArrowRight size={8} /> {c.endTime}
+                                                       </div>
+                                                       {c.periods > 1 && (
+                                                           <div className={`flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold bg-${color}-500/10 text-${color}-500`}>
+                                                               <Layers size={10} /> {c.periods}x
+                                                           </div>
+                                                       )}
                                                    </div>
-                                                   <p className={`text-xs font-bold leading-tight line-clamp-2 ${isDark ? 'text-gray-300' : 'text-gray-800'}`}>{c.name}</p>
+                                                   <p className={`text-xs font-bold leading-tight line-clamp-2 mb-1 ${isDark ? 'text-gray-200' : 'text-gray-800'}`}>{c.name}</p>
+                                                   <div className="flex items-center gap-1 text-[9px] opacity-40 font-bold uppercase">
+                                                       <MapPin size={10} /> {c.room}
+                                                   </div>
                                               </div>
                                           )
                                       })}
-                                      {dayClasses.length === 0 && (
+                                      {groupedClasses.length === 0 && (
                                           <div className="h-full flex flex-col items-center justify-center opacity-20">
                                               <Coffee size={24} />
                                           </div>
@@ -114,8 +151,8 @@ export const ScheduleModal: React.FC<ScheduleModalProps> = ({ schedule, isDark, 
                 </div>
             ) : (
                 /* MOBILE: SINGLE DAY VIEW */
-                <div className="space-y-4">
-                     {schedule.filter(c => c.day.includes(activeDay)).map((c, idx) => {
+                <div className="space-y-3">
+                     {groupConsecutiveClasses(schedule.filter(c => c.day.includes(activeDay))).map((c, idx) => {
                          const color = getSubjectColor(c.name);
                          return (
                             <motion.div 
@@ -127,12 +164,20 @@ export const ScheduleModal: React.FC<ScheduleModalProps> = ({ schedule, isDark, 
                             >
                                 <div className="flex flex-col items-center justify-center w-16 shrink-0 border-r border-dashed border-gray-500/20 pr-4">
                                     <span className={`text-sm font-black ${isDark ? 'text-white' : 'text-gray-900'}`}>{c.startTime}</span>
+                                    <div className={`w-[1px] h-3 my-0.5 ${isDark ? 'bg-white/20' : 'bg-gray-300'}`} />
                                     <span className="text-[10px] opacity-50 font-bold">{c.endTime}</span>
                                 </div>
                                 
-                                <div className="flex-1 min-w-0">
-                                    <div className={`text-[10px] font-bold uppercase tracking-wide mb-1 text-${color}-500`}>Aula Regular</div>
-                                    <h3 className={`text-base font-bold leading-tight mb-2 ${isDark ? 'text-white' : 'text-gray-900'}`}>{c.name}</h3>
+                                <div className="flex-1 min-w-0 flex flex-col justify-center">
+                                    <div className="flex items-center justify-between mb-1">
+                                        <div className={`text-[9px] font-bold uppercase tracking-wide text-${color}-500`}>
+                                            {c.periods > 1 ? `${c.periods} Aulas Seguidas` : 'Aula Regular'}
+                                        </div>
+                                        {c.periods > 1 && <Layers size={12} className={`text-${color}-500 opacity-50`} />}
+                                    </div>
+                                    
+                                    <h3 className={`text-base font-bold leading-tight mb-2 truncate ${isDark ? 'text-white' : 'text-gray-900'}`}>{c.name}</h3>
+                                    
                                     <div className="flex items-center gap-3">
                                         <div className={`flex items-center gap-1.5 px-2 py-1 rounded-lg text-[10px] font-bold uppercase ${isDark ? 'bg-white/10 text-gray-400' : 'bg-gray-100 text-gray-500'}`}>
                                             <MapPin size={10} /> {c.room}
