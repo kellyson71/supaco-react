@@ -3,7 +3,7 @@ import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Clock, Trophy, ChevronLeft, ChevronRight as ChevronRightIcon, 
-  ListTodo, Plus, ArrowRight, Check, Trash2, Book, CalendarDays 
+  ListTodo, Plus, ArrowRight, Check, Trash2, Book, CalendarDays, FastForward, Sparkles, Hourglass 
 } from 'lucide-react';
 import { InvertedCorner } from '../InvertedCorner';
 import { TodoItem, ClassroomWork, Holiday, Achievement } from '../../types';
@@ -44,6 +44,10 @@ export const RightSidebar: React.FC<RightSidebarProps> = ({
 }) => {
   const [todoInput, setTodoInput] = useState('');
   const [hoveredDate, setHoveredDate] = useState<any>(null);
+  
+  // Time Warp State
+  const [isTimeWarping, setIsTimeWarping] = useState(false);
+  const [warpDays, setWarpDays] = useState(0);
 
   const handleAddTodoClick = () => {
     if (!todoInput.trim()) return;
@@ -53,6 +57,31 @@ export const RightSidebar: React.FC<RightSidebarProps> = ({
 
   const handleKeyDownTodo = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter') handleAddTodoClick();
+  };
+
+  const handleTimeSkip = () => {
+      // Find next holiday
+      const today = new Date();
+      today.setHours(0,0,0,0);
+      
+      const futureHolidays = holidays
+        .map(h => ({ ...h, jsDate: new Date(h.date + 'T00:00:00') }))
+        .filter(h => h.jsDate >= today)
+        .sort((a, b) => a.jsDate.getTime() - b.jsDate.getTime());
+
+      if (futureHolidays.length > 0) {
+          const next = futureHolidays[0];
+          const diffTime = Math.abs(next.jsDate.getTime() - today.getTime());
+          const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+          
+          setWarpDays(diffDays);
+          setIsTimeWarping(true);
+          
+          // Simulation
+          setTimeout(() => {
+              setIsTimeWarping(false);
+          }, 4000);
+      }
   };
 
   return (
@@ -274,20 +303,74 @@ export const RightSidebar: React.FC<RightSidebarProps> = ({
                         initial={{ opacity: 0, x: 20 }}
                         animate={{ opacity: 1, x: 0 }}
                         exit={{ opacity: 0, x: -20 }}
-                        className="h-full flex flex-col gap-3"
+                        className="h-full flex flex-col relative"
                       >
-                        {holidays.filter(h => new Date(h.date) >= new Date()).slice(0, 10).map((h, i) => (
-                            <div key={i} className={`p-4 rounded-2xl border flex items-center gap-4 ${isDarkMode ? 'bg-white/5 border-white/5' : 'bg-white border-gray-100 shadow-sm'}`}>
-                                <div className={`p-2 rounded-xl ${isDarkMode ? 'bg-white/10 text-white' : 'bg-gray-100 text-gray-600'}`}>
-                                    <CalendarDays size={18} />
+                        {/* Time Warp Overlay */}
+                        <AnimatePresence>
+                            {isTimeWarping && (
+                                <motion.div 
+                                    initial={{ opacity: 0 }}
+                                    animate={{ opacity: 1 }}
+                                    exit={{ opacity: 0 }}
+                                    className={`absolute inset-0 z-20 flex flex-col items-center justify-center rounded-[2rem] text-center p-6 backdrop-blur-xl ${isDarkMode ? 'bg-black/80' : 'bg-white/90'}`}
+                                >
+                                    <div className={`relative mb-6`}>
+                                        <motion.div 
+                                            animate={{ rotate: 360 }}
+                                            transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
+                                            className={`absolute inset-[-10px] rounded-full border-2 border-dashed ${isDarkMode ? `border-${primaryColor}-500` : 'border-black'}`}
+                                        />
+                                        <Hourglass size={48} className={isDarkMode ? `text-${primaryColor}-400` : 'text-black'} />
+                                    </div>
+                                    <motion.h3 
+                                        initial={{ opacity: 0, y: 10 }}
+                                        animate={{ opacity: 1, y: 0 }}
+                                        transition={{ delay: 0.2 }}
+                                        className={`text-lg font-black uppercase mb-2 ${isDarkMode ? 'text-white' : 'text-black'}`}
+                                    >
+                                        Distorção Temporal
+                                    </motion.h3>
+                                    <motion.p 
+                                        initial={{ opacity: 0 }}
+                                        animate={{ opacity: 1 }}
+                                        transition={{ delay: 0.4 }}
+                                        className="text-xs font-mono opacity-70"
+                                    >
+                                        carregando distorcao do tempo, tempo estimado: {warpDays} dias
+                                    </motion.p>
+                                </motion.div>
+                            )}
+                        </AnimatePresence>
+
+                        {/* Feature Button */}
+                        {holidays.length > 0 && (
+                            <button 
+                                onClick={handleTimeSkip}
+                                className={`w-full mb-4 p-3 rounded-2xl flex items-center justify-center gap-2 text-xs font-bold uppercase tracking-widest transition-all
+                                    ${isDarkMode 
+                                        ? `bg-gradient-to-r from-${primaryColor}-900/20 to-${primaryColor}-500/10 border border-${primaryColor}-500/20 hover:border-${primaryColor}-500/50 text-${primaryColor}-200` 
+                                        : `bg-${primaryColor}-50 text-${primaryColor}-700 hover:bg-${primaryColor}-100`
+                                    }
+                                `}
+                            >
+                                <FastForward size={14} /> Pular pra Feriados
+                            </button>
+                        )}
+
+                        <div className="flex-1 overflow-y-auto custom-scroll space-y-3">
+                            {holidays.filter(h => new Date(h.date) >= new Date()).slice(0, 10).map((h, i) => (
+                                <div key={i} className={`p-4 rounded-2xl border flex items-center gap-4 ${isDarkMode ? 'bg-white/5 border-white/5' : 'bg-white border-gray-100 shadow-sm'}`}>
+                                    <div className={`p-2 rounded-xl ${isDarkMode ? 'bg-white/10 text-white' : 'bg-gray-100 text-gray-600'}`}>
+                                        <CalendarDays size={18} />
+                                    </div>
+                                    <div>
+                                        <div className={`text-sm font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>{h.name}</div>
+                                        <div className="text-[10px] font-medium opacity-50">{new Date(h.date + 'T00:00:00').toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' })}</div>
+                                    </div>
                                 </div>
-                                <div>
-                                    <div className={`text-sm font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>{h.name}</div>
-                                    <div className="text-[10px] font-medium opacity-50">{new Date(h.date + 'T00:00:00').toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' })}</div>
-                                </div>
-                            </div>
-                        ))}
-                        {holidays.length === 0 && <p className="text-center text-xs opacity-50 mt-10">Sem feriados próximos.</p>}
+                            ))}
+                            {holidays.length === 0 && <p className="text-center text-xs opacity-50 mt-10">Sem feriados próximos.</p>}
+                        </div>
                       </motion.div>
                   )}
 
