@@ -1,11 +1,31 @@
+
 import React from 'react';
 import { motion } from 'framer-motion';
-import { Loader2, ShieldCheck, Monitor } from 'lucide-react';
+import { Loader2, ShieldCheck } from 'lucide-react';
 
 interface CallbackPageProps {
   isDarkMode: boolean;
   primaryColor: string;
 }
+
+const ClassroomIcon = ({ size = 40, className = "" }: { size?: number, className?: string }) => (
+    <div 
+        className={className}
+        style={{
+            width: size,
+            height: size,
+            maskImage: 'url("https://img.icons8.com/?size=100&id=24519&format=png&color=000000")',
+            WebkitMaskImage: 'url("https://img.icons8.com/?size=100&id=24519&format=png&color=000000")',
+            maskSize: 'contain',
+            WebkitMaskSize: 'contain',
+            maskRepeat: 'no-repeat',
+            WebkitMaskRepeat: 'no-repeat',
+            maskPosition: 'center',
+            WebkitMaskPosition: 'center',
+            backgroundColor: 'currentColor'
+        }}
+    />
+);
 
 export const CallbackPage: React.FC<CallbackPageProps> = ({ isDarkMode, primaryColor }) => {
   return (
@@ -28,7 +48,7 @@ export const CallbackPage: React.FC<CallbackPageProps> = ({ isDarkMode, primaryC
                 className={`absolute inset-[-10px] rounded-full border-t-2 border-r-2 border-transparent ${isDarkMode ? `border-t-${primaryColor}-500 border-r-white` : `border-t-${primaryColor}-500 border-r-gray-400`}`}
             />
             <div className={`w-24 h-24 rounded-full flex items-center justify-center shadow-2xl backdrop-blur-xl border ${isDarkMode ? 'bg-white/5 border-white/10' : 'bg-white border-gray-100'}`}>
-                <Monitor size={40} className={isDarkMode ? 'text-white' : 'text-gray-800'} />
+                <ClassroomIcon size={40} className={isDarkMode ? 'text-white' : 'text-gray-800'} />
             </div>
             
             <motion.div 

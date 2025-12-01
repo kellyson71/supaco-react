@@ -3,7 +3,7 @@ import React from 'react';
 import { motion } from 'framer-motion';
 import { 
   BookOpen, Calendar as CalendarIcon, 
-  Monitor, Flag, Shield, RefreshCw, Moon, Sun, Sparkles
+  Flag, Shield, RefreshCw, Moon, Sun, Sparkles
 } from 'lucide-react';
 import { InvertedCorner } from '../InvertedCorner';
 import { ViewState } from '../../types';
@@ -24,6 +24,25 @@ interface LeftSidebarProps {
   frameBg: string;
   frameText: string;
 }
+
+const ClassroomIcon = ({ size = 20, className = "" }: { size?: number, className?: string }) => (
+    <div 
+        className={className}
+        style={{
+            width: size,
+            height: size,
+            maskImage: 'url("https://img.icons8.com/?size=100&id=24519&format=png&color=000000")',
+            WebkitMaskImage: 'url("https://img.icons8.com/?size=100&id=24519&format=png&color=000000")',
+            maskSize: 'contain',
+            WebkitMaskSize: 'contain',
+            maskRepeat: 'no-repeat',
+            WebkitMaskRepeat: 'no-repeat',
+            maskPosition: 'center',
+            WebkitMaskPosition: 'center',
+            backgroundColor: 'currentColor'
+        }}
+    />
+);
 
 const NavItem = ({ icon, active, onClick, label, activeColor, isDark }: any) => (
   <button 
@@ -59,7 +78,7 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
       <nav className="flex flex-col gap-6 w-full items-center flex-1">
         <NavItem isDark={isDarkMode} icon={<BookOpen />} active={activeNav === ViewState.GRADES} onClick={() => onNavClick(ViewState.GRADES)} label="Boletim" activeColor={primaryColor} />
         <NavItem isDark={isDarkMode} icon={<CalendarIcon />} active={activeNav === ViewState.SCHEDULE} onClick={() => onNavClick(ViewState.SCHEDULE)} label="Horário" activeColor={primaryColor} />
-        <NavItem isDark={isDarkMode} icon={<Monitor />} active={activeNav === ViewState.CLASSROOM} onClick={() => onNavClick(ViewState.CLASSROOM)} label="Classroom" activeColor={primaryColor} />
+        <NavItem isDark={isDarkMode} icon={<ClassroomIcon />} active={activeNav === ViewState.CLASSROOM} onClick={() => onNavClick(ViewState.CLASSROOM)} label="Classroom" activeColor={primaryColor} />
         
         {/* Premium Feature: AI Studio */}
         <NavItem isDark={isDarkMode} icon={<Sparkles />} active={activeNav === ViewState.AI_STUDIO} onClick={() => onNavClick(ViewState.AI_STUDIO)} label="Estúdio IA" activeColor={primaryColor} />

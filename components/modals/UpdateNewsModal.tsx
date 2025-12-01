@@ -1,7 +1,7 @@
 
 import React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Sparkles, X, ArrowRight, Zap, Crown, Monitor } from 'lucide-react';
+import { Sparkles, X, ArrowRight, Zap, Crown } from 'lucide-react';
 
 interface UpdateNewsModalProps {
   onClose: () => void;
@@ -9,6 +9,25 @@ interface UpdateNewsModalProps {
   isDark: boolean;
   primaryColor: string;
 }
+
+const ClassroomIcon = ({ size = 32, className = "" }: { size?: number, className?: string }) => (
+    <div 
+        className={className}
+        style={{
+            width: size,
+            height: size,
+            maskImage: 'url("https://img.icons8.com/?size=100&id=24519&format=png&color=000000")',
+            WebkitMaskImage: 'url("https://img.icons8.com/?size=100&id=24519&format=png&color=000000")',
+            maskSize: 'contain',
+            WebkitMaskSize: 'contain',
+            maskRepeat: 'no-repeat',
+            WebkitMaskRepeat: 'no-repeat',
+            maskPosition: 'center',
+            WebkitMaskPosition: 'center',
+            backgroundColor: 'currentColor'
+        }}
+    />
+);
 
 export const UpdateNewsModal: React.FC<UpdateNewsModalProps> = ({ onClose, onGoToClassroom, isDark, primaryColor }) => {
   return (
@@ -34,7 +53,7 @@ export const UpdateNewsModal: React.FC<UpdateNewsModalProps> = ({ onClose, onGoT
             
             <div className="relative z-10 flex items-center gap-4">
                 <div className="w-16 h-16 rounded-2xl bg-white shadow-xl flex items-center justify-center text-green-600 transform -rotate-6">
-                    <Monitor size={32} />
+                    <ClassroomIcon size={32} />
                 </div>
                 <div className="w-16 h-16 rounded-2xl bg-violet-600 shadow-xl shadow-violet-600/30 flex items-center justify-center text-white transform rotate-6 z-10">
                     <Sparkles size={32} fill="currentColor" />

@@ -1,7 +1,7 @@
 
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Monitor, Calendar, Clock, Sparkles, Lock, AlertCircle, Check, RefreshCw } from 'lucide-react';
+import { Calendar, Clock, Sparkles, Lock, AlertCircle, Check, RefreshCw } from 'lucide-react';
 import { ClassroomWork } from '../../types';
 import { ClassroomAIOverlay } from './ClassroomAIOverlay';
 
@@ -19,6 +19,25 @@ interface ClassroomModalProps {
   onOpenSettings?: () => void;
   onRefresh?: () => void;
 }
+
+const ClassroomIcon = ({ size = 24, className = "" }: { size?: number, className?: string }) => (
+    <div 
+        className={className}
+        style={{
+            width: size,
+            height: size,
+            maskImage: 'url("https://img.icons8.com/?size=100&id=24519&format=png&color=000000")',
+            WebkitMaskImage: 'url("https://img.icons8.com/?size=100&id=24519&format=png&color=000000")',
+            maskSize: 'contain',
+            WebkitMaskSize: 'contain',
+            maskRepeat: 'no-repeat',
+            WebkitMaskRepeat: 'no-repeat',
+            maskPosition: 'center',
+            WebkitMaskPosition: 'center',
+            backgroundColor: 'currentColor'
+        }}
+    />
+);
 
 export const ClassroomModal: React.FC<ClassroomModalProps> = ({ 
     classroomWork, 
@@ -42,7 +61,7 @@ export const ClassroomModal: React.FC<ClassroomModalProps> = ({
       return (
           <div className="flex flex-col items-center justify-center h-full text-center p-6">
               <div className={`w-24 h-24 rounded-[2rem] flex items-center justify-center mb-6 shadow-2xl ${isDark ? 'bg-white/5 text-gray-400 shadow-black/50' : 'bg-white text-gray-500 shadow-gray-200'}`}>
-                  <Monitor size={48} />
+                  <ClassroomIcon size={48} />
               </div>
               <h2 className={`text-3xl font-black mb-2 ${isDark ? 'text-white' : 'text-gray-900'}`}>Conectar Classroom</h2>
               <p className="opacity-60 max-w-sm mb-8 text-sm leading-relaxed">
@@ -94,7 +113,9 @@ export const ClassroomModal: React.FC<ClassroomModalProps> = ({
         <div id="classroom-header" className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6 shrink-0 relative z-10">
              <div>
                  <h2 className={`text-2xl font-black tracking-tight flex items-center gap-2 ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                    <Monitor size={24} className={`text-${accentColor}-500`} />
+                    <div className={`text-${accentColor}-500`}>
+                        <ClassroomIcon size={24} />
+                    </div>
                     Classroom
                  </h2>
                  <p className="text-xs font-medium opacity-60">Gerencie suas entregas e atividades pendentes.</p>

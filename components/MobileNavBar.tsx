@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { BookOpen, Calendar, Monitor, Shield, Sparkles } from 'lucide-react';
+import { BookOpen, Calendar, Shield, Sparkles } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { ViewState } from '../types';
 import { SecureStorage } from '../services/SecureStorage';
@@ -12,6 +12,25 @@ interface MobileNavBarProps {
   primaryColor: string;
 }
 
+const ClassroomIcon = ({ size = 22, className = "" }: { size?: number, className?: string }) => (
+    <div 
+        className={className}
+        style={{
+            width: size,
+            height: size,
+            maskImage: 'url("https://img.icons8.com/?size=100&id=24519&format=png&color=000000")',
+            WebkitMaskImage: 'url("https://img.icons8.com/?size=100&id=24519&format=png&color=000000")',
+            maskSize: 'contain',
+            WebkitMaskSize: 'contain',
+            maskRepeat: 'no-repeat',
+            WebkitMaskRepeat: 'no-repeat',
+            maskPosition: 'center',
+            WebkitMaskPosition: 'center',
+            backgroundColor: 'currentColor'
+        }}
+    />
+);
+
 export const MobileNavBar: React.FC<MobileNavBarProps> = ({ currentView, onChangeView, isDarkMode, primaryColor }) => {
   
   // Basic Nav Items (Home and Absences removed)
@@ -19,7 +38,7 @@ export const MobileNavBar: React.FC<MobileNavBarProps> = ({ currentView, onChang
     { id: ViewState.GRADES, icon: BookOpen, label: 'Boletim' },
     { id: ViewState.SCHEDULE, icon: Calendar, label: 'Horário' },
     { id: ViewState.AI_STUDIO, icon: Sparkles, label: 'AI Studio' },
-    { id: ViewState.CLASSROOM, icon: Monitor, label: 'Class' },
+    { id: ViewState.CLASSROOM, icon: ClassroomIcon, label: 'Class' },
   ];
 
   // Dynamically add Admin if needed
@@ -56,7 +75,7 @@ export const MobileNavBar: React.FC<MobileNavBarProps> = ({ currentView, onChang
               )}
               
               <div className={`relative z-10 transition-colors flex items-center justify-center ${isActive ? `text-${primaryColor}-500` : (isDarkMode ? 'text-gray-500' : 'text-gray-400')}`}>
-                 <item.icon size={22} strokeWidth={isActive ? 2.5 : 2} />
+                 <item.icon size={22} />
               </div>
               
               {isActive && (

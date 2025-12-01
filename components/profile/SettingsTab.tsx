@@ -2,7 +2,7 @@
 import React from 'react';
 import { motion } from 'framer-motion';
 import { 
-  ArrowRight, Crown, Check, Monitor, Zap, ImageIcon, Link2, 
+  ArrowRight, Crown, Check, Zap, ImageIcon, Link2, 
   HardDrive, Download, Trash2, Fingerprint, Star 
 } from 'lucide-react';
 import { PerformanceSettings } from '../../types';
@@ -20,6 +20,25 @@ const ToggleSwitch = ({ checked, onChange, color }: { checked: boolean, onChange
             style={{ x: checked ? 20 : 0 }}
         />
     </button>
+);
+
+const ClassroomIcon = ({ size = 18, className = "" }: { size?: number, className?: string }) => (
+    <div 
+        className={className}
+        style={{
+            width: size,
+            height: size,
+            maskImage: 'url("https://img.icons8.com/?size=100&id=24519&format=png&color=000000")',
+            WebkitMaskImage: 'url("https://img.icons8.com/?size=100&id=24519&format=png&color=000000")',
+            maskSize: 'contain',
+            WebkitMaskSize: 'contain',
+            maskRepeat: 'no-repeat',
+            WebkitMaskRepeat: 'no-repeat',
+            maskPosition: 'center',
+            WebkitMaskPosition: 'center',
+            backgroundColor: 'currentColor'
+        }}
+    />
 );
 
 const SectionHeader = ({ icon: Icon, title, color }: any) => (
@@ -91,7 +110,7 @@ export const SettingsTabContent = ({ isDark, accentColor, performanceSettings, o
             
             {/* GOOGLE CLASSROOM SETTINGS */}
             <div>
-                <SectionHeader icon={Monitor} title="Integrações" color={accentColor} />
+                <SectionHeader icon={ClassroomIcon} title="Integrações" color={accentColor} />
                 <div className={`rounded-[2rem] border overflow-hidden ${isDark ? 'bg-white/5 border-white/5' : 'bg-white border-gray-100 shadow-sm'}`}>
                     
                     {/* SUAP Integration Info */}
@@ -121,7 +140,7 @@ export const SettingsTabContent = ({ isDark, accentColor, performanceSettings, o
                                     </div>
                                 ) : (
                                     <div className={`p-2.5 rounded-xl ${classroomStatus === 'connected' ? 'bg-green-500/20 text-green-500' : (classroomStatus === 'expired' ? 'bg-red-500/20 text-red-500' : (isDark ? 'bg-white/5 text-gray-400' : 'bg-gray-100 text-gray-500'))}`}>
-                                        <Monitor size={18} />
+                                        <ClassroomIcon size={18} />
                                     </div>
                                 )}
                                 {classroomStatus === 'connected' && (
