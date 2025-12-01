@@ -1,7 +1,6 @@
-
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence, Variants } from 'framer-motion';
-import { Sparkles, Brain, ArrowRight, X, ChevronLeft, Check, Lightbulb, Zap, Layers, Trophy, GraduationCap, AlertCircle, Loader2, Copy, MessageSquare, Edit3, History, Trash2, Clock, Save } from 'lucide-react';
+import { Sparkles, Brain, ArrowRight, X, ChevronLeft, Check, RotateCcw, Lightbulb, Zap, Layers, Trophy, GraduationCap, AlertCircle, Bookmark, Loader2, Copy, Send, Edit3, History, Trash2, Clock, MessageSquare } from 'lucide-react';
 import { GoogleGenAI } from "@google/genai";
 import ReactMarkdown from 'react-markdown';
 import { SecureStorage } from '../../services/SecureStorage';
@@ -29,232 +28,59 @@ interface QuizQuestion {
     explanation: string;
 }
 
-// --- DINO RUNNER GAME (Canvas Implementation) ---
-const DinoGameLoader = ({ isDark, accentColor, onScoreUpdate }: { isDark: boolean, accentColor: string, onScoreUpdate: (score: number) => void }) => {
-    const canvasRef = useRef<HTMLCanvasElement>(null);
-    const requestRef = useRef<number>();
-    const scoreRef = useRef(0);
-    const speedRef = useRef(5);
+// --- FLUID LOADER (FLUX) ---
+const FluxLoader = ({ isDark, accentColor }: { isDark: boolean, accentColor: string }) => {
+    const [loadingText, setLoadingText] = useState("Iniciando IA...");
     
-    // Game State Refs (to avoid closures in animation loop)
-    const gameState = useRef({
-        dinoY: 0,
-        dinoVy: 0,
-        isJumping: false,
-        isDucking: false,
-        obstacles: [] as { x: number, type: 'ground' | 'air', w: number, h: number }[],
-        frameCount: 0
-    });
-
-    // Constants
-    const GRAVITY = 0.6;
-    const JUMP_FORCE = -12;
-    const GROUND_HEIGHT = 40;
-    
-    // Assets (Emojis)
-    const PLAYER_SPRITE = "🏃";
-    const OBSTACLE_GROUND = "📚";
-    const OBSTACLE_AIR = "🎓";
-
-    const jump = useCallback(() => {
-        if (!gameState.current.isJumping) {
-            gameState.current.dinoVy = JUMP_FORCE;
-            gameState.current.isJumping = true;
-        }
-    }, []);
-
-    const duck = useCallback((isDown: boolean) => {
-        gameState.current.isDucking = isDown;
-    }, []);
-
     useEffect(() => {
-        const handleKeyDown = (e: KeyboardEvent) => {
-            if (e.code === 'Space' || e.code === 'ArrowUp') {
-                e.preventDefault();
-                jump();
-            }
-            if (e.code === 'ArrowDown') {
-                e.preventDefault();
-                duck(true);
-            }
-        };
-        const handleKeyUp = (e: KeyboardEvent) => {
-            if (e.code === 'ArrowDown') duck(false);
-        };
-        const handleTouchStart = (e: TouchEvent) => {
-            // Simple tap to jump, hold bottom screen logic could be added but keep it simple
-            jump();
-        };
-
-        window.addEventListener('keydown', handleKeyDown);
-        window.addEventListener('keyup', handleKeyUp);
-        window.addEventListener('touchstart', handleTouchStart);
-
-        return () => {
-            window.removeEventListener('keydown', handleKeyDown);
-            window.removeEventListener('keyup', handleKeyUp);
-            window.removeEventListener('touchstart', handleTouchStart);
-        };
-    }, [jump, duck]);
-
-    useEffect(() => {
-        const canvas = canvasRef.current;
-        if (!canvas) return;
-        
-        const ctx = canvas.getContext('2d');
-        if (!ctx) return;
-
-        // Init
-        const resize = () => {
-            canvas.width = canvas.offsetWidth;
-            canvas.height = canvas.offsetHeight;
-            gameState.current.dinoY = canvas.height - GROUND_HEIGHT;
-        };
-        resize();
-        window.addEventListener('resize', resize);
-
-        const spawnObstacle = () => {
-            const type = Math.random() > 0.7 ? 'air' : 'ground';
-            gameState.current.obstacles.push({
-                x: canvas.width,
-                type,
-                w: 30,
-                h: 30
-            });
-        };
-
-        const update = () => {
-            gameState.current.frameCount++;
-            scoreRef.current++;
-            
-            // Speed up slightly
-            if (gameState.current.frameCount % 600 === 0) speedRef.current += 0.5;
-
-            // Spawn
-            if (gameState.current.frameCount % 100 === 0) { // Approx every 1.5s
-                if (Math.random() > 0.3) spawnObstacle();
-            }
-
-            // Player Physics
-            if (gameState.current.isJumping) {
-                gameState.current.dinoY += gameState.current.dinoVy;
-                gameState.current.dinoVy += GRAVITY;
-                
-                // Land
-                if (gameState.current.dinoY > canvas.height - GROUND_HEIGHT) {
-                    gameState.current.dinoY = canvas.height - GROUND_HEIGHT;
-                    gameState.current.isJumping = false;
-                    gameState.current.dinoVy = 0;
-                }
-            } else {
-                gameState.current.dinoY = canvas.height - GROUND_HEIGHT;
-            }
-
-            // Obstacles
-            for (let i = gameState.current.obstacles.length - 1; i >= 0; i--) {
-                const obs = gameState.current.obstacles[i];
-                obs.x -= speedRef.current;
-                
-                // Remove offscreen
-                if (obs.x < -50) {
-                    gameState.current.obstacles.splice(i, 1);
-                    continue;
-                }
-
-                // Collision Detection
-                const playerW = 30;
-                const playerH = gameState.current.isDucking ? 20 : 40; // Ducking reduces height
-                const playerX = 50;
-                const playerY = gameState.current.dinoY - (gameState.current.isDucking ? -10 : 10); // Adjust Y visual center
-
-                const obsW = 25;
-                const obsH = 25;
-                const obsX = obs.x;
-                const obsY = obs.type === 'air' 
-                    ? canvas.height - GROUND_HEIGHT - 35 // Flying height
-                    : canvas.height - GROUND_HEIGHT; // Ground height
-
-                // Simple Box Collision
-                if (
-                    playerX < obsX + obsW &&
-                    playerX + playerW > obsX &&
-                    playerY - playerH < obsY && // Top of player vs Bottom of obstacle (coord system inverted Y)
-                    playerY > obsY - obsH
-                ) {
-                    // Collision! Reset score, keep running (it's a loader, don't frustrate)
-                    scoreRef.current = Math.max(0, scoreRef.current - 100);
-                    gameState.current.obstacles.splice(i, 1); // Remove hit obstacle
-                    // Visual feedback could be added here
-                }
-            }
-
-            // Sync Score
-            if (gameState.current.frameCount % 10 === 0) {
-                onScoreUpdate(Math.floor(scoreRef.current / 5)); // Normalize score
-            }
-        };
-
-        const draw = () => {
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-            // Ground Line
-            ctx.beginPath();
-            ctx.moveTo(0, canvas.height - 20);
-            ctx.lineTo(canvas.width, canvas.height - 20);
-            ctx.strokeStyle = isDark ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.1)';
-            ctx.lineWidth = 2;
-            ctx.stroke();
-
-            // Draw Player
-            ctx.font = "30px Arial";
-            ctx.textAlign = "center";
-            ctx.textBaseline = "bottom";
-            const pY = gameState.current.dinoY;
-            const sprite = gameState.current.isDucking ? "🧘" : PLAYER_SPRITE;
-            ctx.fillText(sprite, 65, pY + 5);
-
-            // Draw Obstacles
-            gameState.current.obstacles.forEach(obs => {
-                const oY = obs.type === 'air' ? canvas.height - GROUND_HEIGHT - 25 : canvas.height - GROUND_HEIGHT;
-                const sprite = obs.type === 'air' ? OBSTACLE_AIR : OBSTACLE_GROUND;
-                ctx.fillText(sprite, obs.x + 15, oY + 5);
-            });
-
-            // Draw Score
-            ctx.fillStyle = isDark ? "rgba(255,255,255,0.5)" : "rgba(0,0,0,0.5)";
-            ctx.font = "bold 14px monospace";
-            ctx.textAlign = "right";
-            ctx.fillText(`SCORE: ${Math.floor(scoreRef.current / 5).toString().padStart(5, '0')}`, canvas.width - 20, 30);
-        };
-
-        const loop = () => {
-            update();
-            draw();
-            requestRef.current = requestAnimationFrame(loop);
-        };
-
-        requestRef.current = requestAnimationFrame(loop);
-
-        return () => {
-            window.removeEventListener('resize', resize);
-            if (requestRef.current) cancelAnimationFrame(requestRef.current);
-        };
-    }, [isDark, onScoreUpdate]);
+        const texts = [
+            "Conectando neurônios...",
+            "Estruturando conhecimento...",
+            "Refinando detalhes...",
+            "Quase pronto..."
+        ];
+        let i = 0;
+        const interval = setInterval(() => {
+            setLoadingText(texts[i % texts.length]);
+            i++;
+        }, 1500);
+        return () => clearInterval(interval);
+    }, []);
 
     return (
-        <div className={`absolute inset-0 z-[100] flex flex-col items-center justify-center ${isDark ? 'bg-slate-950' : 'bg-gray-50'}`}>
-            <div className="absolute top-10 text-center space-y-2 pointer-events-none opacity-60">
-                <h3 className={`text-xl font-black uppercase tracking-tight animate-pulse ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                    Gerando Conteúdo...
-                </h3>
-                <p className="text-[10px] font-mono">Enquanto isso, treine seus reflexos!</p>
+        <div className={`flex flex-col items-center justify-center h-full w-full absolute inset-0 z-[100] overflow-hidden ${isDark ? 'bg-black/60 backdrop-blur-xl' : 'bg-white/60 backdrop-blur-xl'}`}>
+            <div className="relative flex items-center justify-center">
+                {/* Liquid Blob */}
+                <motion.div 
+                    animate={{ 
+                        rotate: 360,
+                        scale: [1, 1.2, 1],
+                        borderRadius: ["30% 70% 70% 30% / 30% 30% 70% 70%", "60% 40% 30% 70% / 60% 30% 70% 40%", "30% 70% 70% 30% / 30% 30% 70% 70%"],
+                    }}
+                    transition={{ duration: 8, repeat: Infinity, ease: "easeInOut" }}
+                    className={`w-40 h-40 bg-gradient-to-tr from-${accentColor}-500/40 to-${accentColor}-300/40 blur-2xl absolute`}
+                />
+                
+                {/* Core */}
+                <motion.div 
+                    initial={{ scale: 0.8 }}
+                    animate={{ scale: [0.8, 1.0, 0.8] }}
+                    transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
+                    className={`relative z-10 p-5 rounded-3xl ${isDark ? 'bg-black border border-white/10' : 'bg-white border border-gray-100'} shadow-2xl`}
+                >
+                    <Brain size={40} className={`text-${accentColor}-500`} />
+                </motion.div>
             </div>
-            
-            <canvas ref={canvasRef} className="w-full h-full block" />
 
-            <div className="absolute bottom-10 text-[10px] font-bold uppercase tracking-widest opacity-40">
-                Toque ou Espaço para Pular • Baixo para Abaixar
-            </div>
+            <motion.h3 
+                key={loadingText}
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+                className={`mt-8 text-xs font-bold uppercase tracking-widest ${isDark ? 'text-white/60' : 'text-black/60'}`}
+            >
+                {loadingText}
+            </motion.h3>
         </div>
     );
 };
@@ -268,10 +94,6 @@ export const AIStudioModal: React.FC<AIStudioModalProps> = ({ isDark, accentColo
     const [flashcards, setFlashcards] = useState<Flashcard[]>([]);
     const [quizData, setQuizData] = useState<QuizQuestion[]>([]);
     const [summary, setSummary] = useState('');
-    
-    // Game & Notification State
-    const [lastGameScore, setLastGameScore] = useState(0);
-    const [showScoreToast, setShowScoreToast] = useState(false);
     
     // Interactive States
     const [currentCardIndex, setCurrentCardIndex] = useState(0);
@@ -308,7 +130,6 @@ export const AIStudioModal: React.FC<AIStudioModalProps> = ({ isDark, accentColo
         setSelectedOption(null);
         setQuizScore(0);
         setShowQuizResult(false);
-        setLastGameScore(0);
     };
 
     const handleBack = () => {
@@ -397,20 +218,14 @@ export const AIStudioModal: React.FC<AIStudioModalProps> = ({ isDark, accentColo
                 prompt = `Resumo Markdown sobre "${topic}". Tópicos, negrito e emojis.`;
             }
 
-            // Simulate slight delay to enjoy the game if response is too fast (optional, but good for UX here)
-            const minTime = new Promise(resolve => setTimeout(resolve, 2000));
-            
-            const [response] = await Promise.all([
-                ai.models.generateContent({
-                    model: 'gemini-2.5-flash',
-                    contents: prompt,
-                    config: {
-                        responseMimeType: activeTool === 'summary' ? 'text/plain' : 'application/json',
-                        responseSchema: schema as any
-                    }
-                }),
-                minTime
-            ]);
+            const response = await ai.models.generateContent({
+                model: 'gemini-2.5-flash',
+                contents: prompt,
+                config: {
+                    responseMimeType: activeTool === 'summary' ? 'text/plain' : 'application/json',
+                    responseSchema: schema as any
+                }
+            });
 
             if (activeTool === 'summary') {
                 const text = response.text || "Erro ao gerar.";
@@ -432,9 +247,6 @@ export const AIStudioModal: React.FC<AIStudioModalProps> = ({ isDark, accentColo
             console.error("AI Error", e);
         } finally {
             setIsLoading(false);
-            // Trigger game saved toast
-            setShowScoreToast(true);
-            setTimeout(() => setShowScoreToast(false), 4000);
         }
     };
 
@@ -938,7 +750,7 @@ export const AIStudioModal: React.FC<AIStudioModalProps> = ({ isDark, accentColo
             <AnimatePresence mode="wait">
                 {isLoading && (
                     <motion.div key="loading" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 z-50">
-                        <DinoGameLoader isDark={isDark} accentColor={accentColor} onScoreUpdate={setLastGameScore} />
+                        <FluxLoader isDark={isDark} accentColor={accentColor} />
                     </motion.div>
                 )}
                 
@@ -957,23 +769,6 @@ export const AIStudioModal: React.FC<AIStudioModalProps> = ({ isDark, accentColo
                 ) : (
                     <motion.div key="input" className="h-full">
                         {renderInputScreen()}
-                    </motion.div>
-                )}
-            </AnimatePresence>
-
-            {/* Game Score Toast */}
-            <AnimatePresence>
-                {showScoreToast && (
-                    <motion.div 
-                        initial={{ y: 50, opacity: 0 }}
-                        animate={{ y: 0, opacity: 1 }}
-                        exit={{ y: 50, opacity: 0 }}
-                        className={`absolute bottom-6 left-1/2 -translate-x-1/2 z-[100] px-4 py-3 rounded-full flex items-center gap-3 shadow-xl backdrop-blur-md border ${isDark ? 'bg-black/80 border-white/10 text-white' : 'bg-white/90 border-gray-200 text-gray-900'}`}
-                    >
-                        <div className={`p-1.5 rounded-full ${isDark ? 'bg-white/20' : 'bg-black/10'}`}>
-                            <Save size={14} />
-                        </div>
-                        <span className="text-xs font-bold">Jogo salvo — pontuação final: {lastGameScore}</span>
                     </motion.div>
                 )}
             </AnimatePresence>

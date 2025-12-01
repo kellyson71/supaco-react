@@ -1,7 +1,10 @@
 
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+
+
+
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Sparkles, Loader2, X, Brain, Check, Copy, Book, MessageSquare, ChevronRight, AlertCircle, ArrowRight, ChevronLeft, Edit3, Lightbulb, Save, Trophy } from 'lucide-react';
+import { Sparkles, Loader2, X, Brain, Check, Copy, Book, MessageSquare, ChevronRight, AlertCircle, ArrowRight, ChevronLeft, Edit3, Lightbulb } from 'lucide-react';
 import { ClassroomWork, AIHistoryItem } from '../../types';
 import { GoogleGenAI } from "@google/genai";
 import ReactMarkdown from 'react-markdown';
@@ -14,190 +17,6 @@ interface ClassroomAIOverlayProps {
   apiKey?: string;
   onOpenChatWithContext?: (messages: any[], pendingMessage?: string) => void;
 }
-
-// --- DINO RUNNER GAME ---
-const DinoGameLoader = ({ isDark, accentColor, onScoreUpdate }: { isDark: boolean, accentColor?: string, onScoreUpdate: (score: number) => void }) => {
-    const canvasRef = useRef<HTMLCanvasElement>(null);
-    const requestRef = useRef<number>();
-    const scoreRef = useRef(0);
-    const speedRef = useRef(5);
-    
-    // Game State Refs
-    const gameState = useRef({
-        dinoY: 0,
-        dinoVy: 0,
-        isJumping: false,
-        isDucking: false,
-        obstacles: [] as { x: number, type: 'ground' | 'air', w: number, h: number }[],
-        frameCount: 0
-    });
-
-    // Constants
-    const GRAVITY = 0.6;
-    const JUMP_FORCE = -12;
-    const GROUND_HEIGHT = 40;
-    
-    // Assets
-    const PLAYER_SPRITE = "🏃";
-    const OBSTACLE_GROUND = "📚";
-    const OBSTACLE_AIR = "🎓";
-
-    const jump = useCallback(() => {
-        if (!gameState.current.isJumping) {
-            gameState.current.dinoVy = JUMP_FORCE;
-            gameState.current.isJumping = true;
-        }
-    }, []);
-
-    const duck = useCallback((isDown: boolean) => {
-        gameState.current.isDucking = isDown;
-    }, []);
-
-    useEffect(() => {
-        const handleKeyDown = (e: KeyboardEvent) => {
-            if (e.code === 'Space' || e.code === 'ArrowUp') {
-                e.preventDefault();
-                jump();
-            }
-            if (e.code === 'ArrowDown') {
-                e.preventDefault();
-                duck(true);
-            }
-        };
-        const handleKeyUp = (e: KeyboardEvent) => {
-            if (e.code === 'ArrowDown') duck(false);
-        };
-        const handleTouchStart = () => jump();
-
-        window.addEventListener('keydown', handleKeyDown);
-        window.addEventListener('keyup', handleKeyUp);
-        window.addEventListener('touchstart', handleTouchStart);
-
-        return () => {
-            window.removeEventListener('keydown', handleKeyDown);
-            window.removeEventListener('keyup', handleKeyUp);
-            window.removeEventListener('touchstart', handleTouchStart);
-        };
-    }, [jump, duck]);
-
-    useEffect(() => {
-        const canvas = canvasRef.current;
-        if (!canvas) return;
-        const ctx = canvas.getContext('2d');
-        if (!ctx) return;
-
-        const resize = () => {
-            canvas.width = canvas.offsetWidth;
-            canvas.height = canvas.offsetHeight;
-            gameState.current.dinoY = canvas.height - GROUND_HEIGHT;
-        };
-        resize();
-        window.addEventListener('resize', resize);
-
-        const spawnObstacle = () => {
-            const type = Math.random() > 0.7 ? 'air' : 'ground';
-            gameState.current.obstacles.push({ x: canvas.width, type, w: 30, h: 30 });
-        };
-
-        const update = () => {
-            gameState.current.frameCount++;
-            scoreRef.current++;
-            if (gameState.current.frameCount % 600 === 0) speedRef.current += 0.5;
-            if (gameState.current.frameCount % 100 === 0 && Math.random() > 0.3) spawnObstacle();
-
-            if (gameState.current.isJumping) {
-                gameState.current.dinoY += gameState.current.dinoVy;
-                gameState.current.dinoVy += GRAVITY;
-                if (gameState.current.dinoY > canvas.height - GROUND_HEIGHT) {
-                    gameState.current.dinoY = canvas.height - GROUND_HEIGHT;
-                    gameState.current.isJumping = false;
-                    gameState.current.dinoVy = 0;
-                }
-            } else {
-                gameState.current.dinoY = canvas.height - GROUND_HEIGHT;
-            }
-
-            for (let i = gameState.current.obstacles.length - 1; i >= 0; i--) {
-                const obs = gameState.current.obstacles[i];
-                obs.x -= speedRef.current;
-                if (obs.x < -50) {
-                    gameState.current.obstacles.splice(i, 1);
-                    continue;
-                }
-                // Simple collision logic (reset score on hit)
-                const playerW = 30;
-                const playerH = gameState.current.isDucking ? 20 : 40;
-                const playerX = 50;
-                const playerY = gameState.current.dinoY - (gameState.current.isDucking ? -10 : 10);
-                const obsY = obs.type === 'air' ? canvas.height - GROUND_HEIGHT - 35 : canvas.height - GROUND_HEIGHT;
-
-                if (playerX < obs.x + 25 && playerX + playerW > obs.x && playerY - playerH < obsY && playerY > obsY - 25) {
-                    scoreRef.current = Math.max(0, scoreRef.current - 100);
-                    gameState.current.obstacles.splice(i, 1);
-                }
-            }
-
-            if (gameState.current.frameCount % 10 === 0) onScoreUpdate(Math.floor(scoreRef.current / 5));
-        };
-
-        const draw = () => {
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-            
-            // Ground
-            ctx.beginPath();
-            ctx.moveTo(0, canvas.height - 20);
-            ctx.lineTo(canvas.width, canvas.height - 20);
-            ctx.strokeStyle = isDark ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.1)';
-            ctx.lineWidth = 2;
-            ctx.stroke();
-
-            // Player
-            ctx.font = "30px Arial";
-            ctx.textAlign = "center";
-            ctx.textBaseline = "bottom";
-            ctx.fillText(gameState.current.isDucking ? "🧘" : PLAYER_SPRITE, 65, gameState.current.dinoY + 5);
-
-            // Obstacles
-            gameState.current.obstacles.forEach(obs => {
-                const oY = obs.type === 'air' ? canvas.height - GROUND_HEIGHT - 25 : canvas.height - GROUND_HEIGHT;
-                ctx.fillText(obs.type === 'air' ? OBSTACLE_AIR : OBSTACLE_GROUND, obs.x + 15, oY + 5);
-            });
-
-            // Score
-            ctx.fillStyle = isDark ? "rgba(255,255,255,0.5)" : "rgba(0,0,0,0.5)";
-            ctx.font = "bold 14px monospace";
-            ctx.textAlign = "right";
-            ctx.fillText(`SCORE: ${Math.floor(scoreRef.current / 5).toString().padStart(5, '0')}`, canvas.width - 20, 30);
-        };
-
-        const loop = () => {
-            update();
-            draw();
-            requestRef.current = requestAnimationFrame(loop);
-        };
-        requestRef.current = requestAnimationFrame(loop);
-
-        return () => {
-            window.removeEventListener('resize', resize);
-            if (requestRef.current) cancelAnimationFrame(requestRef.current);
-        };
-    }, [isDark, onScoreUpdate]);
-
-    return (
-        <div className={`absolute inset-0 z-[100] flex flex-col items-center justify-center ${isDark ? 'bg-slate-950' : 'bg-gray-50'}`}>
-            <div className="absolute top-10 text-center space-y-2 pointer-events-none opacity-60">
-                <h3 className={`text-xl font-black uppercase tracking-tight animate-pulse ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                    Analisando Atividade...
-                </h3>
-                <p className="text-[10px] font-mono">Enquanto isso, treine seus reflexos!</p>
-            </div>
-            <canvas ref={canvasRef} className="w-full h-full block" />
-            <div className="absolute bottom-10 text-[10px] font-bold uppercase tracking-widest opacity-40">
-                Toque ou Espaço para Pular • Baixo para Abaixar
-            </div>
-        </div>
-    );
-};
 
 // Helper: Copy Button
 const CopyButton = ({ text, isDark }: { text: string, isDark: boolean }) => {
@@ -238,10 +57,6 @@ export const ClassroomAIOverlay: React.FC<ClassroomAIOverlayProps> = ({
     const [solution, setSolution] = useState<{ core: string, explanation: string, suggestions: string[] } | null>(null);
     const [chatInput, setChatInput] = useState('');
 
-    // Game & Notification State
-    const [lastGameScore, setLastGameScore] = useState(0);
-    const [showScoreToast, setShowScoreToast] = useState(false);
-
     useEffect(() => {
         analyzeWork();
     }, []);
@@ -264,11 +79,6 @@ export const ClassroomAIOverlay: React.FC<ClassroomAIOverlayProps> = ({
                 { ...sol, courseName: work.courseName } // Keep solution details
             );
         }
-    };
-
-    const triggerGameFinish = () => {
-        setShowScoreToast(true);
-        setTimeout(() => setShowScoreToast(false), 4000);
     };
 
     const analyzeWork = async () => {
@@ -314,17 +124,11 @@ export const ClassroomAIOverlay: React.FC<ClassroomAIOverlayProps> = ({
                 }
             `;
 
-            // Wait at least 2s to show game
-            const minTime = new Promise(resolve => setTimeout(resolve, 2000));
-
-            const [response] = await Promise.all([
-                ai.models.generateContent({
-                    model: 'gemini-2.5-flash',
-                    contents: prompt,
-                    config: { responseMimeType: "application/json" }
-                }),
-                minTime
-            ]);
+            const response = await ai.models.generateContent({
+                model: 'gemini-2.5-flash',
+                contents: prompt,
+                config: { responseMimeType: "application/json" }
+            });
 
             const cleanedText = cleanJson(response.text || '{}');
             let result;
@@ -339,7 +143,6 @@ export const ClassroomAIOverlay: React.FC<ClassroomAIOverlayProps> = ({
             if (result.status === 'NEEDS_CONTEXT' && result.questions && result.questions.length > 0) {
                 setQuestions(result.questions);
                 setStatus('NEEDS_CONTEXT');
-                triggerGameFinish();
             } else if (result.status === 'SOLVED' && result.solution) {
                 const sol = {
                     core: result.solution.core_answer,
@@ -349,7 +152,6 @@ export const ClassroomAIOverlay: React.FC<ClassroomAIOverlayProps> = ({
                 setSolution(sol);
                 setStatus('SOLVED');
                 saveToHistory(sol);
-                triggerGameFinish();
             } else {
                 // Fallback
                 if (result.solution) {
@@ -361,7 +163,6 @@ export const ClassroomAIOverlay: React.FC<ClassroomAIOverlayProps> = ({
                     setSolution(sol);
                     setStatus('SOLVED');
                     saveToHistory(sol);
-                    triggerGameFinish();
                 } else {
                     setStatus('ERROR');
                 }
@@ -426,17 +227,11 @@ export const ClassroomAIOverlay: React.FC<ClassroomAIOverlayProps> = ({
                 }
             `;
 
-            // Wait at least 2s for game
-            const minTime = new Promise(resolve => setTimeout(resolve, 2000));
-
-            const [response] = await Promise.all([
-                ai.models.generateContent({
-                    model: 'gemini-2.5-flash',
-                    contents: prompt,
-                    config: { responseMimeType: "application/json" }
-                }),
-                minTime
-            ]);
+            const response = await ai.models.generateContent({
+                model: 'gemini-2.5-flash',
+                contents: prompt,
+                config: { responseMimeType: "application/json" }
+            });
 
             const cleanedText = cleanJson(response.text || '{}');
             let result;
@@ -456,7 +251,6 @@ export const ClassroomAIOverlay: React.FC<ClassroomAIOverlayProps> = ({
             setSolution(sol);
             setStatus('SOLVED');
             saveToHistory(sol);
-            triggerGameFinish();
 
         } catch (e) {
             console.error("AI API Error:", e);
@@ -486,42 +280,11 @@ export const ClassroomAIOverlay: React.FC<ClassroomAIOverlayProps> = ({
     };
 
     const activeQuestion = questions[currentStep];
+    // Add "Outro" to options if it exists
     const currentOptions = activeQuestion ? [...(activeQuestion.options || []), 'Outro'] : [];
 
     return (
         <div className={`absolute inset-0 z-50 flex flex-col ${isDark ? 'bg-slate-950' : 'bg-white'}`}>
-            
-            {/* GAME LOADING OVERLAY */}
-            <AnimatePresence>
-                {(status === 'ANALYZING' || status === 'SOLVING') && (
-                    <motion.div 
-                        initial={{ opacity: 0 }} 
-                        animate={{ opacity: 1 }} 
-                        exit={{ opacity: 0 }} 
-                        className="absolute inset-0 z-[100]"
-                    >
-                        <DinoGameLoader isDark={isDark} onScoreUpdate={setLastGameScore} />
-                    </motion.div>
-                )}
-            </AnimatePresence>
-
-            {/* SCORE NOTIFICATION */}
-            <AnimatePresence>
-                {showScoreToast && (
-                    <motion.div 
-                        initial={{ y: 50, opacity: 0 }}
-                        animate={{ y: -20, opacity: 1 }}
-                        exit={{ y: 50, opacity: 0 }}
-                        className={`absolute bottom-10 left-1/2 -translate-x-1/2 z-[200] px-6 py-3 rounded-full flex items-center gap-3 shadow-2xl backdrop-blur-md border ${isDark ? 'bg-black/80 border-white/10 text-white' : 'bg-white/90 border-gray-200 text-gray-900'}`}
-                    >
-                        <div className={`p-1.5 rounded-full ${isDark ? 'bg-white/20' : 'bg-black/10'}`}>
-                            <Save size={14} />
-                        </div>
-                        <span className="text-xs font-bold">Jogo salvo — pontuação final: {lastGameScore}</span>
-                    </motion.div>
-                )}
-            </AnimatePresence>
-
             {/* Header */}
             <div className={`px-6 py-4 flex items-center justify-between border-b shrink-0 ${isDark ? 'border-white/10 bg-slate-900' : 'border-gray-100 bg-gray-50'}`}>
                 <div className="flex items-center gap-3">
@@ -541,6 +304,22 @@ export const ClassroomAIOverlay: React.FC<ClassroomAIOverlayProps> = ({
             {/* Content Area */}
             <div className="flex-1 overflow-y-auto custom-scroll p-6 relative flex flex-col">
                 
+                {/* LOADING STATES */}
+                {(status === 'ANALYZING' || status === 'SOLVING') && (
+                    <div className="absolute inset-0 flex flex-col items-center justify-center z-10 p-6 text-center">
+                        <div className="relative mb-6">
+                            <div className="absolute inset-0 bg-violet-500 blur-3xl opacity-20 animate-pulse" />
+                            <Loader2 size={48} className={`animate-spin ${isDark ? 'text-violet-400' : 'text-violet-600'}`} />
+                        </div>
+                        <h2 className={`text-xl font-bold mb-2 ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                            {status === 'ANALYZING' ? 'Analisando requisitos...' : 'Gerando solução...'}
+                        </h2>
+                        <p className="text-sm opacity-50 max-w-xs mx-auto">
+                            {status === 'ANALYZING' ? 'Verificando se faltam informações para uma resposta perfeita.' : 'Escrevendo o código e as explicações.'}
+                        </p>
+                    </div>
+                )}
+
                 {/* STEPPED QUESTIONNAIRE STATE */}
                 {status === 'NEEDS_CONTEXT' && activeQuestion && (
                     <div className="flex-1 flex flex-col max-w-lg mx-auto w-full animate-in fade-in slide-in-from-bottom-4 duration-500">
