@@ -37,87 +37,94 @@ interface RightSidebarProps {
   setShowChangelog: (v: boolean) => void;
 }
 
-const CalendarTooltip = ({ date, rect, events, isDarkMode, primaryColor }: any) => {
-    if (!rect) return null;
+const CalendarTooltip = ({ date, x, y, events, isDarkMode, primaryColor }: any) => {
+    if (x === undefined || y === undefined) return null;
     
     const { classes, holiday, tasks } = events;
-    const hasEvents = classes.length > 0 || holiday || tasks.length > 0;
+    
+    // Group classes by name to show summary (e.g. "2 Matemática")
+    const groupedClasses = classes.reduce((acc: any[], curr: any) => {
+        const existing = acc.find((c: any) => c.name === curr.name);
+        if (existing) {
+            existing.count += 1;
+        } else {
+            acc.push({ ...curr, count: 1 });
+        }
+        return acc;
+    }, []);
+
+    const hasEvents = groupedClasses.length > 0 || holiday || tasks.length > 0;
 
     return (
         <motion.div
-            initial={{ opacity: 0, scale: 0.9 }}
-            animate={{ 
-                opacity: 1, 
-                scale: 1,
-                top: rect.top - 16, // Hover nicely above
-                left: rect.left + rect.width / 2 
-            }}
-            exit={{ opacity: 0, scale: 0.9 }}
-            transition={{ 
-                type: "spring", 
-                stiffness: 400, 
-                damping: 30,
-                mass: 0.8
-            }}
+            initial={{ opacity: 0, scale: 0.8, x: "-50%", y: "-90%" }}
+            animate={{ opacity: 1, scale: 1, x: "-50%", y: "-100%" }}
+            exit={{ opacity: 0, scale: 0.8, x: "-50%", y: "-90%" }}
+            transition={{ type: "spring", stiffness: 400, damping: 25 }}
             style={{ 
                 position: 'fixed', 
-                x: "-50%",
-                y: "-100%",
+                top: y - 15,
+                left: x,
                 zIndex: 9999,
                 pointerEvents: 'none'
             }}
-            className={`p-3.5 rounded-2xl shadow-2xl backdrop-blur-md border min-w-[180px] max-w-[240px] flex flex-col gap-2
-                ${isDarkMode ? 'bg-slate-900/90 border-white/20' : 'bg-white/90 border-gray-200'}
+            className={`p-3 rounded-xl shadow-xl backdrop-blur-md border min-w-[140px] max-w-[200px] flex flex-col gap-2 pointer-events-none
+                ${isDarkMode ? 'bg-slate-900/95 border-white/10' : 'bg-white/95 border-gray-100'}
             `}
         >
-            <div className={`text-[10px] font-black uppercase tracking-widest pb-2 border-b flex justify-between items-center ${isDarkMode ? 'border-white/10 text-gray-400' : 'border-gray-100 text-gray-500'}`}>
-                <span>{date.toLocaleDateString('pt-BR', { weekday: 'long' })}</span>
+            <div className={`text-[9px] font-black uppercase tracking-widest pb-1.5 border-b flex justify-between items-center ${isDarkMode ? 'border-white/10 text-gray-500' : 'border-gray-100 text-gray-400'}`}>
+                <span>{date.toLocaleDateString('pt-BR', { weekday: 'short' }).replace('.', '')}</span>
                 <span>{date.getDate()}</span>
             </div>
 
-            <div className="space-y-1.5">
+            <div className="space-y-1">
                 {holiday && (
-                    <div className="flex items-start gap-2 bg-red-500/10 p-2 rounded-lg border border-red-500/20">
-                        <div className="p-1 rounded-md bg-red-500 text-white shrink-0 mt-0.5 shadow-sm">
-                            <Sparkles size={8} fill="currentColor" />
-                        </div>
-                        <div className="min-w-0">
-                            <div className={`text-[10px] font-bold leading-tight uppercase ${isDarkMode ? 'text-red-300' : 'text-red-600'}`}>Feriado</div>
-                            <div className="text-[10px] opacity-80 leading-tight truncate">{holiday.name}</div>
-                        </div>
+                    <div className="flex items-center gap-2 p-1.5 rounded-lg bg-red-500/10 text-red-500 border border-red-500/20 mb-1">
+                        <Sparkles size={10} fill="currentColor" />
+                        <span className="text-[10px] font-bold truncate">{holiday.name}</span>
                     </div>
                 )}
 
-                {classes.map((cls: any, i: number) => (
-                    <div key={i} className={`flex items-center gap-2 p-1.5 rounded-lg ${isDarkMode ? 'bg-white/5' : 'bg-gray-50'}`}>
-                        <div className={`w-1 h-6 rounded-full shrink-0 bg-${primaryColor}-500`} />
-                        <div className="min-w-0 flex-1">
-                            <div className={`text-[10px] font-bold leading-none truncate ${isDarkMode ? 'text-gray-200' : 'text-gray-800'}`}>{cls.name}</div>
-                            <div className="text-[9px] opacity-50 flex items-center gap-1 mt-0.5 font-mono">
-                                {cls.startTime} • {cls.room}
+                {groupedClasses.length > 0 ? (
+                    <div className="flex flex-col gap-1">
+                        {groupedClasses.map((group: any, i: number) => (
+                            <div key={i} className="flex items-center justify-between gap-2">
+                                <div className="flex items-center gap-1.5 overflow-hidden">
+                                    {group.count === 1 && (
+                                        <div className={`w-1 h-1 rounded-full shrink-0 bg-${primaryColor}-500`} />
+                                    )}
+                                    <span className={`text-[10px] font-bold truncate ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                                        {group.name}
+                                    </span>
+                                </div>
+                                {group.count > 1 && (
+                                    <span className={`text-[9px] font-black px-1.5 py-0.5 rounded-[4px] leading-none ${isDarkMode ? `bg-${primaryColor}-500/20 text-${primaryColor}-300` : `bg-${primaryColor}-100 text-${primaryColor}-700`}`}>
+                                        {group.count}
+                                    </span>
+                                )}
                             </div>
-                        </div>
+                        ))}
                     </div>
-                ))}
+                ) : null}
 
                 {tasks.length > 0 && (
-                    <div className={`flex items-center gap-2 px-2 py-1.5 rounded-lg border ${isDarkMode ? 'bg-indigo-500/10 border-indigo-500/20 text-indigo-300' : 'bg-indigo-50 border-indigo-100 text-indigo-600'}`}>
+                    <div className={`mt-1 flex items-center gap-1.5 px-2 py-1 rounded-lg border border-dashed ${isDarkMode ? 'border-indigo-500/30 text-indigo-400 bg-indigo-500/5' : 'border-indigo-300 text-indigo-600 bg-indigo-50'}`}>
                         <Book size={10} />
-                        <div className="text-[10px] font-bold">{tasks.length} Entrega{tasks.length > 1 ? 's' : ''}</div>
+                        <span className="text-[9px] font-bold">{tasks.length} Entregas</span>
                     </div>
                 )}
 
                 {!hasEvents && (
-                    <div className="text-center py-1 opacity-40">
-                        <div className="text-[9px] font-bold uppercase tracking-wider">Sem eventos</div>
+                    <div className="text-center py-1 opacity-30">
+                        <span className="text-[9px] font-bold uppercase">Livre</span>
                     </div>
                 )}
             </div>
             
             {/* Arrow Pointer */}
             <div 
-                className={`absolute bottom-[-6px] left-1/2 -translate-x-1/2 w-3 h-3 rotate-45 border-b border-r
-                    ${isDarkMode ? 'bg-slate-900 border-white/20' : 'bg-white border-gray-200'}
+                className={`absolute bottom-[-4px] left-1/2 -translate-x-1/2 w-2 h-2 rotate-45 border-b border-r
+                    ${isDarkMode ? 'bg-slate-900 border-white/10' : 'bg-white border-gray-100'}
                 `} 
             />
         </motion.div>
@@ -130,7 +137,7 @@ export const RightSidebar: React.FC<RightSidebarProps> = ({
   unlockedAchievements, onOpenProfile, days, getEventsForDate, MONTH_NAMES, CURRENT_VERSION, setShowChangelog
 }) => {
   const [todoInput, setTodoInput] = useState('');
-  const [hoveredDate, setHoveredDate] = useState<{ date: Date, rect: DOMRect } | null>(null);
+  const [hoveredDate, setHoveredDate] = useState<{ date: Date, x: number, y: number } | null>(null);
   
   // Time Warp State
   const [isTimeWarping, setIsTimeWarping] = useState(false);
@@ -235,7 +242,6 @@ export const RightSidebar: React.FC<RightSidebarProps> = ({
             {/* Sidebar Content */}
             <div 
                 className="flex-1 relative overflow-hidden flex flex-col custom-scroll overflow-y-auto"
-                // Clearing hover on scroll ensures tooltip doesn't get stuck in wrong pos
                 onScroll={() => setHoveredDate(null)}
             >
               <AnimatePresence mode="wait">
@@ -282,12 +288,8 @@ export const RightSidebar: React.FC<RightSidebarProps> = ({
                                       return (
                                           <div 
                                               key={i}
-                                              onMouseEnter={(e) => {
-                                                  const rect = e.currentTarget.getBoundingClientRect();
-                                                  setHoveredDate({ date: day, rect });
-                                              }}
-                                              // We remove onMouseLeave here to let the parent handle the "gap" transitions smoothly
-                                              // or simply let the next Enter event take over for fluidity.
+                                              onMouseEnter={(e) => setHoveredDate({ date: day, x: e.clientX, y: e.clientY })}
+                                              onMouseMove={(e) => setHoveredDate({ date: day, x: e.clientX, y: e.clientY })}
                                               className={`aspect-square rounded-xl flex flex-col items-center justify-center relative cursor-pointer transition-all duration-300 group
                                                   ${isToday 
                                                       ? `bg-${primaryColor}-500 text-white shadow-lg shadow-${primaryColor}-500/30 scale-110 z-10` 
@@ -503,7 +505,8 @@ export const RightSidebar: React.FC<RightSidebarProps> = ({
                     <CalendarTooltip 
                         key="calendar-tooltip" // Keeps tooltip mounted for fluid animations
                         date={hoveredDate.date} 
-                        rect={hoveredDate.rect} 
+                        x={hoveredDate.x}
+                        y={hoveredDate.y}
                         events={getEventsForDate(hoveredDate.date)}
                         isDarkMode={isDarkMode}
                         primaryColor={primaryColor}
