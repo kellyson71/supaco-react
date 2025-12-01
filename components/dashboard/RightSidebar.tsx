@@ -72,26 +72,10 @@ export const RightSidebar: React.FC<RightSidebarProps> = ({
             animate={{ opacity: 1 }}
             transition={{ delay: 0.8, duration: 0.5 }}
          >
-            <div className="flex justify-between items-start mb-6 pt-2 h-12 shrink-0">
-              <AnimatePresence mode="wait">
-                  <motion.div 
-                      key={rightTab}
-                      initial={{ opacity: 0, y: 5 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0, y: -5 }}
-                      className="flex flex-col"
-                  >
-                      <h2 className={`text-2xl font-bold leading-none ${frameText}`}>
-                          {rightTab === 'overview' ? 'Hoje' : rightTab === 'tasks' ? 'Tarefas' : rightTab === 'holidays' ? 'Feriados' : 'Conquistas'}
-                      </h2>
-                      <div className="flex items-center gap-1 text-gray-400 text-xs mt-2">
-                          <Clock size={12} /> <span>{new Date().toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' })}</span>
-                      </div>
-                  </motion.div>
-              </AnimatePresence>
-
+            <div className="flex flex-col gap-4 mb-6 shrink-0">
+              
               {/* Tab Switcher */}
-              <div className={`relative flex items-center p-1 rounded-full border ${isDarkMode ? 'bg-white/5 border-white/5' : 'bg-white border-gray-200 shadow-sm'}`}>
+              <div className={`self-start relative flex items-center p-1 rounded-full border ${isDarkMode ? 'bg-white/5 border-white/5' : 'bg-white border-gray-200 shadow-sm'}`}>
                   {(['overview', 'tasks', 'holidays', 'achievements'] as const).map((tab) => (
                       <button 
                         key={tab}
@@ -111,6 +95,25 @@ export const RightSidebar: React.FC<RightSidebarProps> = ({
                     </button>
                   ))}
               </div>
+
+              {/* Title & Date */}
+              <AnimatePresence mode="wait">
+                  <motion.div 
+                      key={rightTab}
+                      initial={{ opacity: 0, y: 5 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -5 }}
+                      className="flex flex-col"
+                  >
+                      <h2 className={`text-3xl font-black leading-tight tracking-tight ${frameText}`}>
+                          {rightTab === 'overview' ? 'Visão Geral' : rightTab === 'tasks' ? 'Tarefas' : rightTab === 'holidays' ? 'Feriados' : 'Conquistas'}
+                      </h2>
+                      <div className={`flex items-center gap-2 text-xs font-bold uppercase tracking-widest mt-1 ${isDarkMode ? 'text-gray-500' : 'text-gray-400'}`}>
+                          <span className={`w-1.5 h-1.5 rounded-full bg-${primaryColor}-500`} />
+                          <span>{new Date().toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' })}</span>
+                      </div>
+                  </motion.div>
+              </AnimatePresence>
             </div>
 
             {/* Sidebar Content */}
