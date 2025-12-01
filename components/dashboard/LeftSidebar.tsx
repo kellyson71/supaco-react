@@ -31,8 +31,8 @@ const ClassroomIcon = ({ size = 20, className = "" }: { size?: number, className
         style={{
             width: size,
             height: size,
-            maskImage: 'url("https://img.icons8.com/?size=100&id=24519&format=png&color=000000")',
-            WebkitMaskImage: 'url("https://img.icons8.com/?size=100&id=24519&format=png&color=000000")',
+            maskImage: 'url("https://img.icons8.com/?size=100&id=31054&format=png&color=000000")',
+            WebkitMaskImage: 'url("https://img.icons8.com/?size=100&id=31054&format=png&color=000000")',
             maskSize: 'contain',
             WebkitMaskSize: 'contain',
             maskRepeat: 'no-repeat',
