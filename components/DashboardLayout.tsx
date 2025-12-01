@@ -54,8 +54,8 @@ interface DashboardProps {
   completionData?: SuapCompletionData | null;
   holidays?: Holiday[];
   classroomWork?: ClassroomWork[];
-  rightTab: 'overview' | 'tasks' | 'holidays' | 'achievements';
-  onRightTabChange: (tab: 'overview' | 'tasks' | 'holidays' | 'achievements') => void;
+  rightTab: 'overview' | 'tasks' | 'holidays' | 'achievements' | 'notifications';
+  onRightTabChange: (tab: 'overview' | 'tasks' | 'holidays' | 'achievements' | 'notifications') => void;
   onOpenSettings: () => void;
   userPhoto: string;
   onRefresh?: () => void;

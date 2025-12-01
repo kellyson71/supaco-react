@@ -1,10 +1,11 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Sparkles, CornerDownLeft, Settings, MessageCircle, FileText, BarChart2, Crown, Maximize2, Minimize2 } from 'lucide-react';
+import { X, Sparkles, CornerDownLeft, Settings, MessageCircle, FileText, BarChart2, Crown, Maximize2, Minimize2, History, Trash2, Clock, Check, Plus } from 'lucide-react';
 import { GoogleGenAI, FunctionDeclaration, Type } from "@google/genai";
 import ReactMarkdown from 'react-markdown';
-import { GradeInfo, ProcessedClass, SuapProfile, Holiday } from '../types';
+import { GradeInfo, ProcessedClass, SuapProfile, Holiday, AIHistoryItem } from '../types';
+import { SecureStorage } from '../services/SecureStorage';
 
 interface Message {
   id: string;
@@ -35,6 +36,11 @@ export const AIChatWidget: React.FC<AIChatWidgetProps> = ({
   const [messages, setMessages] = useState<Message[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
+  const [showHistory, setShowHistory] = useState(false);
+  const [historyItems, setHistoryItems] = useState<AIHistoryItem[]>([]);
+  
+  // Track current chat session ID to update it instead of creating duplicates
+  const [currentChatId, setCurrentChatId] = useState<string | null>(null);
   
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -44,6 +50,8 @@ export const AIChatWidget: React.FC<AIChatWidgetProps> = ({
       if (initialContext && initialContext.length > 0) {
           setMessages(initialContext);
           setIsOpen(true);
+          // Initial context starts a fresh session
+          setCurrentChatId(null);
       }
   }, [initialContext]);
 
@@ -52,7 +60,7 @@ export const AIChatWidget: React.FC<AIChatWidgetProps> = ({
       if (pendingMessage && isOpen && !isLoading) {
           handleSend(pendingMessage);
       }
-  }, [pendingMessage, isOpen]); // Trigger when opened via prop change
+  }, [pendingMessage, isOpen]);
 
   useEffect(() => {
       const checkMobile = () => setIsMobile(window.innerWidth < 768);
@@ -73,11 +81,80 @@ export const AIChatWidget: React.FC<AIChatWidgetProps> = ({
         }, 500);
         return () => clearTimeout(timer);
     }
-  }, [isOpen, isMaximized]);
+  }, [isOpen, isMaximized, showHistory]);
 
   useEffect(() => {
       scrollToBottom();
   }, [messages]);
+
+  // AUTO-SAVE LOGIC
+  useEffect(() => {
+      // Don't save empty chats
+      if (messages.length === 0) return;
+
+      const mat = localStorage.getItem('suap_username');
+      if (!mat) return;
+
+      // Debounce save to avoid spamming the DB on every keystroke/token
+      const timer = setTimeout(() => {
+          saveCurrentSession(mat);
+      }, 2000);
+
+      return () => clearTimeout(timer);
+  }, [messages]);
+
+  const loadHistory = async () => {
+      const mat = localStorage.getItem('suap_username');
+      if (mat) {
+          const allHistory = await SecureStorage.fetchHistory(mat);
+          setHistoryItems(allHistory.filter(h => h.type === 'chat'));
+          setShowHistory(true);
+      }
+  };
+
+  const saveCurrentSession = async (mat: string) => {
+      const firstUserMsg = messages.find(m => m.role === 'user');
+      const title = firstUserMsg ? (firstUserMsg.text.length > 30 ? firstUserMsg.text.substring(0, 30) + '...' : firstUserMsg.text) : 'Nova Conversa';
+      
+      if (currentChatId) {
+          // Update existing session
+          await SecureStorage.updateHistoryItem(mat, currentChatId, messages);
+      } else {
+          // Create new session
+          const newItem = await SecureStorage.addHistoryItem(mat, 'chat', title, messages);
+          if (newItem) {
+              setCurrentChatId(newItem.id);
+              // Optimistically update local history list if it's open/loaded
+              setHistoryItems(prev => [newItem, ...prev]);
+          }
+      }
+  };
+
+  const restoreSession = (item: AIHistoryItem) => {
+      setMessages(item.content);
+      setCurrentChatId(item.id);
+      setShowHistory(false);
+  };
+
+  const handleNewChat = () => {
+      setMessages([]);
+      setCurrentChatId(null);
+      setInput('');
+      setShowHistory(false);
+      setTimeout(() => inputRef.current?.focus(), 100);
+  };
+
+  const deleteSession = (e: React.MouseEvent, id: string) => {
+      e.stopPropagation();
+      const mat = localStorage.getItem('suap_username');
+      if (mat) {
+          SecureStorage.deleteHistoryItem(mat, id);
+          setHistoryItems(prev => prev.filter(h => h.id !== id));
+          if (currentChatId === id) {
+              handleNewChat();
+          }
+      }
+  };
 
   const getSystemPrompt = () => {
       const validGrades = grades.filter(g => typeof g.average === 'number' || (typeof g.average === 'string' && g.average !== '-'));
@@ -328,6 +405,25 @@ Você tem acesso a ferramentas para consultar dados em tempo real. Use-as sempre
                       )}
                   </div>
                   <div className="flex items-center gap-1">
+                      
+                      {/* New Chat Button */}
+                      <button
+                          onClick={handleNewChat}
+                          className={`p-2 rounded-full transition-colors ${isDarkMode ? 'hover:bg-white/10 text-white/50 hover:text-white' : 'hover:bg-black/5 text-black/50 hover:text-black'}`}
+                          title="Novo Chat"
+                      >
+                          <Plus size={18} />
+                      </button>
+                      
+                      {/* History Toggle */}
+                      <button
+                          onClick={() => { if(showHistory) setShowHistory(false); else loadHistory(); }}
+                          className={`p-2 rounded-full transition-colors ${isDarkMode ? 'hover:bg-white/10 text-white/50 hover:text-white' : 'hover:bg-black/5 text-black/50 hover:text-black'} ${showHistory ? (isDarkMode ? 'bg-white/10 text-white' : 'bg-black/10 text-black') : ''}`}
+                          title="Histórico"
+                      >
+                          <History size={18} />
+                      </button>
+
                       {!isMobile && (
                           <button
                               onClick={toggleMaximize}
@@ -352,6 +448,40 @@ Você tem acesso a ferramentas para consultar dados em tempo real. Use-as sempre
                       </button>
                   </div>
               </div>
+
+              {/* HISTORY OVERLAY */}
+              <AnimatePresence>
+                  {showHistory && (
+                      <motion.div 
+                          initial={{ opacity: 0, y: 10 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          exit={{ opacity: 0, y: 10 }}
+                          className={`absolute inset-0 top-[53px] z-20 flex flex-col p-4 custom-scroll overflow-y-auto ${isDarkMode ? 'bg-slate-900/95 backdrop-blur-md' : 'bg-white/95 backdrop-blur-md'}`}
+                      >
+                          <h3 className={`text-sm font-black uppercase tracking-widest mb-4 px-2 ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>Conversas Salvas</h3>
+                          {historyItems.length === 0 ? (
+                              <div className="flex-1 flex flex-col items-center justify-center opacity-40">
+                                  <History size={32} className="mb-2" />
+                                  <p className="text-xs">Nenhum histórico encontrado.</p>
+                              </div>
+                          ) : (
+                              <div className="space-y-2">
+                                  {historyItems.map(item => (
+                                      <div key={item.id} onClick={() => restoreSession(item)} className={`p-3 rounded-xl border flex items-center justify-between cursor-pointer group ${isDarkMode ? 'bg-white/5 border-white/5 hover:bg-white/10' : 'bg-gray-50 border-gray-200 hover:bg-gray-100'}`}>
+                                          <div className="flex-1 min-w-0">
+                                              <div className={`text-sm font-bold truncate ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>{item.title}</div>
+                                              <div className="text-[10px] opacity-50 flex items-center gap-1 mt-0.5"><Clock size={10} /> {new Date(item.created_at).toLocaleDateString()}</div>
+                                          </div>
+                                          <button onClick={(e) => deleteSession(e, item.id)} className={`p-2 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity ${isDarkMode ? 'hover:bg-red-500/20 text-red-400' : 'hover:bg-red-100 text-red-500'}`}>
+                                              <Trash2 size={14} />
+                                          </button>
+                                      </div>
+                                  ))}
+                              </div>
+                          )}
+                      </motion.div>
+                  )}
+              </AnimatePresence>
 
               <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4 custom-scroll">
                 {messages.length === 0 && (

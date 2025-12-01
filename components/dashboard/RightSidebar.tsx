@@ -1,16 +1,19 @@
 
+
+
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Clock, Trophy, ChevronLeft, ChevronRight as ChevronRightIcon, 
-  ListTodo, Plus, ArrowRight, Check, Trash2, Book, CalendarDays, FastForward, Sparkles, Hourglass, MapPin
+  ListTodo, Plus, ArrowRight, Check, Trash2, Book, CalendarDays, FastForward, Sparkles, Hourglass, MapPin, Bell, CheckCheck, ExternalLink, ShieldAlert
 } from 'lucide-react';
 import { InvertedCorner } from '../InvertedCorner';
-import { TodoItem, ClassroomWork, Holiday, Achievement } from '../../types';
+import { TodoItem, ClassroomWork, Holiday, Achievement, SupacoNotification } from '../../types';
+import { SecureStorage } from '../../services/SecureStorage';
 
 interface RightSidebarProps {
-  rightTab: 'overview' | 'tasks' | 'holidays' | 'achievements';
-  onRightTabChange: (tab: 'overview' | 'tasks' | 'holidays' | 'achievements') => void;
+  rightTab: 'overview' | 'tasks' | 'holidays' | 'achievements' | 'notifications';
+  onRightTabChange: (tab: 'overview' | 'tasks' | 'holidays' | 'achievements' | 'notifications') => void;
   isDarkMode: boolean;
   frameBg: string;
   frameText: string;
@@ -143,6 +146,18 @@ export const RightSidebar: React.FC<RightSidebarProps> = ({
   const [isTimeWarping, setIsTimeWarping] = useState(false);
   const [warpDays, setWarpDays] = useState(0);
 
+  // Notifications State (Local handling)
+  const [notifications, setNotifications] = useState<SupacoNotification[]>([]);
+
+  React.useEffect(() => {
+      // Load notifications from local secure storage
+      const mat = localStorage.getItem('suap_username');
+      if (mat) {
+          const loaded = SecureStorage.loadItem(mat, 'notifications') || [];
+          setNotifications(loaded);
+      }
+  }, [rightTab]);
+
   const handleAddTodoClick = () => {
     if (!todoInput.trim()) return;
     onAddTodo(todoInput);
@@ -178,6 +193,39 @@ export const RightSidebar: React.FC<RightSidebarProps> = ({
       }
   };
 
+  const unreadCount = notifications.filter(n => !n.read).length;
+
+  const markAsRead = (id: string) => {
+      const updated = notifications.map(n => n.id === id ? { ...n, read: true } : n);
+      setNotifications(updated);
+      const mat = localStorage.getItem('suap_username');
+      if (mat) {
+          SecureStorage.saveItem(mat, 'notifications', updated);
+          SecureStorage.syncToCloud(mat);
+      }
+  };
+
+  const markAllRead = () => {
+      const updated = notifications.map(n => ({ ...n, read: true }));
+      setNotifications(updated);
+      const mat = localStorage.getItem('suap_username');
+      if (mat) {
+          SecureStorage.saveItem(mat, 'notifications', updated);
+          SecureStorage.syncToCloud(mat);
+      }
+  };
+
+  const deleteNotification = (e: React.MouseEvent, id: string) => {
+      e.stopPropagation();
+      const updated = notifications.filter(n => n.id !== id);
+      setNotifications(updated);
+      const mat = localStorage.getItem('suap_username');
+      if (mat) {
+          SecureStorage.saveItem(mat, 'notifications', updated);
+          SecureStorage.syncToCloud(mat);
+      }
+  };
+
   return (
     <div className={`hidden md:flex relative z-50 h-[calc(100vh-2rem)] my-4 w-[360px] flex-col p-8 transition-colors duration-500 ${frameBg}`}>
       <div className="absolute top-0 -left-[40px] w-[40px] h-[40px] z-50">
@@ -198,16 +246,23 @@ export const RightSidebar: React.FC<RightSidebarProps> = ({
             <div className="flex flex-col gap-4 mb-6 shrink-0">
               
               {/* Tab Switcher */}
-              <div className={`self-start relative flex items-center p-1 rounded-full border ${isDarkMode ? 'bg-white/5 border-white/5' : 'bg-white border-gray-200 shadow-sm'}`}>
-                  {(['overview', 'tasks', 'holidays', 'achievements'] as const).map((tab) => (
+              <div className={`self-start relative flex items-center p-1 rounded-full border overflow-x-auto hide-scrollbar max-w-full ${isDarkMode ? 'bg-white/5 border-white/5' : 'bg-white border-gray-200 shadow-sm'}`}>
+                  {(['overview', 'tasks', 'holidays', 'achievements', 'notifications'] as const).map((tab) => (
                       <button 
                         key={tab}
                         onClick={() => onRightTabChange(tab)}
-                        className={`relative z-10 px-3 py-1.5 rounded-full text-[10px] font-bold uppercase transition-colors flex items-center justify-center ${rightTab === tab ? (isDarkMode ? 'text-white' : 'text-black') : 'text-gray-400 hover:text-gray-500'}`}
+                        className={`relative z-10 px-3 py-1.5 rounded-full text-[10px] font-bold uppercase transition-colors flex items-center justify-center shrink-0 ${rightTab === tab ? (isDarkMode ? 'text-white' : 'text-black') : 'text-gray-400 hover:text-gray-500'}`}
                         title={tab}
                     >
                         {tab === 'achievements' ? <Trophy size={14} /> : (
-                            tab === 'overview' ? 'Hoje' : tab === 'tasks' ? 'Tarefas' : 'Feriados'
+                            tab === 'notifications' ? (
+                                <div className="relative">
+                                    <Bell size={14} />
+                                    {unreadCount > 0 && <span className="absolute -top-1 -right-1 w-2 h-2 bg-red-500 rounded-full animate-pulse" />}
+                                </div>
+                            ) : (
+                                tab === 'overview' ? 'Hoje' : tab === 'tasks' ? 'Tarefas' : 'Feriados'
+                            )
                         )}
                         {rightTab === tab && (
                             <motion.div 
@@ -229,7 +284,10 @@ export const RightSidebar: React.FC<RightSidebarProps> = ({
                       className="flex flex-col"
                   >
                       <h2 className={`text-3xl font-black leading-tight tracking-tight ${frameText}`}>
-                          {rightTab === 'overview' ? 'Visão Geral' : rightTab === 'tasks' ? 'Tarefas' : rightTab === 'holidays' ? 'Feriados' : 'Conquistas'}
+                          {rightTab === 'overview' ? 'Visão Geral' : 
+                           rightTab === 'tasks' ? 'Tarefas' : 
+                           rightTab === 'holidays' ? 'Feriados' : 
+                           rightTab === 'achievements' ? 'Conquistas' : 'Notificações'}
                       </h2>
                       <div className={`flex items-center gap-2 text-xs font-bold uppercase tracking-widest mt-1 ${isDarkMode ? 'text-gray-500' : 'text-gray-400'}`}>
                           <span className={`w-1.5 h-1.5 rounded-full bg-${primaryColor}-500`} />
@@ -488,6 +546,70 @@ export const RightSidebar: React.FC<RightSidebarProps> = ({
                             </button>
                         </div>
                     </motion.div>
+                  )}
+
+                  {rightTab === 'notifications' && (
+                      <motion.div
+                          key="notifications"
+                          initial={{ opacity: 0, x: 20 }}
+                          animate={{ opacity: 1, x: 0 }}
+                          exit={{ opacity: 0, x: -20 }}
+                          className="h-full flex flex-col gap-3"
+                      >
+                          {unreadCount > 0 && (
+                              <button 
+                                onClick={markAllRead}
+                                className={`w-full py-2 mb-2 rounded-xl text-[10px] font-bold uppercase tracking-widest flex items-center justify-center gap-2 ${isDarkMode ? 'bg-white/10 hover:bg-white/20' : 'bg-gray-100 hover:bg-gray-200'}`}
+                              >
+                                  <CheckCheck size={12} /> Marcar todas como lidas
+                              </button>
+                          )}
+
+                          <div className="flex-1 overflow-y-auto custom-scroll space-y-3">
+                              {notifications.length === 0 ? (
+                                  <div className="text-center py-10 opacity-40">
+                                      <Bell size={32} className="mx-auto mb-2" />
+                                      <p className="text-xs font-bold">Nenhuma notificação.</p>
+                                  </div>
+                              ) : (
+                                  notifications.map((notif) => (
+                                      <div 
+                                        key={notif.id} 
+                                        onClick={() => markAsRead(notif.id)}
+                                        className={`p-4 rounded-2xl border relative group cursor-pointer transition-all hover:scale-[1.01]
+                                            ${notif.read ? 'opacity-60' : 'opacity-100'}
+                                            ${isDarkMode ? 'bg-white/5 border-white/5 hover:bg-white/10' : 'bg-white border-gray-100 shadow-sm'}
+                                        `}
+                                      >
+                                          {/* Icon Indicator */}
+                                          <div className="flex justify-between items-start mb-2">
+                                              <div className={`p-1.5 rounded-lg ${notif.type === 'risk' ? 'bg-red-500/20 text-red-500' : (notif.type === 'suap' ? 'bg-green-500/20 text-green-500' : (isDarkMode ? 'bg-white/10 text-white' : 'bg-gray-100 text-gray-600'))}`}>
+                                                  {notif.type === 'risk' ? <ShieldAlert size={12} /> : (notif.type === 'suap' ? <Bell size={12} /> : <Sparkles size={12} />)}
+                                              </div>
+                                              {!notif.read && <div className="w-2 h-2 rounded-full bg-blue-500" />}
+                                          </div>
+
+                                          <h4 className={`text-xs font-bold leading-tight mb-1 ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>{notif.title}</h4>
+                                          <p className="text-[10px] opacity-70 line-clamp-3 leading-snug">{notif.message}</p>
+                                          
+                                          <div className="mt-2 flex items-center justify-between">
+                                              <span className="text-[9px] opacity-40 font-mono">{new Date(notif.timestamp).toLocaleDateString()}</span>
+                                              <div className="flex gap-2">
+                                                  {notif.link && (
+                                                      <a href={notif.link} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} className="p-1 hover:text-blue-500 transition-colors">
+                                                          <ExternalLink size={12} />
+                                                      </a>
+                                                  )}
+                                                  <button onClick={(e) => deleteNotification(e, notif.id)} className="p-1 hover:text-red-500 transition-colors opacity-0 group-hover:opacity-100">
+                                                      <Trash2 size={12} />
+                                                  </button>
+                                              </div>
+                                          </div>
+                                      </div>
+                                  ))
+                              )}
+                          </div>
+                      </motion.div>
                   )}
               </AnimatePresence>
             </div>

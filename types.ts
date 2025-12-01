@@ -2,6 +2,12 @@
 
 
 
+
+
+
+
+
+
 export enum ViewState {
   DASHBOARD = 'DASHBOARD',
   GRADES = 'GRADES',
@@ -46,6 +52,27 @@ export interface TodoItem {
     completed: boolean;
 }
 
+export interface SupacoNotification {
+    id: string;
+    title: string;
+    message: string;
+    timestamp: string; // ISO Date
+    read: boolean;
+    type: 'system' | 'suap' | 'risk' | 'academic' | 'achievement';
+    link?: string;
+}
+
+// SUAP API Response Types
+export interface SuapMessage {
+    id: number;
+    assunto: string;
+    remetente: string;
+    data_envio: string;
+    url: string;
+    lida: boolean;
+    texto?: string; // Sometimes provided
+}
+
 export interface GoogleTokens {
   access_token: string;
   refresh_token?: string;
@@ -53,6 +80,19 @@ export interface GoogleTokens {
   email?: string;
   name?: string;
   picture?: string;
+}
+
+// --- AI HISTORY INTERFACES ---
+
+export type AIHistoryType = 'flashcards' | 'quiz' | 'summary' | 'classroom_solver' | 'chat';
+
+export interface AIHistoryItem {
+    id: string; // UUID from supabase
+    user_id: string;
+    type: AIHistoryType;
+    title: string;
+    content: any; // Flexible payload (Flashcards[], Quiz[], ChatMessages[], etc)
+    created_at: string; // ISO String
 }
 
 // --- SUAP API INTERFACES ---

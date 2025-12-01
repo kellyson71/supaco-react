@@ -1,3 +1,5 @@
+
+
 import React, { useState, useMemo, useEffect, useRef, Suspense } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { SecureStorage } from './services/SecureStorage';
@@ -5,7 +7,7 @@ import { supabase } from './services/supabaseClient';
 import { WifiOff, RefreshCw, AlertTriangle, X, Sparkles } from 'lucide-react';
 
 import { SplashScreen } from './components/SplashScreen';
-import { ViewState, ThemeVariant, SuapProfile, SuapMeusDadosAluno, SuapPeriod, SuapDiario, SuapBoletim, ProcessedClass, GradeInfo, SuapCompletionData, Holiday, ClassroomWork, ClassroomCourse, PerformanceSettings, SuapMeusPeriodosLetivos, TodoItem, GoogleTokens } from './types';
+import { ViewState, ThemeVariant, SuapProfile, SuapMeusDadosAluno, SuapPeriod, SuapDiario, SuapBoletim, ProcessedClass, GradeInfo, SuapCompletionData, Holiday, ClassroomWork, ClassroomCourse, PerformanceSettings, SuapMeusPeriodosLetivos, TodoItem, GoogleTokens, SupacoNotification, SuapMessage } from './types';
 import { googleCredentials } from './google_credentials';
 import { geminiCredentials } from './gemini_credentials';
 import { CallbackPage } from './components/CallbackPage';
@@ -119,7 +121,7 @@ const App: React.FC = () => {
   const [customPhotoUrl, setCustomPhotoUrl] = useState(localStorage.getItem('suap_custom_photo') || '');
   const [useCustomPhoto, setUseCustomPhoto] = useState(localStorage.getItem('suap_use_custom_photo') === 'true');
   
-  const [rightSidebarTab, setRightSidebarTab] = useState<'overview' | 'tasks' | 'holidays' | 'achievements'>('overview');
+  const [rightSidebarTab, setRightSidebarTab] = useState<'overview' | 'tasks' | 'holidays' | 'achievements' | 'notifications'>('overview');
   const [profileInitialTab, setProfileInitialTab] = useState<'profile' | 'settings' | 'wallpaper' | 'performance' | 'achievements'>('profile');
 
   const [isLoggedIn, setIsLoggedIn] = useState(false);
@@ -144,6 +146,7 @@ const App: React.FC = () => {
   const [googleUser, setGoogleUser] = useState<{email: string, name: string, picture: string} | null>(null);
 
   const [todos, setTodos] = useState<TodoItem[]>([]);
+  const [notifications, setNotifications] = useState<SupacoNotification[]>([]);
   const [autoExpandClassroom, setAutoExpandClassroom] = useState(false);
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
   const [toasts, setToasts] = useState<Toast[]>([]);
@@ -203,6 +206,36 @@ const App: React.FC = () => {
       setCurrentView(ViewState.CLASSROOM);
   };
 
+  // Add Notification to History & Show Toast
+  const handlePushNotification = (title: string, message: string, type: SupacoNotification['type'], persist: boolean = false) => {
+      // Show ephemeral toast
+      addToast(message, type === 'risk' ? 'warning' : 'info');
+
+      if (persist) {
+          const newNotif: SupacoNotification = {
+              id: Date.now().toString(),
+              title,
+              message,
+              timestamp: new Date().toISOString(),
+              read: false,
+              type
+          };
+          
+          setNotifications(prev => {
+              const updated = [newNotif, ...prev];
+              // Persist immediately to local storage
+              const mat = localStorage.getItem('suap_username');
+              if (mat) {
+                  SecureStorage.saveItem(mat, 'notifications', updated);
+                  // Sync to cloud in background
+                  if (syncTimeoutRef.current) clearTimeout(syncTimeoutRef.current);
+                  syncTimeoutRef.current = setTimeout(() => SecureStorage.syncToCloud(mat), 2000);
+              }
+              return updated;
+          });
+      }
+  };
+
   const addToast = (message: string, type: 'warning' | 'info') => {
       const id = Date.now().toString();
       setToasts(prev => [...prev, { id, message, type }]);
@@ -213,6 +246,32 @@ const App: React.FC = () => {
 
   const removeToast = (id: string) => {
       setToasts(prev => prev.filter(t => t.id !== id));
+  };
+
+  const markNotificationAsRead = (id: string) => {
+      setNotifications(prev => {
+          const updated = prev.map(n => n.id === id ? { ...n, read: true } : n);
+          const mat = localStorage.getItem('suap_username');
+          if (mat) {
+              SecureStorage.saveItem(mat, 'notifications', updated);
+              // Optimistic sync
+              if (syncTimeoutRef.current) clearTimeout(syncTimeoutRef.current);
+              syncTimeoutRef.current = setTimeout(() => SecureStorage.syncToCloud(mat), 2000);
+          }
+          return updated;
+      });
+  };
+
+  const markAllNotificationsAsRead = () => {
+      setNotifications(prev => {
+          const updated = prev.map(n => ({ ...n, read: true }));
+          const mat = localStorage.getItem('suap_username');
+          if (mat) {
+              SecureStorage.saveItem(mat, 'notifications', updated);
+              SecureStorage.syncToCloud(mat);
+          }
+          return updated;
+      });
   };
 
   const checkSubscription = async (matricula: string) => {
@@ -237,7 +296,8 @@ const App: React.FC = () => {
                           const statusMsg = remaining === 0 
                               ? `Limite atingido em ${grade.subject}!` 
                               : `Cuidado! ${grade.subject} atingiu ${(percentage * 100).toFixed(0)}% do limite.`;
-                          addToast(statusMsg, 'warning');
+                          
+                          handlePushNotification("Risco de Faltas", statusMsg, 'risk', true);
                           sessionStorage.setItem(sessionKey, 'true');
                       }
                   }
@@ -314,7 +374,7 @@ const App: React.FC = () => {
 
   const handleSubscribe = () => {
       setIsPremium(true);
-      addToast("Bem-vindo ao Supaco Premium!", "info");
+      handlePushNotification("Bem-vindo ao Premium!", "Você agora é um usuário Pro. Aproveite todos os recursos desbloqueados.", 'system', true);
       if (userData?.matricula) checkSubscription(userData.matricula);
   };
 
@@ -611,6 +671,9 @@ const App: React.FC = () => {
           if (cachedPeriods) setPeriods(cachedPeriods);
           const cachedTodos = SecureStorage.loadItem(matricula, 'todos');
           if (cachedTodos) setTodos(cachedTodos);
+          const cachedNotifications = SecureStorage.loadItem(matricula, 'notifications');
+          if (cachedNotifications) setNotifications(cachedNotifications);
+          
           const activeP = SecureStorage.loadItem(matricula, 'active_period');
           if (activeP) {
               setCurrentPeriod(activeP);
@@ -768,6 +831,44 @@ const App: React.FC = () => {
     } catch (e) { console.error("Failed to fetch classroom data", e); }
   };
 
+  const fetchSuapNotifications = async (matricula: string) => {
+      try {
+          const response = await fetchWithAuth('https://suap.ifrn.edu.br/api/edu/mensagens/entrada/nao_lidas/?page=1');
+          if (response && response.results) {
+              const suapMsgs: SuapMessage[] = response.results;
+              
+              setNotifications(prev => {
+                  const existingIds = new Set(prev.map(n => n.id));
+                  const newNotifications: SupacoNotification[] = [];
+
+                  suapMsgs.forEach(msg => {
+                      const msgId = `suap-${msg.id}`;
+                      if (!existingIds.has(msgId)) {
+                          newNotifications.push({
+                              id: msgId,
+                              title: msg.assunto || 'Mensagem do SUAP',
+                              message: msg.remetente ? `De: ${msg.remetente}` : 'Nova mensagem disponível no SUAP.',
+                              timestamp: msg.data_envio || new Date().toISOString(),
+                              read: false,
+                              type: 'suap',
+                              link: msg.url ? `https://suap.ifrn.edu.br${msg.url}` : undefined
+                          });
+                      }
+                  });
+
+                  if (newNotifications.length > 0) {
+                      const updated = [...newNotifications, ...prev];
+                      SecureStorage.saveItem(matricula, 'notifications', updated);
+                      return updated;
+                  }
+                  return prev;
+              });
+          }
+      } catch (e) {
+          console.error("Failed to fetch SUAP notifications", e);
+      }
+  };
+
   const fetchAllUserDataBackground = async (currentMatricula: string, forceRefresh = false) => {
     const shouldFetch = (key: string, ttlMinutes: number = 60) => {
         if (forceRefresh) return true;
@@ -815,6 +916,8 @@ const App: React.FC = () => {
                 SecureStorage.saveItem(currentMatricula, 'completion', completion);
             }
         }
+
+        await fetchSuapNotifications(currentMatricula);
 
         let periodList = SecureStorage.loadItem(currentMatricula, 'periods');
         let activePeriod = SecureStorage.loadItem(currentMatricula, 'active_period');
@@ -987,6 +1090,7 @@ const App: React.FC = () => {
       localStorage.clear(); 
       localStorage.setItem(CACHE_KEYS.WALLPAPER, DEFAULT_WALLPAPER);
       setUserData(null); setAcademicData(null); setProcessedSchedule([]); setProcessedGrades([]); setCompletionData(null); setCurrentPeriod(null); setClassroomWork([]); setPeriods([]); setViewingPeriod(null); setTodos([]); setIsClassroomLinked(false); setClassroomStatus('disconnected'); setIsLoggedIn(false); setCurrentView(ViewState.DASHBOARD); setIsPremium(false); setGoogleUser(null);
+      setNotifications([]);
   };
 
   const handleFinishLanding = () => {
@@ -1090,7 +1194,38 @@ const App: React.FC = () => {
 
         <div className="relative z-10 h-full">
             <Suspense fallback={null}>
-                <DashboardLayout key="dashboard" currentView={currentView} onChangeView={handleViewChange} isDarkMode={isDarkMode} onToggleTheme={toggleTheme} currentWallpaper={currentWallpaper} primaryColor={palette.primary} secondaryColor={palette.secondary} isLoggedIn={isLoggedIn} onLogin={handleLogin} userData={userData} academicData={academicData} currentPeriod={currentPeriod} grades={processedGrades} schedule={processedSchedule} completionData={completionData} holidays={holidays} classroomWork={classroomWork} rightTab={rightSidebarTab} onRightTabChange={setRightSidebarTab} onOpenSettings={handleOpenSettings} userPhoto={activeUserPhoto} onRefresh={handleManualRefresh} isClassroomLinked={isClassroomLinked} onLinkClassroom={initiateGoogleAuth} todos={todos} onAddTodo={handleAddTodo} onToggleTodo={handleToggleTodo} onRemoveTodo={handleRemoveTodo} classroomStatus={classroomStatus} />
+                <DashboardLayout 
+                    key="dashboard" 
+                    currentView={currentView} 
+                    onChangeView={handleViewChange} 
+                    isDarkMode={isDarkMode} 
+                    onToggleTheme={toggleTheme} 
+                    currentWallpaper={currentWallpaper} 
+                    primaryColor={palette.primary} 
+                    secondaryColor={palette.secondary} 
+                    isLoggedIn={isLoggedIn} 
+                    onLogin={handleLogin} 
+                    userData={userData} 
+                    academicData={academicData} 
+                    currentPeriod={currentPeriod} 
+                    grades={processedGrades} 
+                    schedule={processedSchedule} 
+                    completionData={completionData} 
+                    holidays={holidays} 
+                    classroomWork={classroomWork} 
+                    rightTab={rightSidebarTab} 
+                    onRightTabChange={setRightSidebarTab} 
+                    onOpenSettings={handleOpenSettings} 
+                    userPhoto={activeUserPhoto} 
+                    onRefresh={handleManualRefresh} 
+                    isClassroomLinked={isClassroomLinked} 
+                    onLinkClassroom={initiateGoogleAuth} 
+                    todos={todos} 
+                    onAddTodo={handleAddTodo} 
+                    onToggleTodo={handleToggleTodo} 
+                    onRemoveTodo={handleRemoveTodo} 
+                    classroomStatus={classroomStatus} 
+                />
             </Suspense>
 
             <AnimatePresence>

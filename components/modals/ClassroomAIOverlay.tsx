@@ -1,9 +1,14 @@
+
+
+
+
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Sparkles, Loader2, X, Brain, Check, Copy, Book, MessageSquare, ChevronRight, AlertCircle, ArrowRight, ChevronLeft, Edit3, Lightbulb } from 'lucide-react';
-import { ClassroomWork } from '../../types';
+import { ClassroomWork, AIHistoryItem } from '../../types';
 import { GoogleGenAI } from "@google/genai";
 import ReactMarkdown from 'react-markdown';
+import { SecureStorage } from '../../services/SecureStorage';
 
 interface ClassroomAIOverlayProps {
   work: ClassroomWork;
@@ -62,6 +67,18 @@ export const ClassroomAIOverlay: React.FC<ClassroomAIOverlayProps> = ({
         let cleaned = text.trim();
         cleaned = cleaned.replace(/^```json\s*/, '').replace(/^```\s*/, '').replace(/\s*```$/, '');
         return cleaned;
+    };
+
+    const saveToHistory = (sol: any) => {
+        const mat = localStorage.getItem('suap_username');
+        if (mat && sol) {
+            SecureStorage.addHistoryItem(
+                mat, 
+                'classroom_solver', 
+                work.title, 
+                { ...sol, courseName: work.courseName } // Keep solution details
+            );
+        }
     };
 
     const analyzeWork = async () => {
@@ -127,21 +144,25 @@ export const ClassroomAIOverlay: React.FC<ClassroomAIOverlayProps> = ({
                 setQuestions(result.questions);
                 setStatus('NEEDS_CONTEXT');
             } else if (result.status === 'SOLVED' && result.solution) {
-                setSolution({
+                const sol = {
                     core: result.solution.core_answer,
                     explanation: result.solution.explanation,
                     suggestions: result.solution.suggestions || []
-                });
+                };
+                setSolution(sol);
                 setStatus('SOLVED');
+                saveToHistory(sol);
             } else {
                 // Fallback
                 if (result.solution) {
-                    setSolution({ 
+                    const sol = { 
                         core: result.solution.core_answer, 
                         explanation: result.solution.explanation,
                         suggestions: result.solution.suggestions || []
-                    });
+                    };
+                    setSolution(sol);
                     setStatus('SOLVED');
+                    saveToHistory(sol);
                 } else {
                     setStatus('ERROR');
                 }
@@ -222,12 +243,14 @@ export const ClassroomAIOverlay: React.FC<ClassroomAIOverlayProps> = ({
                 return;
             }
 
-            setSolution({
+            const sol = {
                 core: result.core_answer || "Não foi possível gerar a resposta.",
                 explanation: result.explanation || "Sem explicação.",
                 suggestions: result.suggestions || ["Explicar melhor", "Dar exemplos"]
-            });
+            };
+            setSolution(sol);
             setStatus('SOLVED');
+            saveToHistory(sol);
 
         } catch (e) {
             console.error("AI API Error:", e);

@@ -1,9 +1,50 @@
 
-import { supabase } from './supabaseClient';
 
-// Service for simulating a folder-based cache structure in localStorage.
-// Data is stored as readable JSON as requested.
-// Structure: matricula/[student_id]/[endpoint]
+
+import { supabase } from './supabaseClient';
+import { AIHistoryItem, AIHistoryType } from '../types';
+
+// Helper for robust Supabase calls with retry logic
+const safeSupabaseCall = async <T>(
+    operation: () => Promise<{ data: T | null; error: any }>, 
+    retries = 2, 
+    delay = 1000
+): Promise<{ data: T | null; error: any }> => {
+    if (!navigator.onLine) {
+        return { data: null, error: { message: "Offline mode", code: "OFFLINE" } };
+    }
+
+    for (let i = 0; i <= retries; i++) {
+        try {
+            const result = await operation();
+            if (result.error) {
+                // If it's not a network error (e.g. 409 Conflict, 403 Forbidden), throw immediately unless it's a fetch failure
+                const msg = result.error.message || '';
+                if (!msg.includes('Failed to fetch') && !msg.includes('Network request failed')) {
+                    return result;
+                }
+                throw result.error;
+            }
+            return result;
+        } catch (err: any) {
+            const isLastAttempt = i === retries;
+            const msg = err?.message || '';
+            const isNetworkError = msg.includes('Failed to fetch') || msg.includes('Network request failed');
+
+            if (isNetworkError && !isLastAttempt) {
+                console.warn(`[Storage] Network error, retrying (${i + 1}/${retries})...`);
+                await new Promise(resolve => setTimeout(resolve, delay * Math.pow(2, i))); // Exponential backoff
+                continue;
+            }
+            
+            if (isLastAttempt) {
+                console.error(`[Storage] Operation failed after ${retries} retries:`, err);
+                return { data: null, error: err };
+            }
+        }
+    }
+    return { data: null, error: { message: "Unknown error" } };
+};
 
 export const SecureStorage = {
     /**
@@ -23,7 +64,7 @@ export const SecureStorage = {
             // Saving with indentation (null, 2) to make it "entendível" (readable)
             localStorage.setItem(key, JSON.stringify(data, null, 2)); 
             localStorage.setItem(`${key}_ts`, Date.now().toString());
-            console.log(`[Storage] Saved readable data to ${key}`);
+            // console.log(`[Storage] Saved readable data to ${key}`);
         } catch (error) {
             console.error("[Storage] Save failed:", error);
         }
@@ -89,12 +130,147 @@ export const SecureStorage = {
         console.log(`[Storage] Wiped data for user ${matricula}`);
     },
 
+    // --- AI HISTORY METHODS (Dedicated Table) ---
+
+    /**
+     * Fetches AI History from Supabase (specific table) and caches it.
+     */
+    fetchHistory: async (matricula: string): Promise<AIHistoryItem[]> => {
+        // First check local cache for immediate display
+        const cached = SecureStorage.loadItem(matricula, 'ai_history_cache');
+        
+        if (!navigator.onLine) return cached || [];
+
+        // Background fetch with safety wrapper
+        const { data, error } = await safeSupabaseCall(() => 
+            supabase
+                .from('ai_history')
+                .select('*')
+                .eq('user_id', matricula)
+                .order('created_at', { ascending: false })
+        );
+
+        if (error) {
+            console.warn("[Storage] Fetch History warning:", error.message);
+            return cached || [];
+        }
+
+        if (data) {
+            SecureStorage.saveItem(matricula, 'ai_history_cache', data);
+            return data as AIHistoryItem[];
+        }
+        
+        return cached || [];
+    },
+
+    /**
+     * Adds an item to the AI History table.
+     */
+    addHistoryItem: async (matricula: string, type: AIHistoryType, title: string, content: any): Promise<AIHistoryItem | null> => {
+        const optimisticItem: AIHistoryItem = {
+            id: Date.now().toString(), // Temp ID
+            user_id: matricula,
+            type,
+            title,
+            content,
+            created_at: new Date().toISOString()
+        };
+
+        // Update local cache optimistically
+        const currentCache = SecureStorage.loadItem(matricula, 'ai_history_cache') || [];
+        SecureStorage.saveItem(matricula, 'ai_history_cache', [optimisticItem, ...currentCache]);
+
+        if (!navigator.onLine) {
+            // Queue for later sync could be implemented here
+            return optimisticItem;
+        }
+
+        const { data, error } = await safeSupabaseCall(() => 
+            supabase
+                .from('ai_history')
+                .insert({
+                    user_id: matricula,
+                    type,
+                    title,
+                    content
+                })
+                .select()
+                .single()
+        );
+
+        if (error) {
+            console.error("[Storage] Add History Failed:", error.message);
+            return optimisticItem;
+        }
+        
+        // Replace temp item with real item in cache
+        if (data) {
+            const reloadedCache = SecureStorage.loadItem(matricula, 'ai_history_cache') || [];
+            // Remove optimistic one (by matching temp ID logic or just filtering out based on similarity if needed, 
+            // but here we just replace the one we just added if we still have the ref, or reload)
+            const patchedCache = reloadedCache.map((i: any) => i.id === optimisticItem.id ? data : i);
+            SecureStorage.saveItem(matricula, 'ai_history_cache', patchedCache);
+            return data as AIHistoryItem;
+        }
+        return optimisticItem;
+    },
+
+    /**
+     * Updates an existing history item.
+     */
+    updateHistoryItem: async (matricula: string, itemId: string, content: any) => {
+        // Optimistic update
+        const currentCache = SecureStorage.loadItem(matricula, 'ai_history_cache') || [];
+        const updatedCache = currentCache.map((h: AIHistoryItem) => 
+            h.id === itemId ? { ...h, content } : h
+        );
+        SecureStorage.saveItem(matricula, 'ai_history_cache', updatedCache);
+
+        if (!navigator.onLine) return;
+
+        // Skip update if it's a temp ID (offline item)
+        if (!itemId.includes('-') && itemId.length < 20) return; 
+
+        await safeSupabaseCall(() => 
+            supabase
+                .from('ai_history')
+                .update({ content })
+                .eq('id', itemId)
+        );
+    },
+
+    /**
+     * Deletes an item from history table.
+     */
+    deleteHistoryItem: async (matricula: string, itemId: string) => {
+        // Optimistic delete
+        const currentCache = SecureStorage.loadItem(matricula, 'ai_history_cache') || [];
+        const updatedCache = currentCache.filter((h: AIHistoryItem) => h.id !== itemId);
+        SecureStorage.saveItem(matricula, 'ai_history_cache', updatedCache);
+
+        if (!navigator.onLine) return;
+
+        await safeSupabaseCall(() => 
+            supabase
+                .from('ai_history')
+                .delete()
+                .eq('id', itemId)
+        );
+    },
+
+    // ---------------------------
+
     /**
      * Syncs all local data for a user to Supabase.
      */
     syncToCloud: async (matricula: string) => {
+        if (!navigator.onLine) {
+            console.log("[Storage] Offline, skipping cloud sync.");
+            return false;
+        }
+
         try {
-            console.log(`[Storage] Starting cloud sync for ${matricula}...`);
+            // console.log(`[Storage] Starting cloud sync for ${matricula}...`);
             const profile = SecureStorage.loadItem(matricula, 'profile');
             const academic = SecureStorage.loadItem(matricula, 'academic');
             const completion = SecureStorage.loadItem(matricula, 'completion');
@@ -102,12 +278,12 @@ export const SecureStorage = {
             const schedule = SecureStorage.loadItem(matricula, 'schedule');
             const todos = SecureStorage.loadItem(matricula, 'todos');
             const achievements = SecureStorage.loadItem(matricula, 'achievements');
+            const notifications = SecureStorage.loadItem(matricula, 'notifications');
             
             // Load tokens to embed in settings
             const google_tokens = SecureStorage.loadItem(matricula, 'google_tokens');
             
             // Collect settings from root localStorage
-            // Explicitly getting all visual preferences to ensure they persist
             const settings = {
                 wallpaper: localStorage.getItem('suap_saved_wallpaper'),
                 theme_variant: localStorage.getItem('suap_saved_theme_variant'),
@@ -115,7 +291,6 @@ export const SecureStorage = {
                 performance: JSON.parse(localStorage.getItem('suap_performance_settings') || 'null'),
                 custom_photo: localStorage.getItem('suap_custom_photo'),
                 use_custom_photo: localStorage.getItem('suap_use_custom_photo'),
-                // Embed tokens here to avoid schema missing column error
                 google_tokens: google_tokens 
             };
 
@@ -126,122 +301,121 @@ export const SecureStorage = {
                 completion,
                 grades,
                 schedule,
-                settings, // Now includes all user preferences AND tokens
+                settings, 
                 todos,
                 achievements,
+                notifications,
                 updated_at: new Date().toISOString()
             };
 
-            const { error } = await supabase
-                .from('user_data')
-                .upsert(payload);
+            const { error } = await safeSupabaseCall(() => 
+                supabase.from('user_data').upsert(payload)
+            );
 
             if (error) {
-                console.error("[Storage] Supabase detailed error:", JSON.stringify(error));
-                throw error;
+                // Only log if it's a real error, not just offline/fetch failure which is warned in safeSupabaseCall
+                if (error.message !== "Offline mode" && !error.message?.includes('fetch')) {
+                    console.error("[Storage] Supabase upsert error:", error);
+                }
+                return false;
             }
 
             console.log(`[Storage] Cloud sync successful for ${matricula}`);
             return true;
         } catch (error: any) {
-            const errorMessage = error?.message || error?.error_description || (typeof error === 'object' ? JSON.stringify(error) : String(error));
-            console.error(`[Storage] Cloud sync failed: ${errorMessage}`);
+            console.error(`[Storage] Cloud sync exception: ${error.message}`);
             return false;
         }
     },
 
     /**
      * Loads data from Supabase and updates local storage.
-     * Returns object with data status and settings for immediate UI update.
      */
     syncFromCloud: async (matricula: string) => {
+        if (!navigator.onLine) return { hasData: false };
+
         try {
             console.log(`[Storage] Loading from cloud for ${matricula}...`);
-            const { data, error } = await supabase
-                .from('user_data')
-                .select('*')
-                .eq('id', matricula)
-                .single();
+            
+            // Parallel fetch for speed
+            const [userDataResult, historyResult] = await Promise.all([
+                safeSupabaseCall(() => supabase.from('user_data').select('*').eq('id', matricula).single()),
+                SecureStorage.fetchHistory(matricula)
+            ]);
+
+            const { data, error } = userDataResult;
+            
+            // Cast data to any to access properties safely
+            const userCloudData = data as any;
 
             if (error) {
-                console.error("[Storage] Supabase load error:", JSON.stringify(error));
-                throw error;
+                console.warn("[Storage] Cloud load warning:", error.message);
+                return { hasData: false };
             }
-            if (!data) {
-                console.log("[Storage] No cloud data found.");
+            
+            if (!userCloudData) {
                 return { hasData: false };
             }
 
-            // Restore academic data
-            if (data.profile) SecureStorage.saveItem(matricula, 'profile', data.profile);
-            if (data.academic) SecureStorage.saveItem(matricula, 'academic', data.academic);
-            if (data.completion) SecureStorage.saveItem(matricula, 'completion', data.completion);
-            if (data.grades) SecureStorage.saveItem(matricula, 'grades', data.grades);
-            if (data.schedule) SecureStorage.saveItem(matricula, 'schedule', data.schedule);
-            if (data.todos) SecureStorage.saveItem(matricula, 'todos', data.todos);
-            if (data.achievements) SecureStorage.saveItem(matricula, 'achievements', data.achievements);
+            // Restore data
+            if (userCloudData.profile) SecureStorage.saveItem(matricula, 'profile', userCloudData.profile);
+            if (userCloudData.academic) SecureStorage.saveItem(matricula, 'academic', userCloudData.academic);
+            if (userCloudData.completion) SecureStorage.saveItem(matricula, 'completion', userCloudData.completion);
+            if (userCloudData.grades) SecureStorage.saveItem(matricula, 'grades', userCloudData.grades);
+            if (userCloudData.schedule) SecureStorage.saveItem(matricula, 'schedule', userCloudData.schedule);
+            if (userCloudData.todos) SecureStorage.saveItem(matricula, 'todos', userCloudData.todos);
+            if (userCloudData.achievements) SecureStorage.saveItem(matricula, 'achievements', userCloudData.achievements);
+            if (userCloudData.notifications) SecureStorage.saveItem(matricula, 'notifications', userCloudData.notifications);
             
-            // Restore Settings (Preferences) to localStorage
-            if (data.settings) {
-                if(data.settings.wallpaper) localStorage.setItem('suap_saved_wallpaper', data.settings.wallpaper);
-                if(data.settings.theme_variant) localStorage.setItem('suap_saved_theme_variant', data.settings.theme_variant);
-                if(data.settings.theme_mode) localStorage.setItem('suap_saved_theme_mode', data.settings.theme_mode);
-                if(data.settings.performance) localStorage.setItem('suap_performance_settings', JSON.stringify(data.settings.performance));
-                if(data.settings.custom_photo) localStorage.setItem('suap_custom_photo', data.settings.custom_photo);
-                if(data.settings.use_custom_photo) localStorage.setItem('suap_use_custom_photo', data.settings.use_custom_photo);
+            // Restore Settings
+            if (userCloudData.settings) {
+                if(userCloudData.settings.wallpaper) localStorage.setItem('suap_saved_wallpaper', userCloudData.settings.wallpaper);
+                if(userCloudData.settings.theme_variant) localStorage.setItem('suap_saved_theme_variant', userCloudData.settings.theme_variant);
+                if(userCloudData.settings.theme_mode) localStorage.setItem('suap_saved_theme_mode', userCloudData.settings.theme_mode);
+                if(userCloudData.settings.performance) localStorage.setItem('suap_performance_settings', JSON.stringify(userCloudData.settings.performance));
+                if(userCloudData.settings.custom_photo) localStorage.setItem('suap_custom_photo', userCloudData.settings.custom_photo);
+                if(userCloudData.settings.use_custom_photo) localStorage.setItem('suap_use_custom_photo', userCloudData.settings.use_custom_photo);
                 
-                // RESTORE TOKENS from settings
-                if(data.settings.google_tokens) {
-                    SecureStorage.saveItem(matricula, 'google_tokens', data.settings.google_tokens);
+                if(userCloudData.settings.google_tokens) {
+                    SecureStorage.saveItem(matricula, 'google_tokens', userCloudData.settings.google_tokens);
                 }
             }
 
-            console.log(`[Storage] Cloud load successful for ${matricula}`);
-            // Return settings object so the UI can update state immediately
-            return { hasData: true, settings: data.settings };
+            return { hasData: true, settings: userCloudData.settings };
         } catch (error: any) {
-            const errorMessage = error?.message || error?.error_description || (typeof error === 'object' ? JSON.stringify(error) : String(error));
-            console.error(`[Storage] Cloud load failed: ${errorMessage}`);
+            console.error(`[Storage] Cloud load exception: ${error.message}`);
             return { hasData: false };
         }
     },
 
     /**
-     * Fetches all registered users from Supabase (Admin Only function effectively)
+     * Fetches all registered users from Supabase (Admin Only)
      */
     getAllUsers: async () => {
-        try {
-            const { data, error } = await supabase
+        const { data, error } = await safeSupabaseCall(() => 
+            supabase
                 .from('user_data')
                 .select('id, profile, academic, updated_at')
-                .order('updated_at', { ascending: false });
+                .order('updated_at', { ascending: false })
+        );
 
-            if (error) throw error;
-            return data || [];
-        } catch (error) {
+        if (error) {
             console.error("[Storage] Get all users failed:", error);
             return [];
         }
+        return (data as any[]) || [];
     },
 
     /**
-     * Checks subscription status securely using a Postgres Function (RPC).
+     * Checks subscription status securely.
      */
     checkSubscriptionStatus: async (matricula: string) => {
-        try {
-            // console.log(`[Premium Check] Checking status via RPC for ${matricula}...`);
-            const { data, error } = await supabase
-                .rpc('check_subscription_status', { user_matricula: matricula });
+        const { data, error } = await safeSupabaseCall(() => 
+            supabase.rpc('check_subscription_status', { user_matricula: matricula })
+        );
 
-            if (error) {
-                console.error("[Premium Check] RPC error:", error);
-                return false;
-            }
-            return !!data;
-        } catch (e) {
-            console.error("[Premium Check] Unexpected error:", e);
-            return false;
-        }
+        if (error) return false;
+        return !!data;
     },
 
     isAdmin: (matricula: string | undefined | null) => {
