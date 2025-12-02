@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
@@ -634,33 +635,73 @@ export const RightSidebar: React.FC<RightSidebarProps> = ({
 
             {/* DEADLINE ALERT CARD */}
             <AnimatePresence>
-                {priorityTask && priorityTask.jsDate && (
-                    <motion.div 
-                        initial={{ opacity: 0, y: 20 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        exit={{ opacity: 0, y: 20 }}
-                        className={`mt-4 mb-2 p-4 rounded-2xl border shadow-lg relative overflow-hidden group
-                            ${isDarkMode ? 'bg-gradient-to-r from-red-900/40 to-orange-900/40 border-red-500/30' : 'bg-gradient-to-r from-red-50 to-orange-50 border-red-200'}
-                        `}
-                    >
-                        <div className="flex items-start gap-3 relative z-10">
-                            <div className="p-2 rounded-full bg-red-500 text-white animate-pulse">
-                                <AlertCircle size={16} />
-                            </div>
-                            <div className="flex-1 min-w-0">
-                                <h4 className={`text-[10px] font-black uppercase tracking-widest mb-1 ${isDarkMode ? 'text-red-400' : 'text-red-600'}`}>
-                                    Entrega Hoje
-                                </h4>
-                                <p className={`text-xs font-bold truncate mb-0.5 ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
-                                    {priorityTask.title}
-                                </p>
-                                <div className={`text-[10px] opacity-70 ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>
-                                    {priorityTask.courseName} • Faltam {getTimeRemaining(priorityTask.jsDate)}
+                {(() => {
+                    if (!priorityTask || !priorityTask.jsDate) return null;
+                    const timeDiff = priorityTask.jsDate.getTime() - new Date().getTime();
+                    const isUrgent = timeDiff > 0 && timeDiff < 21600000; // Less than 6 hours (6 * 60 * 60 * 1000)
+
+                    return (
+                        <motion.div 
+                            initial={{ opacity: 0, y: 10 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            exit={{ opacity: 0, y: 10 }}
+                            className={`mt-4 mb-2 relative overflow-hidden rounded-[1.5rem] border shadow-xl transition-all
+                                ${isUrgent
+                                    ? (isDarkMode ? 'bg-[#180a0a] border-red-500/30' : 'bg-red-50 border-red-200')
+                                    : (isDarkMode ? `bg-slate-900 border-${primaryColor}-500/30` : `bg-${primaryColor}-50 border-${primaryColor}-200`)
+                                }
+                            `}
+                        >
+                            {/* Decorative Blur */}
+                            <div className={`absolute -top-10 -right-10 w-32 h-32 rounded-full blur-[60px] pointer-events-none 
+                                ${isUrgent 
+                                    ? (isDarkMode ? 'bg-red-600/20' : 'bg-red-500/10')
+                                    : (isDarkMode ? `bg-${primaryColor}-600/20` : `bg-${primaryColor}-500/10`)
+                                }
+                            `} />
+
+                            <div className="p-5 relative z-10">
+                                <div className="flex items-center justify-between mb-3">
+                                    <div className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider 
+                                        ${isUrgent
+                                            ? (isDarkMode ? 'bg-red-500/10 text-red-400' : 'bg-red-100 text-red-600')
+                                            : (isDarkMode ? `bg-${primaryColor}-500/10 text-${primaryColor}-400` : `bg-${primaryColor}-100 text-${primaryColor}-600`)
+                                        }
+                                    `}>
+                                        <Clock size={12} strokeWidth={2.5} />
+                                        <span>{getTimeRemaining(priorityTask.jsDate)}</span>
+                                    </div>
+                                    <div className={`w-2 h-2 rounded-full shadow-[0_0_8px_rgba(0,0,0,0.3)]
+                                        ${isUrgent ? 'bg-red-500 shadow-red-500/50' : `bg-${primaryColor}-500 shadow-${primaryColor}-500/50`}
+                                    `} />
                                 </div>
+
+                                <div className="mb-4">
+                                    <h4 className={`text-[10px] font-bold uppercase opacity-50 mb-1 truncate ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                                        {priorityTask.courseName}
+                                    </h4>
+                                    <h3 className={`text-base font-bold leading-tight line-clamp-2 ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                                        {priorityTask.title}
+                                    </h3>
+                                </div>
+
+                                <a 
+                                    href={priorityTask.alternateLink} 
+                                    target="_blank" 
+                                    rel="noopener noreferrer"
+                                    className={`flex items-center justify-center gap-2 w-full py-3 rounded-xl text-xs font-bold uppercase tracking-widest transition-transform active:scale-95 shadow-lg
+                                        ${isUrgent
+                                            ? (isDarkMode ? 'bg-red-600 text-white hover:bg-red-500 shadow-red-900/20' : 'bg-red-500 text-white hover:bg-red-600 shadow-red-200')
+                                            : (isDarkMode ? `bg-${primaryColor}-600 text-white hover:bg-${primaryColor}-500 shadow-${primaryColor}-900/20` : `bg-${primaryColor}-500 text-white hover:bg-${primaryColor}-600 shadow-${primaryColor}-200`)
+                                        }
+                                    `}
+                                >
+                                    Abrir Tarefa <ExternalLink size={14} />
+                                </a>
                             </div>
-                        </div>
-                    </motion.div>
-                )}
+                        </motion.div>
+                    );
+                })()}
             </AnimatePresence>
 
             {/* VERSION FOOTER */}
