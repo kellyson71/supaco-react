@@ -817,7 +817,14 @@ const App: React.FC = () => {
             return (workData.courseWork || []).map((w: ClassroomWork) => ({
                 ...w,
                 courseName: course.name,
-                jsDate: w.dueDate ? new Date(w.dueDate.year, w.dueDate.month - 1, w.dueDate.day, w.dueTime?.hours || 23, w.dueTime?.minutes || 59) : undefined
+                // DATE PARSING FIX: Use Date.UTC to correctly interpret the classroom time as UTC
+                jsDate: w.dueDate ? new Date(Date.UTC(
+                    w.dueDate.year, 
+                    w.dueDate.month - 1, 
+                    w.dueDate.day, 
+                    w.dueTime?.hours ?? 23, 
+                    w.dueTime?.minutes ?? 59
+                )) : undefined
             }));
         });
         const allWork = (await Promise.all(workPromises)).flat();
@@ -825,6 +832,24 @@ const App: React.FC = () => {
         
         setClassroomWork(futureWork);
         SecureStorage.saveItem(currentMatricula, 'classroom', futureWork);
+
+        // Check for today's tasks and notify
+        const today = new Date();
+        const dueTodayCount = futureWork.filter(w => 
+            w.jsDate && 
+            w.jsDate.getDate() === today.getDate() &&
+            w.jsDate.getMonth() === today.getMonth() &&
+            w.jsDate.getFullYear() === today.getFullYear()
+        ).length;
+
+        if (dueTodayCount > 0) {
+            handlePushNotification(
+                "Atenção!", 
+                `Você tem ${dueTodayCount} atividade(s) para entregar hoje!`, 
+                'academic', 
+                true
+            );
+        }
 
     } catch (e) { console.error("Failed to fetch classroom data", e); }
   };

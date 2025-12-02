@@ -170,7 +170,13 @@ export const ClassroomModal: React.FC<ClassroomModalProps> = ({
         {/* Masonry Grid of Cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 overflow-y-auto pr-2 pb-10">
             {filteredWork.map((work, idx) => {
-                const isLate = work.jsDate && work.jsDate < new Date();
+                const now = new Date();
+                const isLate = work.jsDate && work.jsDate < now;
+                const isDueToday = work.jsDate && 
+                    work.jsDate.getDate() === now.getDate() &&
+                    work.jsDate.getMonth() === now.getMonth() &&
+                    work.jsDate.getFullYear() === now.getFullYear();
+
                 const dueStr = work.jsDate?.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' });
                 const timeStr = work.jsDate?.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
 
@@ -182,7 +188,9 @@ export const ClassroomModal: React.FC<ClassroomModalProps> = ({
                         animate={{ opacity: 1, y: 0 }}
                         transition={{ delay: idx * 0.05 }}
                         className={`group relative flex flex-col rounded-[2.5rem] border transition-all duration-300 overflow-hidden
-                            ${isDark ? 'bg-white/5 border-white/5 hover:bg-white/10' : 'bg-white border-gray-100 shadow-sm hover:shadow-xl'}
+                            ${isDueToday 
+                                ? (isDark ? 'bg-amber-500/10 border-amber-500/30 hover:bg-amber-500/15' : 'bg-amber-50 border-amber-200 hover:shadow-xl')
+                                : (isDark ? 'bg-white/5 border-white/5 hover:bg-white/10' : 'bg-white border-gray-100 shadow-sm hover:shadow-xl')}
                         `}
                         whileHover={{ scale: 1.02, zIndex: 10 }}
                     >
@@ -198,6 +206,10 @@ export const ClassroomModal: React.FC<ClassroomModalProps> = ({
                                 {isLate ? (
                                     <div className="flex items-center gap-1 text-[9px] font-bold text-red-500 bg-red-500/10 px-2 py-1 rounded-lg">
                                         <AlertCircle size={10} /> Atrasado
+                                    </div>
+                                ) : isDueToday ? (
+                                    <div className="flex items-center gap-1 text-[9px] font-bold text-amber-500 bg-amber-500/10 px-2 py-1 rounded-lg border border-amber-500/20">
+                                        <AlertCircle size={10} className="animate-pulse" /> Entrega Hoje
                                     </div>
                                 ) : (
                                     <div className={`w-2.5 h-2.5 rounded-full bg-${accentColor}-500 shadow-[0_0_10px_var(--color-${accentColor}-500)]`} />
@@ -216,11 +228,11 @@ export const ClassroomModal: React.FC<ClassroomModalProps> = ({
                                     {work.description || "Sem descrição disponível."}
                                 </p>
                                 {/* Fade out for truncated text */}
-                                <div className={`absolute bottom-0 left-0 right-0 h-6 bg-gradient-to-t group-hover:opacity-0 transition-opacity duration-300 ${isDark ? 'from-[#1e293b]' : 'from-white'}`} />
+                                <div className={`absolute bottom-0 left-0 right-0 h-6 bg-gradient-to-t group-hover:opacity-0 transition-opacity duration-300 ${isDark ? 'from-[#1e293b]' : 'from-white'} ${isDueToday ? (isDark ? 'from-[#1e1c15]' : 'from-amber-50') : ''}`} />
                             </div>
 
                             {/* Footer Info */}
-                            <div className="mt-auto flex items-center gap-4 opacity-50 text-xs font-bold">
+                            <div className={`mt-auto flex items-center gap-4 text-xs font-bold ${isDueToday ? 'text-amber-500 opacity-100' : 'opacity-50'}`}>
                                 <div className="flex items-center gap-1.5">
                                     <Calendar size={12} /> {dueStr || 'S/ Data'}
                                 </div>
