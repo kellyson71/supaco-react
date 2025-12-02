@@ -465,7 +465,6 @@ export const DashboardLayout: React.FC<DashboardProps> = ({
         cornerColor={cornerColor}
         frameBg={frameBg}
         frameText={frameText}
-        classroomWork={classroomWork}
       />
 
       {/* CENTER CONTENT */}

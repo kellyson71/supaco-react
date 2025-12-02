@@ -1,11 +1,8 @@
-
-
-
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Clock, Trophy, ChevronLeft, ChevronRight as ChevronRightIcon, 
-  ListTodo, Plus, ArrowRight, Check, Trash2, Book, CalendarDays, FastForward, Sparkles, Hourglass, MapPin, Bell, CheckCheck, ExternalLink, ShieldAlert
+  ListTodo, Plus, ArrowRight, Check, Trash2, Book, CalendarDays, FastForward, Sparkles, Hourglass, MapPin, Bell, CheckCheck, ExternalLink, ShieldAlert, AlertCircle
 } from 'lucide-react';
 import { InvertedCorner } from '../InvertedCorner';
 import { TodoItem, ClassroomWork, Holiday, Achievement, SupacoNotification } from '../../types';
@@ -148,6 +145,27 @@ export const RightSidebar: React.FC<RightSidebarProps> = ({
 
   // Notifications State (Local handling)
   const [notifications, setNotifications] = useState<SupacoNotification[]>([]);
+
+  // Task Due Today Logic
+  const todaysTasks = classroomWork.filter(work => {
+      if (!work.jsDate) return false;
+      const now = new Date();
+      const isSameDay = work.jsDate.getDate() === now.getDate() &&
+                        work.jsDate.getMonth() === now.getMonth() &&
+                        work.jsDate.getFullYear() === now.getFullYear();
+      return isSameDay && work.jsDate > now; // Must be in the future (today)
+  }).sort((a, b) => (a.jsDate?.getTime() || 0) - (b.jsDate?.getTime() || 0));
+
+  const priorityTask = todaysTasks[0];
+
+  const getTimeRemaining = (targetDate: Date) => {
+      const diff = targetDate.getTime() - new Date().getTime();
+      const hours = Math.floor(diff / (1000 * 60 * 60));
+      const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+      
+      if (hours > 0) return `${hours}h ${minutes}m`;
+      return `${minutes}min`;
+  };
 
   React.useEffect(() => {
       // Load notifications from local secure storage
@@ -614,8 +632,39 @@ export const RightSidebar: React.FC<RightSidebarProps> = ({
               </AnimatePresence>
             </div>
 
+            {/* DEADLINE ALERT CARD */}
+            <AnimatePresence>
+                {priorityTask && priorityTask.jsDate && (
+                    <motion.div 
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: 20 }}
+                        className={`mt-4 mb-2 p-4 rounded-2xl border shadow-lg relative overflow-hidden group
+                            ${isDarkMode ? 'bg-gradient-to-r from-red-900/40 to-orange-900/40 border-red-500/30' : 'bg-gradient-to-r from-red-50 to-orange-50 border-red-200'}
+                        `}
+                    >
+                        <div className="flex items-start gap-3 relative z-10">
+                            <div className="p-2 rounded-full bg-red-500 text-white animate-pulse">
+                                <AlertCircle size={16} />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                                <h4 className={`text-[10px] font-black uppercase tracking-widest mb-1 ${isDarkMode ? 'text-red-400' : 'text-red-600'}`}>
+                                    Entrega Hoje
+                                </h4>
+                                <p className={`text-xs font-bold truncate mb-0.5 ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                                    {priorityTask.title}
+                                </p>
+                                <div className={`text-[10px] opacity-70 ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>
+                                    {priorityTask.courseName} • Faltam {getTimeRemaining(priorityTask.jsDate)}
+                                </div>
+                            </div>
+                        </div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
+
             {/* VERSION FOOTER */}
-            <div className="mt-4 pt-4 border-t border-dashed border-gray-500/10 flex justify-between items-center opacity-50 hover:opacity-100 transition-opacity">
+            <div className="mt-2 pt-4 border-t border-dashed border-gray-500/10 flex justify-between items-center opacity-50 hover:opacity-100 transition-opacity">
                 <button onClick={() => setShowChangelog(true)} className="flex items-center gap-2 text-[10px] font-mono font-bold hover:text-blue-500 transition-colors">
                     <span>v2.6.0</span>
                 </button>
