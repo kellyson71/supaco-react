@@ -55,7 +55,7 @@ const PROFILE_PRESETS = [
     "https://i.pinimg.com/736x/1a/63/13/1a6313cde710d43b3a2c30866c50b0c2.jpg"
 ];
 
-const CURRENT_VERSION = "2.7.0";
+const CURRENT_VERSION = "2.6.0";
 
 export const SettingsTabContent = ({ isDark, accentColor, performanceSettings, onUpdatePerformance, customPhotoUrl, onUpdateCustomPhoto, useCustomPhoto, onToggleCustomPhoto, onInstallPwa, canInstall, isPremium, onOpenPremiumModal, userData, onLinkClassroom, isClassroomLinked, classroomStatus, googleUser, themeVariant }: any) => {
     const isMono = themeVariant === 'monochrome';

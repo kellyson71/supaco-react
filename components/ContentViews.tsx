@@ -9,7 +9,6 @@ import { ClassroomModal } from './modals/ClassroomModal';
 import { ConclusionModal } from './modals/ConclusionModal';
 import { AdminModal } from './modals/AdminModal';
 import { AIStudioModal } from './modals/AIStudioModal';
-import { AbsencesModal } from './modals/AbsencesModal';
 import { ProfileLayout } from './profile/ProfileLayout';
 
 interface ChatMessage {
@@ -144,7 +143,6 @@ export const ContentView: React.FC<OverlayViewProps> = ({
                 <div className="flex-1 min-w-0 pr-4">
                     <h2 className={`text-xl md:text-3xl font-black tracking-tight uppercase ${textClass} truncate`}>
                         {view === ViewState.GRADES ? 'Boletim Escolar' : 
-                        view === ViewState.ABSENCES ? 'Controle de Faltas' :
                         view === ViewState.SCHEDULE ? 'Horário Semanal' :
                         view === ViewState.CLASSROOM ? 'Google Classroom' :
                         view === ViewState.CONCLUSION ? 'Progresso do Curso' :
@@ -167,18 +165,6 @@ export const ContentView: React.FC<OverlayViewProps> = ({
                         periods={periods}
                         selectedPeriod={viewingPeriod}
                         onSelectPeriod={onPeriodChange}
-                        isDark={isDarkMode} 
-                        primaryColor={primaryColor} 
-                        secondaryColor={secondaryColor} 
-                        onOpenAbsences={() => onChangeView(ViewState.ABSENCES)}
-                    />
-                </div>
-            )}
-
-            {view === ViewState.ABSENCES && (
-                <div className="flex-1 overflow-y-auto p-4 md:p-8 custom-scroll">
-                    <AbsencesModal 
-                        grades={grades} 
                         isDark={isDarkMode} 
                         primaryColor={primaryColor} 
                         secondaryColor={secondaryColor} 

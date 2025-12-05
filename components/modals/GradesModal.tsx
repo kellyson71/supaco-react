@@ -3,7 +3,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
     Calculator, AlertTriangle, CheckCircle, XCircle, TrendingUp, 
-    BookOpen, ChevronDown, ChevronUp, ShieldAlert, Activity, TrendingDown, Target, Eraser, Plane, Palmtree
+    BookOpen, ChevronDown, ChevronUp, ShieldAlert, Activity, TrendingDown, Target, Eraser
 } from 'lucide-react';
 import { GradeInfo, SuapPeriod } from '../../types';
 
@@ -15,7 +15,6 @@ interface GradesModalProps {
   isDark: boolean;
   primaryColor: string;
   secondaryColor: string;
-  onOpenAbsences?: () => void;
 }
 
 export const GradesModal: React.FC<GradesModalProps> = ({ 
@@ -25,8 +24,7 @@ export const GradesModal: React.FC<GradesModalProps> = ({
   onSelectPeriod, 
   isDark, 
   primaryColor, 
-  secondaryColor,
-  onOpenAbsences
+  secondaryColor 
 }) => {
   const [isSimulating, setIsSimulating] = useState<Record<string, boolean>>({});
   const [simulatedValues, setSimulatedValues] = useState<Record<string, { n1: string, n2: string, n3: string, n4: string }>>({});
@@ -184,7 +182,7 @@ export const GradesModal: React.FC<GradesModalProps> = ({
       {/* HERO STATS */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 shrink-0">
           {/* Average Grade */}
-          <div className={`p-5 rounded-[2rem] border relative overflow-hidden flex flex-col justify-between h-32 ${isDark ? `bg-gradient-to-br from-${primaryColor}-500/10 to-transparent border-${primaryColor}-500/20` : `bg-${primaryColor}-50 border-${primaryColor}-100`}`}>
+          <div className={`p-5 rounded-[2rem] border relative overflow-hidden flex flex-col justify-between h-28 ${isDark ? `bg-gradient-to-br from-${primaryColor}-500/10 to-transparent border-${primaryColor}-500/20` : `bg-${primaryColor}-50 border-${primaryColor}-100`}`}>
                 <div className="flex justify-between items-start">
                      <div className={`text-[10px] font-black uppercase tracking-widest flex items-center gap-1.5 text-${primaryColor}-500`}>
                         <TrendingUp size={12} /> Média Geral
@@ -197,7 +195,7 @@ export const GradesModal: React.FC<GradesModalProps> = ({
           </div>
 
           {/* Risk Card */}
-          <div className={`p-5 rounded-[2rem] border relative overflow-hidden flex flex-col justify-between h-32 ${stats.criticalRisks > 0 ? (isDark ? `bg-${secondaryColor}-500/10 border-${secondaryColor}-500/20` : `bg-${secondaryColor}-50 border-${secondaryColor}-100`) : (isDark ? 'bg-white/5 border-white/5' : 'bg-white border-gray-100')}`}>
+          <div className={`p-5 rounded-[2rem] border relative overflow-hidden flex flex-col justify-between h-28 ${stats.criticalRisks > 0 ? (isDark ? `bg-${secondaryColor}-500/10 border-${secondaryColor}-500/20` : `bg-${secondaryColor}-50 border-${secondaryColor}-100`) : (isDark ? 'bg-white/5 border-white/5' : 'bg-white border-gray-100')}`}>
                 <div className="flex justify-between items-start">
                      <div className={`text-[10px] font-black uppercase tracking-widest flex items-center gap-1.5 ${stats.criticalRisks > 0 ? `text-${secondaryColor}-500` : 'opacity-60'}`}>
                         <ShieldAlert size={12} /> Em Risco
@@ -214,33 +212,17 @@ export const GradesModal: React.FC<GradesModalProps> = ({
                 </div>
           </div>
 
-          {/* Total Absences & VACATION PLANNER LINK */}
-          <div className={`p-5 rounded-[2rem] border relative overflow-hidden flex flex-col justify-between h-32 group ${isDark ? 'bg-white/5 border-white/5' : 'bg-white border-gray-100 shadow-sm'}`}>
+          {/* Total Absences */}
+          <div className={`p-5 rounded-[2rem] border relative overflow-hidden flex flex-col justify-between h-28 ${isDark ? 'bg-white/5 border-white/5' : 'bg-white border-gray-100 shadow-sm'}`}>
                 <div className="flex justify-between items-start">
                      <div className="text-[10px] font-black uppercase tracking-widest opacity-60 flex items-center gap-1.5">
                         <TrendingDown size={12} /> Faltas
                      </div>
-                     {onOpenAbsences && (
-                         <button 
-                            onClick={onOpenAbsences} 
-                            className={`p-1.5 rounded-lg transition-colors ${isDark ? 'bg-white/10 hover:bg-white/20 text-white' : 'bg-gray-100 hover:bg-gray-200 text-black'}`}
-                            title="Planejar Férias"
-                         >
-                             <Palmtree size={14} />
-                         </button>
-                     )}
+                     <Activity size={16} className="opacity-40" />
                 </div>
-                <div className="flex justify-between items-end">
-                     <div>
-                        <div className={`text-4xl font-black ${isDark ? 'text-white' : 'text-gray-900'}`}>{stats.totalAbsences}</div>
-                        <div className="text-[10px] opacity-40 mt-1 font-medium">Total acumulado</div>
-                     </div>
-                     
-                     {onOpenAbsences && (
-                         <button onClick={onOpenAbsences} className={`px-3 py-1.5 rounded-xl text-[9px] font-bold uppercase tracking-wide transition-all opacity-0 group-hover:opacity-100 translate-y-2 group-hover:translate-y-0 ${isDark ? `bg-${primaryColor}-500 text-white` : `bg-${primaryColor}-500 text-white`}`}>
-                             Planejar Folga
-                         </button>
-                     )}
+                <div>
+                     <div className={`text-4xl font-black ${isDark ? 'text-white' : 'text-gray-900'}`}>{stats.totalAbsences}</div>
+                     <div className="text-[10px] opacity-40 mt-1 font-medium">Total acumulado</div>
                 </div>
           </div>
       </div>

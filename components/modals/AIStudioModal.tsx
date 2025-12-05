@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence, Variants } from 'framer-motion';
 import { Sparkles, Brain, ArrowRight, X, ChevronLeft, Check, RotateCcw, Lightbulb, Zap, Layers, Trophy, GraduationCap, AlertCircle, Bookmark, Loader2, Copy, Send, Edit3, History, Trash2, Clock, MessageSquare } from 'lucide-react';
@@ -200,7 +199,7 @@ export const AIStudioModal: React.FC<AIStudioModalProps> = ({ isDark, accentColo
                 schema = {
                     type: "ARRAY",
                     items: { type: "OBJECT", properties: { front: { type: "STRING" }, back: { type: "STRING" } } }
-                } as any;
+                };
             } else if (activeTool === 'quiz') {
                 prompt = `Gere 5 perguntas de múltipla escolha sobre: "${topic}". JSON estrito. explanation deve explicar porque a correta é a correta.`;
                 schema = {
@@ -214,7 +213,7 @@ export const AIStudioModal: React.FC<AIStudioModalProps> = ({ isDark, accentColo
                             explanation: { type: "STRING" }
                         }
                     }
-                } as any;
+                };
             } else {
                 prompt = `Resumo Markdown sobre "${topic}". Tópicos, negrito e emojis.`;
             }
@@ -224,7 +223,7 @@ export const AIStudioModal: React.FC<AIStudioModalProps> = ({ isDark, accentColo
                 contents: prompt,
                 config: {
                     responseMimeType: activeTool === 'summary' ? 'text/plain' : 'application/json',
-                    responseSchema: schema
+                    responseSchema: schema as any
                 }
             });
 
