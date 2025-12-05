@@ -135,7 +135,7 @@ export const VacationPlanner: React.FC<VacationPlannerProps> = ({ grades, isDark
                 <span className="text-xs font-black uppercase tracking-widest">Impacto por Disciplina</span>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 overflow-y-auto pr-1 pb-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 overflow-y-auto pr-1 pb-4 custom-scroll">
                 {analysis.subjects.map((sub, idx) => {
                     const percentUsed = Math.min((sub.absences / sub.limit) * 100, 100);
                     const percentProjected = Math.min((sub.projectedTotal / sub.limit) * 100, 100);
