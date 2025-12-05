@@ -347,5 +347,6 @@ export const TopNavBar: React.FC<TopNavBarProps> = ({
                 </div>
             </div>
         </motion.div>
-    );
+    </div>
+  );
 };

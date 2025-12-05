@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { User, Settings, Palette, Trophy, ArrowRight, LogOut, X, Crown, LifeBuoy } from 'lucide-react';
@@ -42,7 +43,6 @@ export const ProfileLayout = ({
 }: any) => {
     const [activeTab, setActiveTab] = useState(initialTab || 'profile');
     const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
-    const isMono = themeVariant === 'monochrome';
 
     useEffect(() => {
         const handleResize = () => setIsMobile(window.innerWidth < 768);
@@ -81,14 +81,14 @@ export const ProfileLayout = ({
     ];
 
     return (
-        <div className={`flex flex-col md:flex-row h-full w-full ${isMono ? 'bg-black text-white' : (isDark ? 'bg-black/20 text-white' : 'bg-gray-50/50 text-gray-900')}`}>
+        <div className="flex flex-col md:flex-row h-full w-full bg-gray-50/50 dark:bg-black/20">
             
-            <div className={`shrink-0 flex flex-col md:w-64 lg:w-72 p-6 border-b md:border-b-0 md:border-r ${isMono ? 'bg-black border-white text-white' : (isDark ? 'border-white/10 bg-slate-900/50' : 'border-gray-200 bg-white/50')}`}>
+            <div className={`shrink-0 flex flex-col md:w-64 lg:w-72 p-6 border-b md:border-b-0 md:border-r ${isDark ? 'border-white/10 bg-slate-900/50' : 'border-gray-200 bg-white/50'}`}>
                 <div className="hidden md:flex flex-col items-center text-center mb-8">
                     <div className="relative group cursor-pointer mb-4">
                         <div className="relative p-[3px]">
                              {isPremium && <div style={premiumBorderLines} />}
-                             <div className={`w-20 h-20 rounded-full overflow-hidden shadow-lg transition-transform group-hover:scale-105 relative z-10 ${isMono ? 'bg-black border-2 border-white' : (isDark ? 'bg-black' : 'bg-white')} ${!isPremium ? (isDark ? 'border-2 border-white/10' : 'border-2 border-white') : ''}`}>
+                             <div className={`w-20 h-20 rounded-full overflow-hidden shadow-lg transition-transform group-hover:scale-105 relative z-10 ${isDark ? 'bg-black' : 'bg-white'} ${!isPremium ? (isDark ? 'border-2 border-white/10' : 'border-2 border-white') : ''}`}>
                                 <img src={profileImg} className="w-full h-full object-cover" alt="Profile" />
                              </div>
                         </div>
@@ -98,7 +98,7 @@ export const ProfileLayout = ({
                             </div>
                         )}
                     </div>
-                    <h2 className={`text-lg font-black leading-tight ${isMono ? 'text-white' : (isDark ? 'text-white' : 'text-gray-900')}`}>{userData?.nome_usual || 'Estudante'}</h2>
+                    <h2 className={`text-lg font-black leading-tight ${isDark ? 'text-white' : 'text-gray-900'}`}>{userData?.nome_usual || 'Estudante'}</h2>
                     <p className="text-xs font-medium opacity-50 mt-1">{userData?.matricula}</p>
                 </div>
 
@@ -111,11 +111,11 @@ export const ProfileLayout = ({
                                 onClick={() => setActiveTab(tab.id)}
                                 className={`relative flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold transition-all shrink-0 md:shrink
                                     ${isActive 
-                                        ? (isMono ? 'bg-white text-black' : (isDark ? 'text-white' : 'text-gray-900')) 
-                                        : (isMono ? 'text-white hover:bg-white/10' : (isDark ? 'text-gray-500 hover:text-gray-300 hover:bg-white/5' : 'text-gray-400 hover:text-gray-600 hover:bg-gray-100'))}
+                                        ? (isDark ? 'text-white' : 'text-gray-900') 
+                                        : (isDark ? 'text-gray-500 hover:text-gray-300 hover:bg-white/5' : 'text-gray-400 hover:text-gray-600 hover:bg-gray-100')}
                                 `}
                             >
-                                {isActive && !isMono && (
+                                {isActive && (
                                     <motion.div 
                                         layoutId="activeTabPill"
                                         className={`absolute inset-0 rounded-xl ${isDark ? 'bg-white/10' : 'bg-white shadow-sm border border-gray-100'}`}
@@ -131,7 +131,7 @@ export const ProfileLayout = ({
                 </nav>
 
                 <div className="hidden md:flex flex-col gap-2 mt-auto pt-6 border-t border-dashed border-gray-500/20">
-                     <button onClick={onClose} className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold transition-colors ${isMono ? 'text-white hover:bg-white/10' : (isDark ? 'text-gray-400 hover:text-white hover:bg-white/5' : 'text-gray-500 hover:text-black hover:bg-gray-100')}`}>
+                     <button onClick={onClose} className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold transition-colors ${isDark ? 'text-gray-400 hover:text-white hover:bg-white/5' : 'text-gray-500 hover:text-black hover:bg-gray-100'}`}>
                         <ArrowRight size={18} className="rotate-180" /> Voltar
                      </button>
                      <button onClick={onLogout} className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold transition-colors text-red-500 hover:bg-red-500/10`}>
@@ -141,8 +141,8 @@ export const ProfileLayout = ({
             </div>
 
             <div className="flex-1 overflow-y-auto custom-scroll relative p-4 md:p-8 lg:p-10">
-                 <button onClick={onClose} className={`md:hidden absolute top-4 right-4 p-2 rounded-full z-50 ${isMono ? 'bg-white/10 text-white' : 'bg-black/5 dark:bg-white/10'}`}>
-                    <X size={20} className={isMono ? 'text-white' : (isDark ? 'text-white' : 'text-black')} />
+                 <button onClick={onClose} className="md:hidden absolute top-4 right-4 p-2 rounded-full bg-black/5 dark:bg-white/10 z-50">
+                    <X size={20} className={isDark ? 'text-white' : 'text-black'} />
                  </button>
 
                  <AnimatePresence mode="wait">
@@ -159,7 +159,6 @@ export const ProfileLayout = ({
                             onUpdateCustomPhoto={onUpdateCustomPhoto}
                             useCustomPhoto={useCustomPhoto}
                             onToggleCustomPhoto={onToggleCustomPhoto}
-                            themeVariant={themeVariant}
                         />
                     )}
                     {activeTab === 'settings' && (
@@ -182,7 +181,6 @@ export const ProfileLayout = ({
                             isClassroomLinked={isClassroomLinked}
                             classroomStatus={classroomStatus}
                             googleUser={googleUser}
-                            themeVariant={themeVariant}
                         />
                     )}
                     {activeTab === 'wallpaper' && (
@@ -204,7 +202,6 @@ export const ProfileLayout = ({
                             accentColor={accentColor} 
                             grades={grades} 
                             userData={userData} 
-                            themeVariant={themeVariant}
                         />
                     )}
                     {activeTab === 'support' && (
@@ -213,7 +210,6 @@ export const ProfileLayout = ({
                             isDark={isDark} 
                             accentColor={accentColor} 
                             userData={userData} 
-                            themeVariant={themeVariant}
                         />
                     )}
                  </AnimatePresence>

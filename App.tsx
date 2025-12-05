@@ -1193,11 +1193,10 @@ const App: React.FC = () => {
         <div 
             style={{ 
                 filter: themeVariant === 'sepia' ? 'sepia(80%) contrast(90%)' : 
-                        themeVariant === 'monochrome' ? 'grayscale(100%) contrast(120%) brightness(100%)' : 'none', 
-                transition: 'filter 0.5s ease',
-                backgroundColor: themeVariant === 'monochrome' ? '#000000' : 'transparent' 
+                        themeVariant === 'monochrome' ? 'grayscale(100%) contrast(110%) brightness(110%)' : 'none', 
+                transition: 'filter 0.5s ease' 
             }} 
-            className={`h-full w-full absolute inset-0 z-0 ${themeVariant === 'monochrome' ? 'bg-black' : ''}`}
+            className="h-full w-full absolute inset-0 z-0" 
         />
 
         <div className="relative z-10 h-full">

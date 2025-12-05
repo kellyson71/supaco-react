@@ -320,20 +320,20 @@ export const DashboardLayout: React.FC<DashboardProps> = ({
                         ${isMono ? (isDarkMode ? 'bg-white text-black' : 'bg-black text-white') : (isDarkMode ? `bg-${primaryColor}-900/40 text-${primaryColor}-300` : `bg-${primaryColor}-100/80 text-${primaryColor}-700`)}`}>
                         {nextClass ? 'Próxima Aula' : 'Hoje'}
                     </span>
-                    {todaysClasses.length > 0 && <div className={`text-[9px] font-bold px-2 py-1 rounded-lg border backdrop-blur-sm ${isMono ? 'border-white/50 text-white' : (isDarkMode ? 'border-white/10 text-white/40' : 'border-black/5 text-black/40')}`}>{todaysClasses.length} Aulas</div>}
+                    {todaysClasses.length > 0 && <div className={`text-[9px] font-bold px-2 py-1 rounded-lg border backdrop-blur-sm ${isDarkMode ? 'border-white/10 text-white/40' : 'border-black/5 text-black/40'}`}>{todaysClasses.length} Aulas</div>}
                 </div>
                 <div className="relative z-10 flex-1 flex flex-col min-h-0">
                     <div className="shrink-0 mb-3">
                         {nextClassGrade ? (
-                            <div className={`bg-gradient-to-br from-transparent to-white/5 rounded-2xl p-0.5 group cursor-pointer ${isMono ? 'border border-white' : ''}`} onClick={() => setIsFocusMode(true)}>
+                            <div className={`bg-gradient-to-br from-transparent to-white/5 rounded-2xl p-0.5 group cursor-pointer ${isMono ? 'border border-white/20' : ''}`} onClick={() => setIsFocusMode(true)}>
                                 <div className="flex items-center justify-between mb-1.5 px-1">
-                                    <div className={`text-[10px] font-bold uppercase tracking-wider truncate max-w-[160px] ${isMono ? 'text-white' : (isDarkMode ? 'text-gray-400' : 'text-gray-500')}`}>{nextClass?.name}</div>
+                                    <div className={`text-[10px] font-bold uppercase tracking-wider truncate max-w-[160px] ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>{nextClass?.name}</div>
                                     <div className="flex items-center gap-1"><Maximize2 size={10} className="opacity-0 group-hover:opacity-50 transition-opacity" /><div className="text-[10px] font-mono opacity-60 bg-black/5 dark:bg-white/5 px-1.5 py-0.5 rounded text-[9px]">{nextClass?.startTime}</div></div>
                                 </div>
                                 {(() => {
                                     const conf = getStatusConfig(nextClassGrade);
                                     const remaining = nextClassGrade.limit - nextClassGrade.absences;
-                                    const statusBg = isMono ? (isDarkMode ? 'bg-black text-white border-t border-white' : 'bg-white text-black border-t border-black') : (isDarkMode ? `bg-${conf.color}-500/20 text-${conf.color}-400 ring-1 ring-${conf.color}-500/20` : `bg-${conf.color}-100 text-${conf.color}-600 ring-1 ring-${conf.color}-200`);
+                                    const statusBg = isMono ? 'bg-white/10 border border-white/20 text-white' : (isDarkMode ? `bg-${conf.color}-500/20 text-${conf.color}-400 ring-1 ring-${conf.color}-500/20` : `bg-${conf.color}-100 text-${conf.color}-600 ring-1 ring-${conf.color}-200`);
                                     return (
                                         <div className="flex items-center gap-3">
                                             <div className={`px-3 py-2 rounded-xl text-xs font-black uppercase flex items-center gap-2 shadow-sm flex-1 ${statusBg}`}>
@@ -346,9 +346,9 @@ export const DashboardLayout: React.FC<DashboardProps> = ({
                             </div>
                         ) : bestSubjectToSkip ? (
                              <div className="px-1">
-                                <div className={`text-[9px] font-bold uppercase tracking-wider mb-0.5 ${isMono ? 'text-white/60' : (isDarkMode ? 'text-gray-400' : 'text-gray-500')}`}>Sugestão</div>
+                                <div className={`text-[9px] font-bold uppercase tracking-wider mb-0.5 ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>Sugestão</div>
                                 <div className={`text-lg font-black leading-tight mb-2 truncate ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>{bestSubjectToSkip.subject}</div>
-                                <div className={`text-[10px] font-bold flex items-center gap-1.5 ${isMono ? 'text-white' : (isDarkMode ? `text-${primaryColor}-400` : `text-${primaryColor}-600`)}`}><ThumbsUp size={12} /><span>{bestSubjectToSkip.limit - bestSubjectToSkip.absences} faltas disponíveis.</span></div>
+                                <div className={`text-[10px] font-bold flex items-center gap-1.5 ${isMono ? (isDarkMode ? 'text-white' : 'text-black') : (isDarkMode ? `text-${primaryColor}-400` : `text-${primaryColor}-600`)}`}><ThumbsUp size={12} /><span>{bestSubjectToSkip.limit - bestSubjectToSkip.absences} faltas disponíveis.</span></div>
                              </div>
                         ) : (
                             <div className="py-4 opacity-60 text-xs font-bold text-center border-2 border-dashed border-gray-500/10 rounded-xl">Sem dados de faltas.</div>
@@ -358,10 +358,10 @@ export const DashboardLayout: React.FC<DashboardProps> = ({
                         <div className="text-[9px] font-bold uppercase tracking-widest opacity-40 mb-2 pl-1">Cronograma de Hoje</div>
                         <div className="flex-1 overflow-y-auto custom-scroll pr-1 space-y-1.5">
                             {todaysClasses.length > 0 ? todaysClasses.map((c, i) => (
-                                <div key={i} className={`flex items-center gap-3 p-2 rounded-lg transition-all ${nextClass && c.startTime === nextClass.startTime && c.name === nextClass.name ? (isMono ? 'bg-white text-black' : (isDarkMode ? `bg-white/10 shadow-sm border border-white/5` : `bg-white shadow-sm border border-gray-100`)) : 'opacity-70 hover:opacity-100'}`}>
-                                    <div className={`w-1 h-8 rounded-full shrink-0 ${nextClass && c.startTime === nextClass.startTime ? (isMono ? 'bg-black' : `bg-${primaryColor}-500`) : `bg-gray-300 dark:bg-white/20`}`} />
+                                <div key={i} className={`flex items-center gap-3 p-2 rounded-lg transition-all ${nextClass && c.startTime === nextClass.startTime && c.name === nextClass.name ? (isDarkMode ? `bg-white/10 shadow-sm border border-white/5` : `bg-white shadow-sm border border-gray-100`) : 'opacity-70 hover:opacity-100'}`}>
+                                    <div className={`w-1 h-8 rounded-full shrink-0 ${nextClass && c.startTime === nextClass.startTime ? (isMono ? 'bg-white dark:bg-white' : `bg-${primaryColor}-500`) : `bg-gray-300 dark:bg-white/20`}`} />
                                     <div className="flex-1 min-w-0">
-                                        <div className={`text-[10px] font-bold truncate leading-tight ${isMono ? (nextClass && c.startTime === nextClass.startTime ? 'text-black' : 'text-white') : (isDarkMode ? 'text-gray-400' : 'text-gray-600')}`}>{c.name}</div>
+                                        <div className={`text-[10px] font-bold truncate leading-tight ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>{c.name}</div>
                                         <div className="flex items-center gap-2 mt-0.5"><div className="flex items-center gap-1 text-[9px] opacity-70"><Clock size={8} /> {c.startTime}</div><div className="flex items-center gap-1 text-[9px] opacity-70"><MapPin size={8} /> {c.room}</div></div>
                                     </div>
                                 </div>
@@ -394,9 +394,9 @@ export const DashboardLayout: React.FC<DashboardProps> = ({
             return (
                 <div className="h-full flex flex-col items-center justify-center text-center gap-4 p-4">
                     {!isMono && <div className={`absolute -right-4 -top-4 w-24 h-24 rounded-full blur-xl ${isDarkMode ? `bg-gray-500/10` : `bg-gray-200/50`}`} />}
-                    <div className={`w-12 h-12 rounded-2xl flex items-center justify-center ${isMono ? 'bg-transparent border border-white text-white' : (isDarkMode ? 'bg-white/10' : 'bg-gray-100 text-gray-400')}`}><Link2 size={24} /></div>
+                    <div className={`w-12 h-12 rounded-2xl flex items-center justify-center ${isDarkMode ? 'bg-white/10' : 'bg-gray-100 text-gray-400'}`}><Link2 size={24} /></div>
                     <div><h3 className={`text-sm font-black uppercase mb-1 ${isDarkMode ? 'text-white' : 'text-gray-800'}`}>Classroom</h3><p className="text-[10px] opacity-60 max-w-[150px] mx-auto leading-relaxed">Conecte sua conta Google para ver tarefas aqui.</p></div>
-                    <button onClick={onOpenSettings} className={`text-[10px] font-bold uppercase tracking-wide px-4 py-2 rounded-xl transition-colors ${isMono ? 'bg-white text-black' : (isDarkMode ? 'bg-white text-black hover:bg-gray-200' : 'bg-black text-white hover:bg-gray-800')}`}>Vincular</button>
+                    <button onClick={onOpenSettings} className={`text-[10px] font-bold uppercase tracking-wide px-4 py-2 rounded-xl transition-colors ${isDarkMode ? 'bg-white text-black hover:bg-gray-200' : 'bg-black text-white hover:bg-gray-800'}`}>Vincular</button>
                 </div>
             )
         }
@@ -407,9 +407,9 @@ export const DashboardLayout: React.FC<DashboardProps> = ({
                 <div className="relative z-10 flex-1 flex flex-col justify-center">
                     {nextTask ? (
                         <div className="flex flex-col gap-2">
-                            <div><div className={`text-[10px] font-bold uppercase mb-1 ${isMono ? 'text-white/60' : (isDarkMode ? `text-${primaryColor}-500/80` : `text-${primaryColor}-600`)}`}>Próxima Entrega</div><div className={`text-lg font-black leading-tight line-clamp-3 ${isMono ? 'text-white' : (isDarkMode ? `text-${primaryColor}-50` : 'text-gray-800')}`}>{nextTask.title}</div></div>
-                            <div className={`text-[10px] font-bold px-2 py-1 rounded-lg inline-block w-fit ${isMono ? 'bg-white text-black' : (isDarkMode ? 'bg-white/10 text-gray-300' : 'bg-gray-100 text-gray-600')}`}>{nextTask.courseName}</div>
-                            <div className="pt-2 border-t border-dashed border-gray-500/20 flex justify-between items-center mt-auto"><div className={`text-xs font-bold ${isMono ? 'text-white' : (isDarkMode ? `text-${primaryColor}-400` : `text-${primaryColor}-600`)}`}>{nextTask.jsDate?.toLocaleDateString('pt-BR', { weekday: 'short', day: '2-digit' })}</div><div className={`text-xs font-bold opacity-70 ${isDarkMode ? 'text-white' : 'text-black'}`}>{nextTask.jsDate?.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</div></div>
+                            <div><div className={`text-[10px] font-bold uppercase mb-1 ${isMono ? (isDarkMode ? 'text-gray-400' : 'text-gray-600') : (isDarkMode ? `text-${primaryColor}-500/80` : `text-${primaryColor}-600`)}`}>Próxima Entrega</div><div className={`text-lg font-black leading-tight line-clamp-3 ${isMono ? (isDarkMode ? 'text-white' : 'text-black') : (isDarkMode ? `text-${primaryColor}-50` : 'text-gray-800')}`}>{nextTask.title}</div></div>
+                            <div className={`text-[10px] font-bold px-2 py-1 rounded-lg inline-block w-fit ${isDarkMode ? 'bg-white/10 text-gray-300' : 'bg-gray-100 text-gray-600'}`}>{nextTask.courseName}</div>
+                            <div className="pt-2 border-t border-dashed border-gray-500/20 flex justify-between items-center mt-auto"><div className={`text-xs font-bold ${isMono ? (isDarkMode ? 'text-gray-300' : 'text-gray-700') : (isDarkMode ? `text-${primaryColor}-400` : `text-${primaryColor}-600`)}`}>{nextTask.jsDate?.toLocaleDateString('pt-BR', { weekday: 'short', day: '2-digit' })}</div><div className={`text-xs font-bold opacity-70 ${isDarkMode ? 'text-white' : 'text-black'}`}>{nextTask.jsDate?.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</div></div>
                         </div>
                     ) : (
                         <div className="text-center opacity-50"><Book size={24} className="mx-auto mb-2" /><p className="text-xs font-bold">Nenhuma tarefa pendente.</p></div>
@@ -420,13 +420,12 @@ export const DashboardLayout: React.FC<DashboardProps> = ({
     }
   };
 
-  // In Monochrome mode, backgrounds are forced to pure black/white
-  const frameBg = isMono ? 'bg-black' : (isDarkMode ? DARK_FRAME : LIGHT_FRAME);
-  const frameText = isMono ? 'text-white' : (isDarkMode ? 'text-white' : 'text-gray-900');
-  const cornerColor = isMono ? '#000000' : (isDarkMode ? DARK_CORNER : LIGHT_CORNER);
+  const frameBg = isMono ? (isDarkMode ? 'bg-black' : 'bg-white') : (isDarkMode ? DARK_FRAME : LIGHT_FRAME);
+  const frameText = isDarkMode ? 'text-white' : 'text-gray-900';
+  const cornerColor = isMono ? (isDarkMode ? '#000000' : '#ffffff') : (isDarkMode ? DARK_CORNER : LIGHT_CORNER);
 
   return (
-    <div className={`relative w-full h-[100dvh] md:h-screen overflow-hidden flex flex-col md:flex-row font-sans transition-colors duration-500 ${isMono ? 'bg-black' : (isDarkMode ? 'bg-black' : 'bg-gray-900')}`}>
+    <div className={`relative w-full h-[100dvh] md:h-screen overflow-hidden flex flex-col md:flex-row font-sans transition-colors duration-500 ${isDarkMode ? 'bg-black' : 'bg-gray-900'}`}>
       
       <AnimatePresence>
           {showAchievementNotification && (
@@ -452,9 +451,7 @@ export const DashboardLayout: React.FC<DashboardProps> = ({
         )}
       </AnimatePresence>
 
-      {/* Wallpaper handling for Mono vs others */}
-      {!isMono && <div className="absolute inset-0 z-0 bg-no-repeat transition-transform duration-1000 ease-out" style={{ backgroundImage: `url(${currentWallpaper})`, backgroundSize: 'cover', backgroundPosition: 'center center' }} />}
-      {isMono && <div className="absolute inset-0 z-0 bg-black" />}
+      <div className="absolute inset-0 z-0 bg-no-repeat transition-transform duration-1000 ease-out" style={{ backgroundImage: `url(${currentWallpaper})`, backgroundSize: 'cover', backgroundPosition: 'center center' }} />
       
       {/* Dynamic Frames */}
       <div className={`hidden md:block absolute top-0 inset-x-0 h-4 z-50 transition-colors duration-500 ${frameBg}`} />
@@ -522,7 +519,7 @@ export const DashboardLayout: React.FC<DashboardProps> = ({
                                     <div className="flex items-center gap-1.5 text-white/60 text-xs font-medium mt-1"><MapPin size={12} /><span>{userData?.campus || "Campus"}</span></div>
                                 </div>
                                 <div className="flex items-center gap-3 mb-6">
-                                    <div className={`px-2.5 py-1.5 ${isMono ? 'bg-black border border-white' : `bg-${primaryColor}-500/20 border border-${primaryColor}-400/30`} rounded-full flex items-center gap-2`}><span className="relative flex h-2 w-2"><span className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${isMono ? 'bg-white' : `bg-${primaryColor}-400`}`}></span><span className={`relative inline-flex rounded-full h-2 w-2 ${isMono ? 'bg-white' : `bg-${primaryColor}-500`}`}></span></span><span className={`text-[9px] font-bold text-white uppercase tracking-wide`}>Matriculado</span></div>
+                                    <div className={`px-2.5 py-1.5 ${isMono ? 'bg-white/10 border border-white/20' : `bg-${primaryColor}-500/20 border border-${primaryColor}-400/30`} rounded-full flex items-center gap-2`}><span className="relative flex h-2 w-2"><span className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${isMono ? 'bg-white' : `bg-${primaryColor}-400`}`}></span><span className={`relative inline-flex rounded-full h-2 w-2 ${isMono ? 'bg-white' : `bg-${primaryColor}-500`}`}></span></span><span className={`text-[9px] font-bold text-white uppercase tracking-wide`}>Matriculado</span></div>
                                     <button onClick={() => userData?.matricula && navigator.clipboard.writeText(userData.matricula)} className="flex items-center gap-2 group hover:bg-white/5 px-2 py-1 rounded-lg transition-colors cursor-pointer"><span className="text-[9px] font-bold text-white/40 uppercase">Mat.</span><span className="font-mono text-xs font-bold text-white/90 tracking-wider border-b border-white/10 group-hover:border-white/50 transition-colors">{userData?.matricula || "---"}</span><Copy size={12} className="text-white/40 group-hover:text-white transition-colors" /></button>
                                 </div>
                                 <div className="flex items-center gap-3 border-t border-white/10 pt-4"><div className="px-2"><span className="text-[9px] text-white/60 uppercase font-bold block mb-0.5">Média Geral</span><span className="text-lg font-black text-white">{stats.average}</span></div><div className="w-[1px] h-8 bg-white/10"></div><div className="px-2"><span className="text-[9px] text-white/60 uppercase font-bold block mb-0.5">Frequência</span><span className={`text-lg font-black ${isMono ? 'text-white' : `text-${primaryColor}-400`}`}>{stats.frequency}</span></div></div>
@@ -553,7 +550,7 @@ export const DashboardLayout: React.FC<DashboardProps> = ({
                                  const opacity = isTop ? 1 : isBehind ? 0.6 : 0.3;
 
                                  const cardBg = isMono 
-                                    ? 'bg-black border border-white'
+                                    ? (isDarkMode ? 'bg-black border-white/20' : 'bg-white border-black/10')
                                     : (isDarkMode ? `bg-slate-900/90 border-white/10` : `bg-white/90 border-white/50`);
 
                                  return (
@@ -591,7 +588,7 @@ export const DashboardLayout: React.FC<DashboardProps> = ({
 
                 {/* MOBILE: Secondary Info List */}
                 <div className="md:hidden w-full max-w-[320px] mx-auto mt-6 space-y-4 pb-8">
-                     <div className={`p-4 rounded-2xl border backdrop-blur-sm ${isMono ? 'bg-black border-white text-white' : (isDarkMode ? 'bg-black/40 border-white/10' : 'bg-white/60 border-white/20')}`}>
+                     <div className={`p-4 rounded-2xl border backdrop-blur-sm ${isDarkMode ? 'bg-black/40 border-white/10' : 'bg-white/60 border-white/20'}`}>
                          <div className="flex justify-between items-center mb-3">
                             <h3 className={`text-xs font-bold uppercase ${frameText}`}>Próximas Entregas</h3>
                             <div className={`text-[10px] px-2 py-0.5 rounded-md ${isDarkMode ? 'bg-white/10' : 'bg-black/10'}`}>{classroomWork.length}</div>
