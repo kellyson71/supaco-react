@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion, PanInfo } from 'framer-motion';
 import { X } from 'lucide-react';
-import { ViewState, GradeInfo, ThemeVariant, SuapProfile, SuapMeusDadosAluno, ProcessedClass, SuapCompletionData, ClassroomWork, PerformanceSettings, SuapPeriod } from '../types';
+import { ViewState, GradeInfo, ThemeVariant, SuapProfile, SuapMeusDadosAluno, ProcessedClass, SuapCompletionData, ClassroomWork, PerformanceSettings, SuapPeriod, Holiday } from '../types';
 import { GradesModal } from './modals/GradesModal';
 import { ScheduleModal } from './modals/ScheduleModal';
 import { ClassroomModal } from './modals/ClassroomModal';
@@ -60,6 +60,7 @@ interface OverlayViewProps {
   onOpenSettings?: () => void;
   onRefreshClassroom?: () => void;
   googleUser?: { email: string, name: string, picture: string } | null;
+  holidays?: Holiday[];
 }
 
 export const ContentView: React.FC<OverlayViewProps> = ({ 
@@ -70,7 +71,7 @@ export const ContentView: React.FC<OverlayViewProps> = ({
     customPhotoUrl = '', onUpdateCustomPhoto, useCustomPhoto = false, onToggleCustomPhoto, 
     periods, viewingPeriod, onPeriodChange, isPremium, onOpenPremiumModal, classroomWork = [], 
     isClassroomLinked = false, onLinkClassroom, classroomStatus, internalApiKey, onOpenChatWithContext,
-    onOpenSettings, onRefreshClassroom, googleUser
+    onOpenSettings, onRefreshClassroom, googleUser, holidays = []
 }) => {
   if (view === ViewState.DASHBOARD) return null;
 
@@ -162,12 +163,14 @@ export const ContentView: React.FC<OverlayViewProps> = ({
                 <div className="flex-1 overflow-y-auto p-4 md:p-8 custom-scroll">
                     <GradesModal 
                         grades={grades} 
+                        schedule={schedule}
                         periods={periods}
                         selectedPeriod={viewingPeriod}
                         onSelectPeriod={onPeriodChange}
                         isDark={isDarkMode} 
                         primaryColor={primaryColor} 
                         secondaryColor={secondaryColor} 
+                        holidays={holidays}
                     />
                 </div>
             )}

@@ -1292,6 +1292,7 @@ const App: React.FC = () => {
                         onOpenSettings={handleOpenSettings}
                         onRefreshClassroom={() => { if(userData?.matricula) fetchClassroomData(userData.matricula, true); }}
                         googleUser={googleUser}
+                        holidays={holidays}
                     />
                 </Suspense>
                 )}
