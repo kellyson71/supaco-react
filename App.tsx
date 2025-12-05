@@ -26,7 +26,7 @@ const DEFAULT_PROFILE_IMG = "https://i.pinimg.com/736x/9c/63/e1/9c63e1cf0546ecd4
 
 // --- INTERNAL CONFIG ---
 const SUPACO_INTERNAL_KEY = geminiCredentials.apiKey;
-const CURRENT_APP_VERSION = "2.6.0";
+const CURRENT_APP_VERSION = "2.7.0";
 
 // --- GOOGLE OAUTH CONFIG ---
 const GOOGLE_CLIENT_ID = googleCredentials.web.client_id;
