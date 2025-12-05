@@ -1,13 +1,15 @@
 import React from 'react';
 import { motion, useMotionValue, useTransform } from 'framer-motion';
+import { ThemeVariant } from '../../types';
 
-export const HolographicCard = ({ children, primaryColor, isPremium }: { children?: React.ReactNode, primaryColor: string, isPremium?: boolean }) => {
+export const HolographicCard = ({ children, primaryColor, isPremium, themeVariant }: { children?: React.ReactNode, primaryColor: string, isPremium?: boolean, themeVariant?: ThemeVariant }) => {
     const x = useMotionValue(0);
     const y = useMotionValue(0);
     const rotateX = useTransform(y, [-100, 100], [10, -10]);
     const rotateY = useTransform(x, [-100, 100], [-10, 10]);
     const glareX = useTransform(x, [-100, 100], [0, 100]);
     const glareY = useTransform(y, [-100, 100], [0, 100]);
+    const isMono = themeVariant === 'monochrome';
 
     const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
         const rect = e.currentTarget.getBoundingClientRect();
@@ -35,16 +37,20 @@ export const HolographicCard = ({ children, primaryColor, isPremium }: { childre
                 className="relative w-full h-full rounded-[2rem] transition-all duration-200 ease-out"
             >
                 <div 
-                    className={`absolute inset-0 bg-white/10 backdrop-blur-md rounded-[2rem] shadow-xl overflow-hidden border-2 border-${primaryColor}-500/50`}
+                    className={`absolute inset-0 bg-white/10 backdrop-blur-md rounded-[2rem] shadow-xl overflow-hidden 
+                        ${isMono ? 'border-2 border-white/20 bg-black' : `border-2 border-${primaryColor}-500/50`}
+                    `}
                 >
                     {/* Glare Effect */}
                     <motion.div 
                         style={{
-                            background: 'linear-gradient(105deg, transparent 20%, rgba(255,255,255,0.2) 40%, rgba(255,255,255,0.4) 45%, rgba(255,255,255,0.2) 50%, transparent 54%)',
+                            background: isMono 
+                                ? 'linear-gradient(105deg, transparent 20%, rgba(255,255,255,0.1) 40%, rgba(255,255,255,0.2) 45%, rgba(255,255,255,0.1) 50%, transparent 54%)'
+                                : 'linear-gradient(105deg, transparent 20%, rgba(255,255,255,0.2) 40%, rgba(255,255,255,0.4) 45%, rgba(255,255,255,0.2) 50%, transparent 54%)',
                             backgroundSize: '200% 200%',
                             backgroundPositionX: glareX + '%',
                             backgroundPositionY: glareY + '%',
-                            opacity: 0.7,
+                            opacity: isMono ? 0.5 : 0.7,
                             pointerEvents: 'none'
                         }}
                         className="absolute inset-0 z-20 mix-blend-overlay"

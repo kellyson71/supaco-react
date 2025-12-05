@@ -80,7 +80,7 @@ const WALLPAPER_THEMES: Record<string, Palette> = {
 
 const TUTORIAL_STEPS: any[] = [
     { targetId: 'tut-carousel', mobileTargetId: 'tut-carousel', title: 'Visão Geral', description: 'Aqui ficam seus cartões principais. Deslize para ver horários, feriados e tarefas pendentes de forma rápida.', position: 'right', icon: <div className="p-1"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg></div> },
-    { targetId: 'tut-nav-desktop', mobileTargetId: 'tut-nav-mobile', title: 'Navegação', description: 'Acesse suas notas detalhadas, faltas, grade de horários e integração com o Google Classroom. Uma experiência acadêmica fluida e inteligente.', position: 'right', icon: <div className="p-1"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polygon points="3 11 22 2 13 21 11 13 3 11"/></svg></div> },
+    { targetId: 'tut-nav-desktop', mobileTargetId: 'tut-nav-mobile', title: 'Navegação', description: 'Acesse suas notas detalhadas, faltas e grade de horários e integração com o Google Classroom. Uma experiência acadêmica fluida e inteligente.', position: 'right', icon: <div className="p-1"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polygon points="3 11 22 2 13 21 11 13 3 11"/></svg></div> },
     { targetId: 'tut-widgets', mobileTargetId: 'tut-widgets', title: 'Ferramentas Inteligentes', description: 'Converse com a IA sobre suas notas ou use o Pomodoro para focar nos estudos.', position: 'top', icon: <div className="p-1"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg></div> },
     { targetId: 'tut-profile', mobileTargetId: 'tut-profile-mobile', title: 'Seu Perfil', description: 'Personalize o tema, troque o papel de parede e sincronize seus dados com a nuvem.', position: 'left', icon: <div className="p-1"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></div> }
 ];
@@ -186,7 +186,6 @@ const App: React.FC = () => {
   useEffect(() => {
       if (isAppReady && !showLanding && !isCallbackRoute) {
           const lastSeen = localStorage.getItem(CACHE_KEYS.LAST_VERSION_SEEN);
-          // Show update news if the version is new, regardless of tutorial status
           if (lastSeen !== CURRENT_APP_VERSION) {
               const t = setTimeout(() => setShowUpdateNews(true), 2000);
               return () => clearTimeout(t);
@@ -1111,7 +1110,7 @@ const App: React.FC = () => {
 
   const palette = useMemo((): Palette => {
       switch (themeVariant) {
-          case 'monochrome': return { primary: 'zinc', secondary: 'zinc' };
+          case 'monochrome': return { primary: 'neutral', secondary: 'stone' };
           case 'saturated': return { primary: 'fuchsia', secondary: 'cyan' };
           case 'sepia': return { primary: 'amber', secondary: 'stone' };
           case 'dynamic': return WALLPAPER_THEMES[currentWallpaper] || { primary: 'emerald', secondary: 'rose' };
@@ -1191,7 +1190,14 @@ const App: React.FC = () => {
         {themeVariant === 'sepia' && (
             <div className="fixed inset-0 z-[1] pointer-events-none opacity-[0.12] mix-blend-overlay" style={{backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E")`}} />
         )}
-        <div style={{ filter: themeVariant === 'sepia' ? 'sepia(80%) contrast(90%)' : 'none', transition: 'filter 0.5s ease' }} className="h-full w-full absolute inset-0 z-0" />
+        <div 
+            style={{ 
+                filter: themeVariant === 'sepia' ? 'sepia(80%) contrast(90%)' : 
+                        themeVariant === 'monochrome' ? 'grayscale(100%) contrast(110%) brightness(110%)' : 'none', 
+                transition: 'filter 0.5s ease' 
+            }} 
+            className="h-full w-full absolute inset-0 z-0" 
+        />
 
         <div className="relative z-10 h-full">
             <Suspense fallback={null}>
@@ -1228,6 +1234,7 @@ const App: React.FC = () => {
                     classroomStatus={classroomStatus} 
                     notifications={notifications}
                     onMarkAsRead={markNotificationAsRead}
+                    themeVariant={themeVariant}
                 />
             </Suspense>
 

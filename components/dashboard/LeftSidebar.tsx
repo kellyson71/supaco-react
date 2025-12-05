@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { motion } from 'framer-motion';
 import { 
@@ -6,7 +5,7 @@ import {
   Flag, Shield, RefreshCw, Moon, Sun, Sparkles
 } from 'lucide-react';
 import { InvertedCorner } from '../InvertedCorner';
-import { ViewState } from '../../types';
+import { ViewState, ThemeVariant } from '../../types';
 import { SecureStorage } from '../../services/SecureStorage';
 
 interface LeftSidebarProps {
@@ -23,6 +22,7 @@ interface LeftSidebarProps {
   cornerColor: string;
   frameBg: string;
   frameText: string;
+  themeVariant: ThemeVariant;
 }
 
 const ClassroomIcon = ({ size = 20, className = "" }: { size?: number, className?: string }) => (
@@ -44,12 +44,14 @@ const ClassroomIcon = ({ size = 20, className = "" }: { size?: number, className
     />
 );
 
-const NavItem = ({ icon, active, onClick, label, activeColor, isDark }: any) => (
+const NavItem = ({ icon, active, onClick, label, activeColor, isDark, isMono }: any) => (
   <button 
     onClick={onClick}
     className={`w-12 h-12 rounded-2xl flex items-center justify-center transition-all duration-300 group relative
       ${active 
-        ? `bg-${activeColor}-500 text-white shadow-lg shadow-${activeColor}-500/40 scale-110` 
+        ? (isMono 
+            ? (isDark ? 'bg-white text-black scale-110 shadow-white/30' : 'bg-black text-white scale-110 shadow-black/30') 
+            : `bg-${activeColor}-500 text-white shadow-lg shadow-${activeColor}-500/40 scale-110`) 
         : (isDark ? 'text-gray-400 hover:bg-white/10 hover:text-white' : 'text-gray-400 hover:bg-gray-100 hover:text-gray-600')
       }
     `}
@@ -68,25 +70,27 @@ const NavItem = ({ icon, active, onClick, label, activeColor, isDark }: any) => 
 
 export const LeftSidebar: React.FC<LeftSidebarProps> = ({
   activeNav, onNavClick, isDarkMode, onToggleTheme, isRefreshing, onRefresh,
-  userData, userPhoto, primaryColor, isPremium, cornerColor, frameBg, frameText
+  userData, userPhoto, primaryColor, isPremium, cornerColor, frameBg, frameText, themeVariant
 }) => {
+  const isMono = themeVariant === 'monochrome';
+
   return (
     <div id="tut-nav-desktop" className={`hidden md:flex relative z-50 h-[calc(100vh-2rem)] my-4 w-24 flex-col items-center py-8 transition-colors duration-500 ${frameBg}`}>
       <div className="text-xs font-black tracking-widest mb-1 text-gray-400">ELECTRON</div>
       <div className={`text-xl font-black italic mb-10 transition-colors duration-500 ${frameText}`}>SUPACO</div>
       
       <nav className="flex flex-col gap-6 w-full items-center flex-1">
-        <NavItem isDark={isDarkMode} icon={<BookOpen />} active={activeNav === ViewState.GRADES} onClick={() => onNavClick(ViewState.GRADES)} label="Boletim" activeColor={primaryColor} />
-        <NavItem isDark={isDarkMode} icon={<CalendarIcon />} active={activeNav === ViewState.SCHEDULE} onClick={() => onNavClick(ViewState.SCHEDULE)} label="Horário" activeColor={primaryColor} />
-        <NavItem isDark={isDarkMode} icon={<ClassroomIcon />} active={activeNav === ViewState.CLASSROOM} onClick={() => onNavClick(ViewState.CLASSROOM)} label="Classroom" activeColor={primaryColor} />
+        <NavItem isDark={isDarkMode} isMono={isMono} icon={<BookOpen />} active={activeNav === ViewState.GRADES} onClick={() => onNavClick(ViewState.GRADES)} label="Boletim" activeColor={primaryColor} />
+        <NavItem isDark={isDarkMode} isMono={isMono} icon={<CalendarIcon />} active={activeNav === ViewState.SCHEDULE} onClick={() => onNavClick(ViewState.SCHEDULE)} label="Horário" activeColor={primaryColor} />
+        <NavItem isDark={isDarkMode} isMono={isMono} icon={<ClassroomIcon />} active={activeNav === ViewState.CLASSROOM} onClick={() => onNavClick(ViewState.CLASSROOM)} label="Classroom" activeColor={primaryColor} />
         
         {/* Premium Feature: AI Studio */}
-        <NavItem isDark={isDarkMode} icon={<Sparkles />} active={activeNav === ViewState.AI_STUDIO} onClick={() => onNavClick(ViewState.AI_STUDIO)} label="Estúdio IA" activeColor={primaryColor} />
+        <NavItem isDark={isDarkMode} isMono={isMono} icon={<Sparkles />} active={activeNav === ViewState.AI_STUDIO} onClick={() => onNavClick(ViewState.AI_STUDIO)} label="Estúdio IA" activeColor={primaryColor} />
 
-        <NavItem isDark={isDarkMode} icon={<Flag />} active={activeNav === ViewState.CONCLUSION} onClick={() => onNavClick(ViewState.CONCLUSION)} label="Conclusão" activeColor={primaryColor} />
+        <NavItem isDark={isDarkMode} isMono={isMono} icon={<Flag />} active={activeNav === ViewState.CONCLUSION} onClick={() => onNavClick(ViewState.CONCLUSION)} label="Conclusão" activeColor={primaryColor} />
         
         {SecureStorage.isAdmin(userData?.matricula) && (
-            <NavItem isDark={isDarkMode} icon={<Shield />} active={activeNav === ViewState.ADMIN} onClick={() => onNavClick(ViewState.ADMIN)} label="Admin" activeColor={primaryColor} />
+            <NavItem isDark={isDarkMode} isMono={isMono} icon={<Shield />} active={activeNav === ViewState.ADMIN} onClick={() => onNavClick(ViewState.ADMIN)} label="Admin" activeColor={primaryColor} />
         )}
       </nav>
 
@@ -128,7 +132,7 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
                id="tut-profile"
                onClick={() => onNavClick(ViewState.PROFILE)}
                className={`w-10 h-10 rounded-full overflow-hidden p-0.5 hover:scale-110 transition-transform relative z-10 
-                 ${!isPremium && activeNav === ViewState.PROFILE ? `border-2 border-${primaryColor}-500 scale-110` : (!isPremium ? 'border-2 border-transparent' : '')}
+                 ${!isPremium && activeNav === ViewState.PROFILE ? (isMono ? 'border-2 border-white' : `border-2 border-${primaryColor}-500`) + ' scale-110' : (!isPremium ? 'border-2 border-transparent' : '')}
                `}
               >
                 <img src={userPhoto} className="w-full h-full rounded-full object-cover" alt="Profile" />

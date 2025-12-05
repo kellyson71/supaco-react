@@ -4,7 +4,7 @@ import {
   GraduationCap, Flag, AlertTriangle, ChevronRight, 
   Clock, MapPin, RefreshCw, Bell, X, Check, ArrowRight, Sparkles, ShieldAlert
 } from 'lucide-react';
-import { ViewState, SupacoNotification } from '../../types';
+import { ViewState, SupacoNotification, ThemeVariant } from '../../types';
 
 interface TopNavBarProps {
   showContent: boolean;
@@ -24,9 +24,10 @@ interface TopNavBarProps {
   notifications?: SupacoNotification[];
   onMarkAsRead?: (id: string) => void;
   onViewAllNotifications?: () => void;
+  themeVariant: ThemeVariant;
 }
 
-const TopBarItem = ({ icon, label, onClick, active, indicator, indicatorColor, rightIcon, children, isDark }: any) => {
+const TopBarItem = ({ icon, label, onClick, active, indicator, indicatorColor, rightIcon, children, isDark, isMono }: any) => {
     const [isHovered, setIsHovered] = useState(false);
     
     return (
@@ -39,13 +40,16 @@ const TopBarItem = ({ icon, label, onClick, active, indicator, indicatorColor, r
                 onClick={onClick}
                 className={`h-8 md:h-10 px-3 md:px-4 rounded-full flex items-center gap-2 transition-all text-xs md:text-sm font-bold border
                     ${active 
-                        ? (isDark ? 'bg-white text-black border-transparent' : 'bg-black text-white border-transparent')
+                        ? (isMono 
+                            ? (isDark ? 'bg-white text-black border-white' : 'bg-black text-white border-black')
+                            : (isDark ? 'bg-white text-black border-transparent' : 'bg-black text-white border-transparent')
+                          )
                         : (isDark ? 'bg-white/5 border-white/10 text-gray-300 hover:bg-white/10' : 'bg-gray-50 border-gray-200 text-gray-600 hover:bg-gray-100')
                     }
                 `}
             >
                 {indicator && (
-                    <span className={`w-2 h-2 rounded-full bg-${indicatorColor}-500 ${indicatorColor === 'green' ? 'animate-pulse' : ''}`} />
+                    <span className={`w-2 h-2 rounded-full ${isMono ? 'bg-white border border-black' : `bg-${indicatorColor}-500`} ${indicatorColor === 'green' ? 'animate-pulse' : ''}`} />
                 )}
                 {icon}
                 <span>{label}</span>
@@ -75,10 +79,11 @@ const TopBarItem = ({ icon, label, onClick, active, indicator, indicatorColor, r
 export const TopNavBar: React.FC<TopNavBarProps> = ({
   showContent, isDarkMode, handleNavClick, currentPeriod, primaryColor, completionData,
   classroomStatus, onOpenSettings, nextClass, setIsFocusMode, handleRefreshClick,
-  isRefreshing, isPremium, userPhoto, notifications = [], onMarkAsRead, onViewAllNotifications
+  isRefreshing, isPremium, userPhoto, notifications = [], onMarkAsRead, onViewAllNotifications, themeVariant
 }) => {
   const [showNotifications, setShowNotifications] = useState(false);
   const notificationRef = useRef<HTMLDivElement>(null);
+  const isMono = themeVariant === 'monochrome';
 
   const unreadCount = notifications.filter(n => !n.read).length;
   const recentNotifications = notifications.slice(0, 5);
@@ -119,7 +124,7 @@ export const TopNavBar: React.FC<TopNavBarProps> = ({
                     onClick={() => setShowNotifications(!showNotifications)}
                     className={`w-8 h-8 md:w-10 md:h-10 rounded-full transition-colors flex items-center justify-center group relative z-50
                         ${showNotifications 
-                            ? (isDarkMode ? 'bg-white text-black' : 'bg-black text-white') 
+                            ? (isMono ? (isDarkMode ? 'bg-white text-black' : 'bg-black text-white') : (isDarkMode ? 'bg-white text-black' : 'bg-black text-white')) 
                             : (isDarkMode ? 'bg-white/10 text-white hover:bg-white hover:text-black' : 'bg-black/5 text-gray-700 hover:bg-black hover:text-white')
                         }
                     `}
@@ -192,7 +197,7 @@ export const TopNavBar: React.FC<TopNavBarProps> = ({
                                                 <div className="flex-1 min-w-0">
                                                     <div className="flex justify-between items-start">
                                                         <h4 className={`text-xs font-bold leading-tight mb-0.5 ${isDarkMode ? 'text-white' : 'text-gray-900'} ${!notif.read ? 'pr-2' : ''}`}>{notif.title}</h4>
-                                                        {!notif.read && <div className={`w-1.5 h-1.5 rounded-full shrink-0 bg-${primaryColor}-500`} />}
+                                                        {!notif.read && <div className={`w-1.5 h-1.5 rounded-full shrink-0 ${isMono ? 'bg-white' : `bg-${primaryColor}-500`}`} />}
                                                     </div>
                                                     <p className={`text-[10px] line-clamp-2 leading-relaxed ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>{notif.message}</p>
                                                     <span className="text-[9px] opacity-30 mt-1 block font-mono">{new Date(notif.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
@@ -237,11 +242,12 @@ export const TopNavBar: React.FC<TopNavBarProps> = ({
                 indicator
                 indicatorColor={primaryColor}
                 isDark={isDarkMode}
+                isMono={isMono}
             >
                 <div className={`p-4 min-w-[200px] ${isDarkMode ? 'text-gray-200' : 'text-gray-800'}`}>
                     <h3 className="text-xs font-bold uppercase text-gray-500 mb-2">Semestre Atual</h3>
                     <div className="text-xl font-black">{currentPeriod?.semestre || '2025.1'}</div>
-                    <div className={`text-xs font-bold mt-1 text-${primaryColor}-500`}>Em andamento</div>
+                    <div className={`text-xs font-bold mt-1 ${isMono ? 'text-white' : `text-${primaryColor}-500`}`}>Em andamento</div>
                 </div>
             </TopBarItem>
 
@@ -252,6 +258,7 @@ export const TopNavBar: React.FC<TopNavBarProps> = ({
                     icon={<Flag size={14} />}
                     label={completionData ? `${completionData.percentual_cumprida}%` : '--%'}
                     isDark={isDarkMode}
+                    isMono={isMono}
                 >
                      <div className={`p-4 min-w-[240px] ${isDarkMode ? 'text-gray-200' : 'text-gray-800'}`}>
                         <h3 className="text-xs font-bold uppercase text-gray-500 mb-2">Progresso do Curso</h3>
@@ -260,7 +267,7 @@ export const TopNavBar: React.FC<TopNavBarProps> = ({
                             <span className="text-xs font-bold text-gray-500">{completionData?.totais.ch_cumprida}h / {completionData?.totais.ch_esperada}h</span>
                         </div>
                         <div className="w-full bg-gray-100 dark:bg-white/10 rounded-full h-2 overflow-hidden">
-                             <div className={`bg-${primaryColor}-500 h-full`} style={{width: `${completionData?.percentual_cumprida || 0}%`}} />
+                             <div className={`${isMono ? 'bg-white' : `bg-${primaryColor}-500`} h-full`} style={{width: `${completionData?.percentual_cumprida || 0}%`}} />
                         </div>
                     </div>
                 </TopBarItem>
@@ -286,6 +293,7 @@ export const TopNavBar: React.FC<TopNavBarProps> = ({
                 label={nextClass ? `PRÓX: ${nextClass.name.split(' ').slice(0,2).join(' ')}` : "Livre"}
                 rightIcon={<ChevronRight size={14} />}
                 isDark={isDarkMode}
+                isMono={isMono}
                 onClick={() => nextClass && setIsFocusMode(true)}
             >
                 <div className={`p-4 min-w-[220px] ${isDarkMode ? 'text-gray-200' : 'text-gray-800'}`}>

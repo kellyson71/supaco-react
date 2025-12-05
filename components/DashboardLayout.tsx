@@ -13,7 +13,7 @@ import {
   Book
 } from 'lucide-react';
 import { InvertedCorner } from './InvertedCorner';
-import { ViewState, ClassroomWork, SuapProfile, SuapPeriod, GradeInfo, ProcessedClass, SuapCompletionData, Holiday, TodoItem, SuapMeusDadosAluno, Achievement, SupacoNotification } from '../types';
+import { ViewState, ClassroomWork, SuapProfile, SuapPeriod, GradeInfo, ProcessedClass, SuapCompletionData, Holiday, TodoItem, SuapMeusDadosAluno, Achievement, SupacoNotification, ThemeVariant } from '../types';
 import { ACHIEVEMENTS_LIST } from '../achievements';
 import { SecureStorage } from '../services/SecureStorage';
 import { ChangelogModal } from './modals/ChangelogModal';
@@ -68,6 +68,7 @@ interface DashboardProps {
   onLinkClassroom?: () => void;
   notifications?: SupacoNotification[];
   onMarkAsRead?: (id: string) => void;
+  themeVariant: ThemeVariant;
 }
 
 // --- CALENDAR HELPERS ---
@@ -79,7 +80,7 @@ export const DashboardLayout: React.FC<DashboardProps> = ({
   currentPeriod, grades, schedule, completionData, holidays = [], classroomWork = [],
   rightTab, onRightTabChange, onOpenSettings, userPhoto, onRefresh,
   isClassroomLinked = false, todos = [], onAddTodo, onToggleTodo, onRemoveTodo,
-  classroomStatus, onLinkClassroom, notifications = [], onMarkAsRead
+  classroomStatus, onLinkClassroom, notifications = [], onMarkAsRead, themeVariant
 }) => {
   const [activeNav, setActiveNav] = useState<ViewState>(ViewState.DASHBOARD);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -108,6 +109,8 @@ export const DashboardLayout: React.FC<DashboardProps> = ({
 
   // Determine if content should be shown
   const showContent = isLoggedIn || (!!userData && isLoginModalDismissed);
+  
+  const isMono = themeVariant === 'monochrome';
 
   useEffect(() => {
     setActiveNav(currentView);
@@ -311,9 +314,10 @@ export const DashboardLayout: React.FC<DashboardProps> = ({
         const todaysClasses = schedule.filter(s => s.dayInt === todayInt).sort((a,b) => a.startTime.localeCompare(b.startTime));
         return (
             <div className="h-full flex flex-col gap-3 relative overflow-hidden">
-                <div className={`absolute -right-8 -top-8 w-40 h-40 rounded-full blur-3xl opacity-50 ${isDarkMode ? `bg-${primaryColor}-500/20` : `bg-${primaryColor}-300/40`}`} />
+                {!isMono && <div className={`absolute -right-8 -top-8 w-40 h-40 rounded-full blur-3xl opacity-50 ${isDarkMode ? `bg-${primaryColor}-500/20` : `bg-${primaryColor}-300/40`}`} />}
                 <div className="flex justify-between items-start relative z-10 shrink-0">
-                    <span className={`text-[10px] font-black uppercase tracking-wide px-2.5 py-1 rounded-lg transition-colors backdrop-blur-md ${isDarkMode ? `bg-${primaryColor}-900/40 text-${primaryColor}-300` : `bg-${primaryColor}-100/80 text-${primaryColor}-700`}`}>
+                    <span className={`text-[10px] font-black uppercase tracking-wide px-2.5 py-1 rounded-lg transition-colors backdrop-blur-md 
+                        ${isMono ? (isDarkMode ? 'bg-white text-black' : 'bg-black text-white') : (isDarkMode ? `bg-${primaryColor}-900/40 text-${primaryColor}-300` : `bg-${primaryColor}-100/80 text-${primaryColor}-700`)}`}>
                         {nextClass ? 'Próxima Aula' : 'Hoje'}
                     </span>
                     {todaysClasses.length > 0 && <div className={`text-[9px] font-bold px-2 py-1 rounded-lg border backdrop-blur-sm ${isDarkMode ? 'border-white/10 text-white/40' : 'border-black/5 text-black/40'}`}>{todaysClasses.length} Aulas</div>}
@@ -321,7 +325,7 @@ export const DashboardLayout: React.FC<DashboardProps> = ({
                 <div className="relative z-10 flex-1 flex flex-col min-h-0">
                     <div className="shrink-0 mb-3">
                         {nextClassGrade ? (
-                            <div className="bg-gradient-to-br from-transparent to-white/5 rounded-2xl p-0.5 group cursor-pointer" onClick={() => setIsFocusMode(true)}>
+                            <div className={`bg-gradient-to-br from-transparent to-white/5 rounded-2xl p-0.5 group cursor-pointer ${isMono ? 'border border-white/20' : ''}`} onClick={() => setIsFocusMode(true)}>
                                 <div className="flex items-center justify-between mb-1.5 px-1">
                                     <div className={`text-[10px] font-bold uppercase tracking-wider truncate max-w-[160px] ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>{nextClass?.name}</div>
                                     <div className="flex items-center gap-1"><Maximize2 size={10} className="opacity-0 group-hover:opacity-50 transition-opacity" /><div className="text-[10px] font-mono opacity-60 bg-black/5 dark:bg-white/5 px-1.5 py-0.5 rounded text-[9px]">{nextClass?.startTime}</div></div>
@@ -329,9 +333,10 @@ export const DashboardLayout: React.FC<DashboardProps> = ({
                                 {(() => {
                                     const conf = getStatusConfig(nextClassGrade);
                                     const remaining = nextClassGrade.limit - nextClassGrade.absences;
+                                    const statusBg = isMono ? 'bg-white/10 border border-white/20 text-white' : (isDarkMode ? `bg-${conf.color}-500/20 text-${conf.color}-400 ring-1 ring-${conf.color}-500/20` : `bg-${conf.color}-100 text-${conf.color}-600 ring-1 ring-${conf.color}-200`);
                                     return (
                                         <div className="flex items-center gap-3">
-                                            <div className={`px-3 py-2 rounded-xl text-xs font-black uppercase flex items-center gap-2 shadow-sm flex-1 ${conf.color === 'red' || conf.color === secondaryColor ? (isDarkMode ? `bg-${secondaryColor}-500/20 text-${secondaryColor}-400 ring-1 ring-${secondaryColor}-500/20` : `bg-${secondaryColor}-100 text-${secondaryColor}-600 ring-1 ring-${secondaryColor}-200`) : conf.color === 'orange' ? (isDarkMode ? 'bg-orange-500/20 text-orange-400 ring-1 ring-orange-500/20' : 'bg-orange-100 text-orange-600 ring-1 ring-orange-200') : (isDarkMode ? `bg-${primaryColor}-500/20 text-${primaryColor}-400 ring-1 ring-${primaryColor}-500/20` : `bg-${primaryColor}-100 text-${primaryColor}-600 ring-1 ring-${primaryColor}-200`)}`}>
+                                            <div className={`px-3 py-2 rounded-xl text-xs font-black uppercase flex items-center gap-2 shadow-sm flex-1 ${statusBg}`}>
                                                 {conf.color === 'orange' || conf.color === secondaryColor || conf.color === 'red' ? <AlertTriangle size={14}/> : <CheckCircle size={14} />} {conf.text}
                                             </div>
                                             <div className="flex flex-col items-end leading-none pr-1"><span className={`text-sm font-black ${isDarkMode ? 'text-white' : 'text-gray-800'}`}>{remaining}</span><span className="text-[7px] font-bold uppercase opacity-50">Restantes</span></div>
@@ -343,7 +348,7 @@ export const DashboardLayout: React.FC<DashboardProps> = ({
                              <div className="px-1">
                                 <div className={`text-[9px] font-bold uppercase tracking-wider mb-0.5 ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>Sugestão</div>
                                 <div className={`text-lg font-black leading-tight mb-2 truncate ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>{bestSubjectToSkip.subject}</div>
-                                <div className={`text-[10px] font-bold flex items-center gap-1.5 ${isDarkMode ? `text-${primaryColor}-400` : `text-${primaryColor}-600`}`}><ThumbsUp size={12} /><span>{bestSubjectToSkip.limit - bestSubjectToSkip.absences} faltas disponíveis.</span></div>
+                                <div className={`text-[10px] font-bold flex items-center gap-1.5 ${isMono ? (isDarkMode ? 'text-white' : 'text-black') : (isDarkMode ? `text-${primaryColor}-400` : `text-${primaryColor}-600`)}`}><ThumbsUp size={12} /><span>{bestSubjectToSkip.limit - bestSubjectToSkip.absences} faltas disponíveis.</span></div>
                              </div>
                         ) : (
                             <div className="py-4 opacity-60 text-xs font-bold text-center border-2 border-dashed border-gray-500/10 rounded-xl">Sem dados de faltas.</div>
@@ -354,7 +359,7 @@ export const DashboardLayout: React.FC<DashboardProps> = ({
                         <div className="flex-1 overflow-y-auto custom-scroll pr-1 space-y-1.5">
                             {todaysClasses.length > 0 ? todaysClasses.map((c, i) => (
                                 <div key={i} className={`flex items-center gap-3 p-2 rounded-lg transition-all ${nextClass && c.startTime === nextClass.startTime && c.name === nextClass.name ? (isDarkMode ? `bg-white/10 shadow-sm border border-white/5` : `bg-white shadow-sm border border-gray-100`) : 'opacity-70 hover:opacity-100'}`}>
-                                    <div className={`w-1 h-8 rounded-full shrink-0 ${nextClass && c.startTime === nextClass.startTime ? `bg-${primaryColor}-500` : `bg-gray-300 dark:bg-white/20`}`} />
+                                    <div className={`w-1 h-8 rounded-full shrink-0 ${nextClass && c.startTime === nextClass.startTime ? (isMono ? 'bg-white dark:bg-white' : `bg-${primaryColor}-500`) : `bg-gray-300 dark:bg-white/20`}`} />
                                     <div className="flex-1 min-w-0">
                                         <div className={`text-[10px] font-bold truncate leading-tight ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>{c.name}</div>
                                         <div className="flex items-center gap-2 mt-0.5"><div className="flex items-center gap-1 text-[9px] opacity-70"><Clock size={8} /> {c.startTime}</div><div className="flex items-center gap-1 text-[9px] opacity-70"><MapPin size={8} /> {c.room}</div></div>
@@ -370,15 +375,15 @@ export const DashboardLayout: React.FC<DashboardProps> = ({
         // HOLIDAY CARD
         return (
             <div className="h-full flex flex-col gap-4">
-                <div className={`absolute -right-4 -top-4 w-24 h-24 rounded-full blur-xl ${isDarkMode ? 'bg-indigo-500/20' : 'bg-indigo-200/50'}`} />
+                {!isMono && <div className={`absolute -right-4 -top-4 w-24 h-24 rounded-full blur-xl ${isDarkMode ? 'bg-indigo-500/20' : 'bg-indigo-200/50'}`} />}
                 <div className="flex justify-between items-start relative z-10">
-                    <span className={`text-[10px] font-black uppercase tracking-wide px-2 py-1 rounded-md ${isDarkMode ? 'bg-indigo-900 text-indigo-300' : 'bg-indigo-200 text-indigo-800'}`}>Próximo Feriado</span>
+                    <span className={`text-[10px] font-black uppercase tracking-wide px-2 py-1 rounded-md ${isMono ? (isDarkMode ? 'bg-white text-black' : 'bg-black text-white') : (isDarkMode ? 'bg-indigo-900 text-indigo-300' : 'bg-indigo-200 text-indigo-800')}`}>Próximo Feriado</span>
                 </div>
                 <div className="relative z-10 flex-1 flex flex-col justify-center gap-2">
                     {upcomingHoliday ? (
-                        <><div className={`text-3xl font-black leading-none ${isDarkMode ? 'text-indigo-400' : 'text-indigo-700'}`}>{isTodayHoliday ? "É FERIADO!" : "FALTA POUCO"}</div><div className={`text-sm font-bold leading-snug ${isDarkMode ? 'text-indigo-200' : 'text-indigo-900'}`}>{upcomingHoliday.name}</div><div className={`text-xs font-medium opacity-70 ${isDarkMode ? 'text-indigo-300' : 'text-indigo-600'}`}>{isTodayHoliday ? "Aproveite seu dia de folga." : `Em ${upcomingHoliday.diffDays} ${upcomingHoliday.diffDays === 1 ? 'dia' : 'dias'}.`}</div></>
+                        <><div className={`text-3xl font-black leading-none ${isMono ? (isDarkMode ? 'text-white' : 'text-black') : (isDarkMode ? 'text-indigo-400' : 'text-indigo-700')}`}>{isTodayHoliday ? "É FERIADO!" : "FALTA POUCO"}</div><div className={`text-sm font-bold leading-snug ${isMono ? (isDarkMode ? 'text-gray-300' : 'text-gray-700') : (isDarkMode ? 'text-indigo-200' : 'text-indigo-900')}`}>{upcomingHoliday.name}</div><div className={`text-xs font-medium opacity-70 ${isMono ? 'opacity-50' : (isDarkMode ? 'text-indigo-300' : 'text-indigo-600')}`}>{isTodayHoliday ? "Aproveite seu dia de folga." : `Em ${upcomingHoliday.diffDays} ${upcomingHoliday.diffDays === 1 ? 'dia' : 'dias'}.`}</div></>
                     ) : (
-                        <><div className={`text-2xl font-black ${isDarkMode ? 'text-indigo-400' : 'text-indigo-700'}`}>SEM FOLGA</div><div className={`text-xs font-medium ${isDarkMode ? 'text-indigo-300' : 'text-indigo-600'}`}>Nenhum feriado próximo encontrado.</div></>
+                        <><div className={`text-2xl font-black ${isMono ? (isDarkMode ? 'text-white' : 'text-black') : (isDarkMode ? 'text-indigo-400' : 'text-indigo-700')}`}>SEM FOLGA</div><div className={`text-xs font-medium ${isMono ? 'text-gray-500' : (isDarkMode ? 'text-indigo-300' : 'text-indigo-600')}`}>Nenhum feriado próximo encontrado.</div></>
                     )}
                 </div>
             </div>
@@ -388,7 +393,7 @@ export const DashboardLayout: React.FC<DashboardProps> = ({
         if (!isClassroomLinked) {
             return (
                 <div className="h-full flex flex-col items-center justify-center text-center gap-4 p-4">
-                    <div className={`absolute -right-4 -top-4 w-24 h-24 rounded-full blur-xl ${isDarkMode ? `bg-gray-500/10` : `bg-gray-200/50`}`} />
+                    {!isMono && <div className={`absolute -right-4 -top-4 w-24 h-24 rounded-full blur-xl ${isDarkMode ? `bg-gray-500/10` : `bg-gray-200/50`}`} />}
                     <div className={`w-12 h-12 rounded-2xl flex items-center justify-center ${isDarkMode ? 'bg-white/10' : 'bg-gray-100 text-gray-400'}`}><Link2 size={24} /></div>
                     <div><h3 className={`text-sm font-black uppercase mb-1 ${isDarkMode ? 'text-white' : 'text-gray-800'}`}>Classroom</h3><p className="text-[10px] opacity-60 max-w-[150px] mx-auto leading-relaxed">Conecte sua conta Google para ver tarefas aqui.</p></div>
                     <button onClick={onOpenSettings} className={`text-[10px] font-bold uppercase tracking-wide px-4 py-2 rounded-xl transition-colors ${isDarkMode ? 'bg-white text-black hover:bg-gray-200' : 'bg-black text-white hover:bg-gray-800'}`}>Vincular</button>
@@ -397,14 +402,14 @@ export const DashboardLayout: React.FC<DashboardProps> = ({
         }
         return (
             <div className="h-full flex flex-col gap-4">
-                <div className={`absolute -right-4 -top-4 w-24 h-24 rounded-full blur-xl ${isDarkMode ? `bg-${primaryColor}-500/10` : `bg-${primaryColor}-200/30`}`} />
-                <div className="flex justify-between items-start relative z-10"><span className={`text-[10px] font-black uppercase tracking-wide px-2 py-1 rounded-md ${isDarkMode ? `bg-${primaryColor}-900/50 text-${primaryColor}-400` : `bg-${primaryColor}-100 text-${primaryColor}-700`}`}>Classroom</span></div>
+                {!isMono && <div className={`absolute -right-4 -top-4 w-24 h-24 rounded-full blur-xl ${isDarkMode ? `bg-${primaryColor}-500/10` : `bg-${primaryColor}-200/30`}`} />}
+                <div className="flex justify-between items-start relative z-10"><span className={`text-[10px] font-black uppercase tracking-wide px-2 py-1 rounded-md ${isMono ? (isDarkMode ? 'bg-white text-black' : 'bg-black text-white') : (isDarkMode ? `bg-${primaryColor}-900/50 text-${primaryColor}-400` : `bg-${primaryColor}-100 text-${primaryColor}-700`)}`}>Classroom</span></div>
                 <div className="relative z-10 flex-1 flex flex-col justify-center">
                     {nextTask ? (
                         <div className="flex flex-col gap-2">
-                            <div><div className={`text-[10px] font-bold uppercase mb-1 ${isDarkMode ? `text-${primaryColor}-500/80` : `text-${primaryColor}-600`}`}>Próxima Entrega</div><div className={`text-lg font-black leading-tight line-clamp-3 ${isDarkMode ? `text-${primaryColor}-50` : 'text-gray-800'}`}>{nextTask.title}</div></div>
+                            <div><div className={`text-[10px] font-bold uppercase mb-1 ${isMono ? (isDarkMode ? 'text-gray-400' : 'text-gray-600') : (isDarkMode ? `text-${primaryColor}-500/80` : `text-${primaryColor}-600`)}`}>Próxima Entrega</div><div className={`text-lg font-black leading-tight line-clamp-3 ${isMono ? (isDarkMode ? 'text-white' : 'text-black') : (isDarkMode ? `text-${primaryColor}-50` : 'text-gray-800')}`}>{nextTask.title}</div></div>
                             <div className={`text-[10px] font-bold px-2 py-1 rounded-lg inline-block w-fit ${isDarkMode ? 'bg-white/10 text-gray-300' : 'bg-gray-100 text-gray-600'}`}>{nextTask.courseName}</div>
-                            <div className="pt-2 border-t border-dashed border-gray-500/20 flex justify-between items-center mt-auto"><div className={`text-xs font-bold ${isDarkMode ? `text-${primaryColor}-400` : `text-${primaryColor}-600`}`}>{nextTask.jsDate?.toLocaleDateString('pt-BR', { weekday: 'short', day: '2-digit' })}</div><div className={`text-xs font-bold opacity-70 ${isDarkMode ? 'text-white' : 'text-black'}`}>{nextTask.jsDate?.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</div></div>
+                            <div className="pt-2 border-t border-dashed border-gray-500/20 flex justify-between items-center mt-auto"><div className={`text-xs font-bold ${isMono ? (isDarkMode ? 'text-gray-300' : 'text-gray-700') : (isDarkMode ? `text-${primaryColor}-400` : `text-${primaryColor}-600`)}`}>{nextTask.jsDate?.toLocaleDateString('pt-BR', { weekday: 'short', day: '2-digit' })}</div><div className={`text-xs font-bold opacity-70 ${isDarkMode ? 'text-white' : 'text-black'}`}>{nextTask.jsDate?.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</div></div>
                         </div>
                     ) : (
                         <div className="text-center opacity-50"><Book size={24} className="mx-auto mb-2" /><p className="text-xs font-bold">Nenhuma tarefa pendente.</p></div>
@@ -415,9 +420,9 @@ export const DashboardLayout: React.FC<DashboardProps> = ({
     }
   };
 
-  const frameBg = isDarkMode ? DARK_FRAME : LIGHT_FRAME;
+  const frameBg = isMono ? (isDarkMode ? 'bg-black' : 'bg-white') : (isDarkMode ? DARK_FRAME : LIGHT_FRAME);
   const frameText = isDarkMode ? 'text-white' : 'text-gray-900';
-  const cornerColor = isDarkMode ? DARK_CORNER : LIGHT_CORNER;
+  const cornerColor = isMono ? (isDarkMode ? '#000000' : '#ffffff') : (isDarkMode ? DARK_CORNER : LIGHT_CORNER);
 
   return (
     <div className={`relative w-full h-[100dvh] md:h-screen overflow-hidden flex flex-col md:flex-row font-sans transition-colors duration-500 ${isDarkMode ? 'bg-black' : 'bg-gray-900'}`}>
@@ -447,6 +452,8 @@ export const DashboardLayout: React.FC<DashboardProps> = ({
       </AnimatePresence>
 
       <div className="absolute inset-0 z-0 bg-no-repeat transition-transform duration-1000 ease-out" style={{ backgroundImage: `url(${currentWallpaper})`, backgroundSize: 'cover', backgroundPosition: 'center center' }} />
+      
+      {/* Dynamic Frames */}
       <div className={`hidden md:block absolute top-0 inset-x-0 h-4 z-50 transition-colors duration-500 ${frameBg}`} />
       <div className={`hidden md:block absolute bottom-0 inset-x-0 h-4 z-40 transition-colors duration-500 ${frameBg}`} />
 
@@ -465,6 +472,7 @@ export const DashboardLayout: React.FC<DashboardProps> = ({
         cornerColor={cornerColor}
         frameBg={frameBg}
         frameText={frameText}
+        themeVariant={themeVariant}
       />
 
       {/* CENTER CONTENT */}
@@ -490,6 +498,7 @@ export const DashboardLayout: React.FC<DashboardProps> = ({
                 notifications={notifications}
                 onMarkAsRead={onMarkAsRead}
                 onViewAllNotifications={() => onRightTabChange('notifications')}
+                themeVariant={themeVariant}
             />
 
             {/* Main Content Body */}
@@ -503,17 +512,17 @@ export const DashboardLayout: React.FC<DashboardProps> = ({
                             transition={{ type: 'spring', stiffness: 50, damping: 15, delay: showContent ? 0.4 : 0 }}
                             className="relative w-full max-w-[320px] md:w-[298px] h-[220px]"
                         >
-                            <HolographicCard primaryColor={primaryColor} isPremium={isPremium}>
+                            <HolographicCard primaryColor={primaryColor} isPremium={isPremium} themeVariant={themeVariant}>
                                 <div>
                                     <span className="text-xs font-bold text-white/80 uppercase tracking-widest mb-1 block">{userData?.nome_usual || "Estudante"}</span>
                                     <h1 className="text-2xl font-black text-white tracking-tighter leading-[1] mb-1 drop-shadow-lg uppercase">{userData?.vinculo?.curso?.split(' ').slice(0, 3).join(' ') || "CURSO"}</h1>
                                     <div className="flex items-center gap-1.5 text-white/60 text-xs font-medium mt-1"><MapPin size={12} /><span>{userData?.campus || "Campus"}</span></div>
                                 </div>
                                 <div className="flex items-center gap-3 mb-6">
-                                    <div className={`px-2.5 py-1.5 bg-${primaryColor}-500/20 border border-${primaryColor}-400/30 rounded-full flex items-center gap-2`}><span className="relative flex h-2 w-2"><span className={`animate-ping absolute inline-flex h-full w-full rounded-full bg-${primaryColor}-400 opacity-75`}></span><span className={`relative inline-flex rounded-full h-2 w-2 bg-${primaryColor}-500`}></span></span><span className={`text-[9px] font-bold text-${primaryColor}-100 uppercase tracking-wide`}>Matriculado</span></div>
+                                    <div className={`px-2.5 py-1.5 ${isMono ? 'bg-white/10 border border-white/20' : `bg-${primaryColor}-500/20 border border-${primaryColor}-400/30`} rounded-full flex items-center gap-2`}><span className="relative flex h-2 w-2"><span className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${isMono ? 'bg-white' : `bg-${primaryColor}-400`}`}></span><span className={`relative inline-flex rounded-full h-2 w-2 ${isMono ? 'bg-white' : `bg-${primaryColor}-500`}`}></span></span><span className={`text-[9px] font-bold text-white uppercase tracking-wide`}>Matriculado</span></div>
                                     <button onClick={() => userData?.matricula && navigator.clipboard.writeText(userData.matricula)} className="flex items-center gap-2 group hover:bg-white/5 px-2 py-1 rounded-lg transition-colors cursor-pointer"><span className="text-[9px] font-bold text-white/40 uppercase">Mat.</span><span className="font-mono text-xs font-bold text-white/90 tracking-wider border-b border-white/10 group-hover:border-white/50 transition-colors">{userData?.matricula || "---"}</span><Copy size={12} className="text-white/40 group-hover:text-white transition-colors" /></button>
                                 </div>
-                                <div className="flex items-center gap-3 border-t border-white/10 pt-4"><div className="px-2"><span className="text-[9px] text-white/60 uppercase font-bold block mb-0.5">Média Geral</span><span className="text-lg font-black text-white">{stats.average}</span></div><div className="w-[1px] h-8 bg-white/10"></div><div className="px-2"><span className="text-[9px] text-white/60 uppercase font-bold block mb-0.5">Frequência</span><span className={`text-lg font-black text-${primaryColor}-400`}>{stats.frequency}</span></div></div>
+                                <div className="flex items-center gap-3 border-t border-white/10 pt-4"><div className="px-2"><span className="text-[9px] text-white/60 uppercase font-bold block mb-0.5">Média Geral</span><span className="text-lg font-black text-white">{stats.average}</span></div><div className="w-[1px] h-8 bg-white/10"></div><div className="px-2"><span className="text-[9px] text-white/60 uppercase font-bold block mb-0.5">Frequência</span><span className={`text-lg font-black ${isMono ? 'text-white' : `text-${primaryColor}-400`}`}>{stats.frequency}</span></div></div>
                             </HolographicCard>
                         </motion.div>
                 </div>
@@ -540,12 +549,16 @@ export const DashboardLayout: React.FC<DashboardProps> = ({
                                  const y = isTop ? 0 : isBehind ? -16 : -32;
                                  const opacity = isTop ? 1 : isBehind ? 0.6 : 0.3;
 
+                                 const cardBg = isMono 
+                                    ? (isDarkMode ? 'bg-black border-white/20' : 'bg-white border-black/10')
+                                    : (isDarkMode ? `bg-slate-900/90 border-white/10` : `bg-white/90 border-white/50`);
+
                                  return (
                                      <motion.div 
                                         key={idx}
                                         animate={{ scale, y, zIndex, opacity }}
                                         transition={{ type: "spring", stiffness: 300, damping: 30 }}
-                                        className={`absolute inset-0 rounded-[2rem] p-6 border h-full flex flex-col overflow-hidden shadow-2xl origin-bottom ${isDarkMode ? `bg-slate-900/90 border-white/10 backdrop-blur-xl` : `bg-white/90 border-white/50 backdrop-blur-xl`}`}
+                                        className={`absolute inset-0 rounded-[2rem] p-6 border h-full flex flex-col overflow-hidden shadow-2xl origin-bottom backdrop-blur-xl ${cardBg}`}
                                         style={{ pointerEvents: isTop ? 'auto' : 'none' }}
                                         drag={isTop ? "x" : false}
                                         dragConstraints={{ left: 0, right: 0 }}
@@ -561,7 +574,7 @@ export const DashboardLayout: React.FC<DashboardProps> = ({
                         <div className="flex items-center justify-between px-2 mt-3 relative z-40">
                              <div className="flex items-center gap-2">
                                  {[0, 1, 2].map((idx) => (
-                                     <button key={idx} onClick={() => setCarouselIndex(idx)} className={`h-1.5 rounded-full transition-all duration-300 ${carouselIndex === idx ? `w-6 bg-${primaryColor}-500` : `w-1.5 ${isDarkMode ? 'bg-white/20' : 'bg-gray-300'}`}`} />
+                                     <button key={idx} onClick={() => setCarouselIndex(idx)} className={`h-1.5 rounded-full transition-all duration-300 ${carouselIndex === idx ? (isMono ? (isDarkMode ? 'w-6 bg-white' : 'w-6 bg-black') : `w-6 bg-${primaryColor}-500`) : `w-1.5 ${isDarkMode ? 'bg-white/20' : 'bg-gray-300'}`}`} />
                                  ))}
                              </div>
                              <button onClick={handleNextSlide} className={`w-8 h-8 rounded-full flex items-center justify-center transition-all active:scale-95 ${isDarkMode ? 'bg-white/10 hover:bg-white/20 text-white' : 'bg-black/5 hover:bg-black/10 text-black'}`}><ChevronRight size={16} /></button>
@@ -585,7 +598,7 @@ export const DashboardLayout: React.FC<DashboardProps> = ({
                                 {classroomWork.slice(0, 3).map(work => (
                                     <div key={work.id} className="flex justify-between items-center py-2 border-b border-dashed border-gray-500/10 last:border-0">
                                         <span className={`text-xs truncate max-w-[70%] ${frameText}`}>{work.title}</span>
-                                        <span className={`text-[10px] font-bold ${isDarkMode ? `text-${primaryColor}-400` : `text-${primaryColor}-600`}`}>{work.jsDate?.toLocaleDateString('pt-BR', {day: '2-digit', month: '2-digit'})}</span>
+                                        <span className={`text-[10px] font-bold ${isMono ? (isDarkMode ? 'text-white' : 'text-black') : (isDarkMode ? `text-${primaryColor}-400` : `text-${primaryColor}-600`)}`}>{work.jsDate?.toLocaleDateString('pt-BR', {day: '2-digit', month: '2-digit'})}</span>
                                     </div>
                                 ))}
                                 {classroomWork.length === 0 && <p className="text-xs opacity-50 text-center py-2">Nada pendente.</p>}
@@ -626,6 +639,7 @@ export const DashboardLayout: React.FC<DashboardProps> = ({
         MONTH_NAMES={MONTH_NAMES}
         CURRENT_VERSION={CURRENT_VERSION}
         setShowChangelog={setShowChangelog}
+        themeVariant={themeVariant}
       />
     </div>
   );

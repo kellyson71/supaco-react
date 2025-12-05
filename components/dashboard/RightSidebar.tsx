@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
@@ -6,7 +5,7 @@ import {
   ListTodo, Plus, ArrowRight, Check, Trash2, Book, CalendarDays, FastForward, Sparkles, Hourglass, MapPin, Bell, CheckCheck, ExternalLink, ShieldAlert, AlertCircle
 } from 'lucide-react';
 import { InvertedCorner } from '../InvertedCorner';
-import { TodoItem, ClassroomWork, Holiday, Achievement, SupacoNotification } from '../../types';
+import { TodoItem, ClassroomWork, Holiday, Achievement, SupacoNotification, ThemeVariant } from '../../types';
 import { SecureStorage } from '../../services/SecureStorage';
 
 interface RightSidebarProps {
@@ -36,9 +35,10 @@ interface RightSidebarProps {
   MONTH_NAMES: string[];
   CURRENT_VERSION: string;
   setShowChangelog: (v: boolean) => void;
+  themeVariant: ThemeVariant;
 }
 
-const CalendarTooltip = ({ date, x, y, events, isDarkMode, primaryColor }: any) => {
+const CalendarTooltip = ({ date, x, y, events, isDarkMode, primaryColor, isMono }: any) => {
     if (x === undefined || y === undefined) return null;
     
     const { classes, holiday, tasks } = events;
@@ -92,14 +92,14 @@ const CalendarTooltip = ({ date, x, y, events, isDarkMode, primaryColor }: any) 
                             <div key={i} className="flex items-center justify-between gap-2">
                                 <div className="flex items-center gap-1.5 overflow-hidden">
                                     {group.count === 1 && (
-                                        <div className={`w-1 h-1 rounded-full shrink-0 bg-${primaryColor}-500`} />
+                                        <div className={`w-1 h-1 rounded-full shrink-0 ${isMono ? 'bg-white' : `bg-${primaryColor}-500`}`} />
                                     )}
                                     <span className={`text-[10px] font-bold truncate ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>
                                         {group.name}
                                     </span>
                                 </div>
                                 {group.count > 1 && (
-                                    <span className={`text-[9px] font-black px-1.5 py-0.5 rounded-[4px] leading-none ${isDarkMode ? `bg-${primaryColor}-500/20 text-${primaryColor}-300` : `bg-${primaryColor}-100 text-${primaryColor}-700`}`}>
+                                    <span className={`text-[9px] font-black px-1.5 py-0.5 rounded-[4px] leading-none ${isMono ? 'bg-white/20 text-white' : (isDarkMode ? `bg-${primaryColor}-500/20 text-${primaryColor}-300` : `bg-${primaryColor}-100 text-${primaryColor}-700`)}`}>
                                         {group.count}
                                     </span>
                                 )}
@@ -135,10 +135,11 @@ const CalendarTooltip = ({ date, x, y, events, isDarkMode, primaryColor }: any) 
 export const RightSidebar: React.FC<RightSidebarProps> = ({
   rightTab, onRightTabChange, isDarkMode, frameBg, frameText, cornerColor, primaryColor, showContent,
   currentDate, setCurrentDate, holidays, classroomWork, todos, onAddTodo, onToggleTodo, onRemoveTodo,
-  unlockedAchievements, onOpenProfile, days, getEventsForDate, MONTH_NAMES, CURRENT_VERSION, setShowChangelog
+  unlockedAchievements, onOpenProfile, days, getEventsForDate, MONTH_NAMES, CURRENT_VERSION, setShowChangelog, themeVariant
 }) => {
   const [todoInput, setTodoInput] = useState('');
   const [hoveredDate, setHoveredDate] = useState<{ date: Date, x: number, y: number } | null>(null);
+  const isMono = themeVariant === 'monochrome';
   
   // Time Warp State
   const [isTimeWarping, setIsTimeWarping] = useState(false);
@@ -286,7 +287,7 @@ export const RightSidebar: React.FC<RightSidebarProps> = ({
                         {rightTab === tab && (
                             <motion.div 
                                 layoutId="right-tab"
-                                className={`absolute inset-0 rounded-full -z-10 ${isDarkMode ? 'bg-white/10' : 'bg-gray-100'}`}
+                                className={`absolute inset-0 rounded-full -z-10 ${isMono ? (isDarkMode ? 'bg-white/20' : 'bg-black/10') : (isDarkMode ? 'bg-white/10' : 'bg-gray-100')}`}
                             />
                         )}
                     </button>
@@ -309,7 +310,7 @@ export const RightSidebar: React.FC<RightSidebarProps> = ({
                            rightTab === 'achievements' ? 'Conquistas' : 'Notificações'}
                       </h2>
                       <div className={`flex items-center gap-2 text-xs font-bold uppercase tracking-widest mt-1 ${isDarkMode ? 'text-gray-500' : 'text-gray-400'}`}>
-                          <span className={`w-1.5 h-1.5 rounded-full bg-${primaryColor}-500`} />
+                          <span className={`w-1.5 h-1.5 rounded-full ${isMono ? 'bg-white' : `bg-${primaryColor}-500`}`} />
                           <span>{new Date().toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' })}</span>
                       </div>
                   </motion.div>
@@ -369,7 +370,7 @@ export const RightSidebar: React.FC<RightSidebarProps> = ({
                                               onMouseMove={(e) => setHoveredDate({ date: day, x: e.clientX, y: e.clientY })}
                                               className={`aspect-square rounded-xl flex flex-col items-center justify-center relative cursor-pointer transition-all duration-300 group
                                                   ${isToday 
-                                                      ? `bg-${primaryColor}-500 text-white shadow-lg shadow-${primaryColor}-500/30 scale-110 z-10` 
+                                                      ? (isMono ? (isDarkMode ? 'bg-white text-black' : 'bg-black text-white') : `bg-${primaryColor}-500 text-white shadow-lg shadow-${primaryColor}-500/30`) + ' scale-110 z-10' 
                                                       : (isDarkMode ? 'hover:bg-white/10 text-gray-300' : 'hover:bg-gray-100 text-gray-700')
                                                   }
                                                   ${holiday ? (isToday ? '' : (isDarkMode ? 'bg-red-500/10 text-red-400' : 'bg-red-50 text-red-500')) : ''}
@@ -378,8 +379,8 @@ export const RightSidebar: React.FC<RightSidebarProps> = ({
                                               <span className="text-xs font-bold">{day.getDate()}</span>
                                               <div className="flex gap-0.5 mt-0.5 h-1">
                                                   {holiday && <div className={`w-1 h-1 rounded-full ${isToday ? 'bg-white' : 'bg-red-500'}`} />}
-                                                  {!holiday && classes.length > 0 && <div className={`w-1 h-1 rounded-full ${isToday ? 'bg-white' : `bg-${primaryColor}-400`}`} />}
-                                                  {tasks.length > 0 && <div className={`w-1 h-1 rounded-full ${isToday ? 'bg-white' : `bg-${primaryColor}-300`}`} />}
+                                                  {!holiday && classes.length > 0 && <div className={`w-1 h-1 rounded-full ${isToday ? (isMono ? 'bg-black' : 'bg-white') : (isMono ? 'bg-white' : `bg-${primaryColor}-400`)}`} />}
+                                                  {tasks.length > 0 && <div className={`w-1 h-1 rounded-full ${isToday ? (isMono ? 'bg-black' : 'bg-white') : (isMono ? 'bg-white' : `bg-${primaryColor}-300`)}`} />}
                                               </div>
                                           </div>
                                       );
@@ -406,7 +407,7 @@ export const RightSidebar: React.FC<RightSidebarProps> = ({
                                       placeholder="Nova tarefa..."
                                       className={`bg-transparent outline-none text-xs font-bold w-full ${isDarkMode ? 'text-white placeholder:text-gray-600' : 'text-gray-800 placeholder:text-gray-400'}`}
                                   />
-                                  <button onClick={handleAddTodoClick} className={`p-1.5 rounded-lg transition-colors ${todoInput.trim() ? `bg-${primaryColor}-500 text-white` : 'bg-transparent text-gray-400'}`}>
+                                  <button onClick={handleAddTodoClick} className={`p-1.5 rounded-lg transition-colors ${todoInput.trim() ? (isMono ? (isDarkMode ? 'bg-white text-black' : 'bg-black text-white') : `bg-${primaryColor}-500 text-white`) : 'bg-transparent text-gray-400'}`}>
                                       <ArrowRight size={14} />
                                   </button>
                               </div>
@@ -419,7 +420,7 @@ export const RightSidebar: React.FC<RightSidebarProps> = ({
                                           <div key={todo.id} className="flex items-center gap-3 group">
                                               <button 
                                                   onClick={() => onToggleTodo?.(todo.id)}
-                                                  className={`w-5 h-5 rounded-md border flex items-center justify-center transition-all ${todo.completed ? `bg-${primaryColor}-500 border-${primaryColor}-500 text-white` : (isDarkMode ? 'border-white/20 hover:border-white/40' : 'border-gray-300 hover:border-gray-400')}`}
+                                                  className={`w-5 h-5 rounded-md border flex items-center justify-center transition-all ${todo.completed ? (isMono ? (isDarkMode ? 'bg-white border-white text-black' : 'bg-black border-black text-white') : `bg-${primaryColor}-500 border-${primaryColor}-500 text-white`) : (isDarkMode ? 'border-white/20 hover:border-white/40' : 'border-gray-300 hover:border-gray-400')}`}
                                               >
                                                   {todo.completed && <Check size={12} />}
                                               </button>
@@ -450,7 +451,7 @@ export const RightSidebar: React.FC<RightSidebarProps> = ({
                                 <div key={work.id} className={`p-4 rounded-2xl border ${isDarkMode ? 'bg-white/5 border-white/5' : 'bg-white border-gray-100 shadow-sm'}`}>
                                     <div className="flex justify-between items-start mb-2">
                                         <span className={`text-[10px] font-bold uppercase tracking-wider opacity-60`}>{work.courseName}</span>
-                                        <span className={`text-[10px] font-bold ${isDarkMode ? `text-${primaryColor}-400` : `text-${primaryColor}-600`}`}>
+                                        <span className={`text-[10px] font-bold ${isMono ? 'text-white' : (isDarkMode ? `text-${primaryColor}-400` : `text-${primaryColor}-600`)}`}>
                                             {work.jsDate?.toLocaleDateString('pt-BR', {day: '2-digit', month: 'short'})}
                                         </span>
                                     </div>
@@ -488,9 +489,9 @@ export const RightSidebar: React.FC<RightSidebarProps> = ({
                                         <motion.div 
                                             animate={{ rotate: 360 }}
                                             transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
-                                            className={`absolute inset-[-10px] rounded-full border-2 border-dashed ${isDarkMode ? `border-${primaryColor}-500` : 'border-black'}`}
+                                            className={`absolute inset-[-10px] rounded-full border-2 border-dashed ${isMono ? 'border-white' : (isDarkMode ? `border-${primaryColor}-500` : 'border-black')}`}
                                         />
-                                        <Hourglass size={48} className={isDarkMode ? `text-${primaryColor}-400` : 'text-black'} />
+                                        <Hourglass size={48} className={isMono ? 'text-white' : (isDarkMode ? `text-${primaryColor}-400` : 'text-black')} />
                                     </div>
                                     <motion.h3 
                                         initial={{ opacity: 0, y: 10 }}
@@ -518,8 +519,8 @@ export const RightSidebar: React.FC<RightSidebarProps> = ({
                                 onClick={handleTimeSkip}
                                 className={`w-full mb-4 p-3 rounded-2xl flex items-center justify-center gap-2 text-xs font-bold uppercase tracking-widest transition-all
                                     ${isDarkMode 
-                                        ? `bg-gradient-to-r from-${primaryColor}-900/20 to-${primaryColor}-500/10 border border-${primaryColor}-500/20 hover:border-${primaryColor}-500/50 text-${primaryColor}-200` 
-                                        : `bg-${primaryColor}-50 text-${primaryColor}-700 hover:bg-${primaryColor}-100`
+                                        ? (isMono ? 'bg-white/10 text-white border border-white/20' : `bg-gradient-to-r from-${primaryColor}-900/20 to-${primaryColor}-500/10 border border-${primaryColor}-500/20 hover:border-${primaryColor}-500/50 text-${primaryColor}-200`) 
+                                        : (isMono ? 'bg-black/10 text-black border border-black/20' : `bg-${primaryColor}-50 text-${primaryColor}-700 hover:bg-${primaryColor}-100`)
                                     }
                                 `}
                             >
@@ -552,8 +553,8 @@ export const RightSidebar: React.FC<RightSidebarProps> = ({
                         exit={{ opacity: 0, x: -20 }}
                         className="h-full flex flex-col gap-3"
                     >
-                        <div className={`p-6 rounded-[2rem] border text-center ${isDarkMode ? `bg-${primaryColor}-500/10 border-${primaryColor}-500/20` : `bg-${primaryColor}-50 border-${primaryColor}-100`}`}>
-                            <Trophy size={32} className={`mx-auto mb-2 text-${primaryColor}-500`} />
+                        <div className={`p-6 rounded-[2rem] border text-center ${isMono ? 'border-white/20 bg-white/5' : (isDarkMode ? `bg-${primaryColor}-500/10 border-${primaryColor}-500/20` : `bg-${primaryColor}-50 border-${primaryColor}-100`)}`}>
+                            <Trophy size={32} className={`mx-auto mb-2 ${isMono ? 'text-white' : `text-${primaryColor}-500`}`} />
                             <div className="text-2xl font-black">{unlockedAchievements.length}</div>
                             <div className="text-[10px] font-bold uppercase opacity-50">Conquistas Desbloqueadas</div>
                         </div>
@@ -605,7 +606,7 @@ export const RightSidebar: React.FC<RightSidebarProps> = ({
                                               <div className={`p-1.5 rounded-lg ${notif.type === 'risk' ? 'bg-red-500/20 text-red-500' : (notif.type === 'suap' ? 'bg-green-500/20 text-green-500' : (isDarkMode ? 'bg-white/10 text-white' : 'bg-gray-100 text-gray-600'))}`}>
                                                   {notif.type === 'risk' ? <ShieldAlert size={12} /> : (notif.type === 'suap' ? <Bell size={12} /> : <Sparkles size={12} />)}
                                               </div>
-                                              {!notif.read && <div className="w-2 h-2 rounded-full bg-blue-500" />}
+                                              {!notif.read && <div className={`w-2 h-2 rounded-full ${isMono ? 'bg-white' : 'bg-blue-500'}`} />}
                                           </div>
 
                                           <h4 className={`text-xs font-bold leading-tight mb-1 ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>{notif.title}</h4>
@@ -648,7 +649,10 @@ export const RightSidebar: React.FC<RightSidebarProps> = ({
                             className={`mt-4 mb-2 relative overflow-hidden rounded-[1.5rem] border shadow-xl transition-all
                                 ${isUrgent
                                     ? (isDarkMode ? 'bg-[#180a0a] border-red-500/30' : 'bg-red-50 border-red-200')
-                                    : (isDarkMode ? `bg-slate-900 border-${primaryColor}-500/30` : `bg-${primaryColor}-50 border-${primaryColor}-200`)
+                                    : (isMono 
+                                        ? (isDarkMode ? 'bg-black border-white/20' : 'bg-white border-black/20')
+                                        : (isDarkMode ? `bg-slate-900 border-${primaryColor}-500/30` : `bg-${primaryColor}-50 border-${primaryColor}-200`)
+                                      )
                                 }
                             `}
                         >
@@ -656,7 +660,7 @@ export const RightSidebar: React.FC<RightSidebarProps> = ({
                             <div className={`absolute -top-10 -right-10 w-32 h-32 rounded-full blur-[60px] pointer-events-none 
                                 ${isUrgent 
                                     ? (isDarkMode ? 'bg-red-600/20' : 'bg-red-500/10')
-                                    : (isDarkMode ? `bg-${primaryColor}-600/20` : `bg-${primaryColor}-500/10`)
+                                    : (isMono ? 'bg-white/10' : (isDarkMode ? `bg-${primaryColor}-600/20` : `bg-${primaryColor}-500/10`))
                                 }
                             `} />
 
@@ -665,14 +669,14 @@ export const RightSidebar: React.FC<RightSidebarProps> = ({
                                     <div className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider 
                                         ${isUrgent
                                             ? (isDarkMode ? 'bg-red-500/10 text-red-400' : 'bg-red-100 text-red-600')
-                                            : (isDarkMode ? `bg-${primaryColor}-500/10 text-${primaryColor}-400` : `bg-${primaryColor}-100 text-${primaryColor}-600`)
+                                            : (isMono ? (isDarkMode ? 'bg-white/10 text-white' : 'bg-black/5 text-black') : (isDarkMode ? `bg-${primaryColor}-500/10 text-${primaryColor}-400` : `bg-${primaryColor}-100 text-${primaryColor}-600`))
                                         }
                                     `}>
                                         <Clock size={12} strokeWidth={2.5} />
                                         <span>{getTimeRemaining(priorityTask.jsDate)}</span>
                                     </div>
                                     <div className={`w-2 h-2 rounded-full shadow-[0_0_8px_rgba(0,0,0,0.3)]
-                                        ${isUrgent ? 'bg-red-500 shadow-red-500/50' : `bg-${primaryColor}-500 shadow-${primaryColor}-500/50`}
+                                        ${isUrgent ? 'bg-red-500 shadow-red-500/50' : (isMono ? (isDarkMode ? 'bg-white shadow-white/50' : 'bg-black shadow-black/50') : `bg-${primaryColor}-500 shadow-${primaryColor}-500/50`)}
                                     `} />
                                 </div>
 
@@ -691,8 +695,11 @@ export const RightSidebar: React.FC<RightSidebarProps> = ({
                                     rel="noopener noreferrer"
                                     className={`flex items-center justify-center gap-2 w-full py-3 rounded-xl text-xs font-bold uppercase tracking-widest transition-transform active:scale-95 shadow-lg
                                         ${isUrgent
-                                            ? (isDarkMode ? 'bg-red-600 text-white hover:bg-red-500 shadow-red-900/20' : 'bg-red-500 text-white hover:bg-red-600 shadow-red-200')
-                                            : (isDarkMode ? `bg-${primaryColor}-600 text-white hover:bg-${primaryColor}-500 shadow-${primaryColor}-900/20` : `bg-${primaryColor}-500 text-white hover:bg-${primaryColor}-600 shadow-${primaryColor}-200`)
+                                            ? (isDarkMode ? 'bg-red-600 text-white hover:bg-red-500 shadow-red-900/20' : 'bg-red-50 text-white hover:bg-red-600 shadow-red-200')
+                                            : (isMono 
+                                                ? (isDarkMode ? 'bg-white text-black hover:bg-gray-200' : 'bg-black text-white hover:bg-gray-800')
+                                                : (isDarkMode ? `bg-${primaryColor}-600 text-white hover:bg-${primaryColor}-500 shadow-${primaryColor}-900/20` : `bg-${primaryColor}-500 text-white hover:bg-${primaryColor}-600 shadow-${primaryColor}-200`)
+                                              )
                                         }
                                     `}
                                 >
@@ -722,6 +729,7 @@ export const RightSidebar: React.FC<RightSidebarProps> = ({
                         events={getEventsForDate(hoveredDate.date)}
                         isDarkMode={isDarkMode}
                         primaryColor={primaryColor}
+                        isMono={isMono}
                     />
                 )}
             </AnimatePresence>
