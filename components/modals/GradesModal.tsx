@@ -52,6 +52,7 @@ const GradeCircle = ({ stage, original, simulated, needed, isDark, accentColor, 
                     type="number"
                     min="0"
                     max="100"
+                    // Fix: Use placeholder to show needed value clearly without double rendering
                     placeholder={showNeeded ? Math.ceil(needed).toString() : ""}
                     value={isEditing ? simulated : (original !== null ? original : "")}
                     disabled={original !== null}
@@ -64,15 +65,9 @@ const GradeCircle = ({ stage, original, simulated, needed, isDark, accentColor, 
                                 : (isDark ? 'bg-transparent border-dashed border-white/10 text-white/30' : 'bg-transparent border-dashed border-gray-200 text-gray-400')
                               )
                         }
-                        ${original === null && !isEditing ? 'hover:border-white/30 focus:border-white/50' : ''}
+                        ${original === null && !isEditing ? 'hover:border-white/30 focus:border-white/50 placeholder:text-current placeholder:opacity-30' : ''}
                     `}
                 />
-                {showNeeded && !isEditing && (
-                    <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-                         <span className="text-[8px] font-bold uppercase text-white/40 mb-0.5">Alvo</span>
-                         <span className="text-sm font-black text-white/40">{Math.ceil(needed)}</span>
-                    </div>
-                )}
             </div>
         </div>
     );
@@ -108,11 +103,8 @@ const SubjectGradeCard = ({ grade, isDark, accentColor, secondaryColor }: any) =
         const neededTotal = Math.max(0, TARGET_TOTAL_POINTS - weightedSum);
         const neededAverageForRemaining = remainingWeight > 0 ? neededTotal / remainingWeight : null;
         
-        // Final projected average: sum of weighted points / total weight (10)
-        // If not all filled, we show current weighted average
         const projectedAverage = filledWeight > 0 ? weightedSum / filledWeight : 0;
         
-        // Status checks weighted total (must be >= 600)
         const isFullyFilled = currentGrades.every(g => g !== null);
         const currentTotalPossible = weightedSum + (remainingWeight * 100);
         
@@ -327,14 +319,15 @@ export const GradesModal: React.FC<GradesModalProps> = ({
         <div className={`absolute top-0 right-0 w-96 h-96 rounded-full blur-[120px] pointer-events-none opacity-20 bg-${primaryColor}-500`} />
 
         {/* Dynamic Header */}
-        <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-6 mb-12 shrink-0 relative z-10">
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-6 mb-8 md:mb-12 shrink-0 relative z-10">
             <div>
                 <div className={`inline-flex items-center gap-2 px-3 py-1 rounded-full mb-3 border ${isDark ? `bg-${primaryColor}-500/10 border-${primaryColor}-500/20 text-${primaryColor}-300` : `bg-${primaryColor}-50 border-${primaryColor}-100 text-${primaryColor}-600`}`}>
                     <Activity size={12} />
                     <span className="text-[10px] font-black uppercase tracking-widest">Painel de Desempenho</span>
                 </div>
-                <h2 className={`text-4xl md:text-6xl font-black tracking-tighter ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                    Boletim <span className={`text-transparent bg-clip-text bg-gradient-to-r from-${primaryColor}-400 to-${primaryColor}-600`}>Inteligente</span>
+                {/* Fix: Title size reduced and "Inteligente" removed */}
+                <h2 className={`text-3xl md:text-5xl font-black tracking-tighter ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                    Boletim
                 </h2>
                 
                 <div className="flex items-center gap-6 mt-6">
@@ -394,10 +387,13 @@ export const GradesModal: React.FC<GradesModalProps> = ({
         </div>
 
         {/* Interactive Floating Info Bar */}
-        <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-20 px-6 py-3 rounded-full border shadow-2xl backdrop-blur-xl flex items-center gap-4 min-w-[300px] justify-center bg-white/80 dark:bg-black/80 border-white/20">
+        {/* Fix: Color adjustments for light/dark themes */}
+        <div className={`absolute bottom-6 left-1/2 -translate-x-1/2 z-20 px-6 py-3 rounded-full border shadow-2xl backdrop-blur-xl flex items-center gap-4 min-w-[300px] justify-center transition-colors
+            ${isDark ? 'bg-black/80 border-white/20' : 'bg-white/90 border-gray-200'}
+        `}>
              <div className="flex items-center gap-2">
                 <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
-                <span className="text-[10px] font-black uppercase tracking-widest opacity-60">Dica: Toque nos bimesters vazios para simular</span>
+                <span className={`text-[10px] font-black uppercase tracking-widest opacity-60 ${isDark ? 'text-white' : 'text-gray-900'}`}>Dica: Toque nos bimesters vazios para simular</span>
              </div>
              <div className={`w-[1px] h-4 ${isDark ? 'bg-white/20' : 'bg-black/10'}`} />
              <Target size={14} className={`text-${primaryColor}-500`} />
