@@ -1,4 +1,5 @@
 
+
 export enum ViewState {
   DASHBOARD = 'DASHBOARD',
   GRADES = 'GRADES',
@@ -259,12 +260,12 @@ export interface GradeInfo {
     subject: string;
     code: string;
     status: string;
-    n1: string | number;
-    n2: string | number;
-    n3: string | number;
-    n4: string | number;
-    finalGrade: string | number;
-    average: string | number;
+    n1: string | number | null;
+    n2: string | number | null;
+    n3: string | number | null;
+    n4: string | number | null;
+    finalGrade: string | number | null;
+    average: string | number | null;
     frequency: number;
     absences: number;
     limit: number;
