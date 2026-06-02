@@ -1,16 +1,12 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { motion, AnimatePresence, PanInfo } from 'framer-motion';
-import { 
-  AlertTriangle, 
+import { motion, AnimatePresence } from 'framer-motion';
+import {
+  AlertTriangle,
   ChevronRight,
   Clock,
   MapPin,
   Copy,
   CheckCircle,
-  ThumbsUp,
-  Link2,
-  Maximize2,
-  Book
 } from 'lucide-react';
 import { InvertedCorner } from './InvertedCorner';
 import { ViewState, ClassroomWork, SuapProfile, SuapPeriod, GradeInfo, ProcessedClass, SuapCompletionData, Holiday, TodoItem, SuapMeusDadosAluno, Achievement, SupacoNotification, ThemeVariant } from '../types';
@@ -93,13 +89,8 @@ export const DashboardLayout: React.FC<DashboardProps> = ({
   const [showAchievementNotification, setShowAchievementNotification] = useState<Achievement | null>(null);
 
   // Calculated States
-  const [bestSubjectToSkip, setBestSubjectToSkip] = useState<GradeInfo | null>(null);
   const [nextClass, setNextClass] = useState<ProcessedClass | null>(null);
   const [nextClassGrade, setNextClassGrade] = useState<GradeInfo | null>(null);
-  
-  // Carousel State
-  const [carouselIndex, setCarouselIndex] = useState(0); 
-  const TOTAL_SLIDES = 3;
 
   // Calendar State
   const [currentDate, setCurrentDate] = useState(new Date());
@@ -193,13 +184,8 @@ export const DashboardLayout: React.FC<DashboardProps> = ({
     return { average, frequency };
   }, [grades, academicData]);
 
-  // Logic for Next Class & Skipping
+  // Logic for Next Class
   useEffect(() => {
-      if (grades.length > 0) {
-          const sorted = [...grades].sort((a, b) => (b.limit - b.absences) - (a.limit - a.absences));
-          setBestSubjectToSkip(sorted[0]);
-      }
-
       if (schedule.length > 0) {
           const findNext = () => {
               const now = new Date();
@@ -255,13 +241,10 @@ export const DashboardLayout: React.FC<DashboardProps> = ({
   const isTodayHoliday = upcomingHoliday?.diffDays === 0;
   const nextTask = classroomWork[0]; 
 
-  // Carousel Logic
-  const handleNextSlide = () => setCarouselIndex((prev) => (prev + 1) % TOTAL_SLIDES);
-  const handlePrevSlide = () => setCarouselIndex((prev) => (prev === 0 ? TOTAL_SLIDES - 1 : prev - 1));
-  const onDragEnd = (event: MouseEvent | TouchEvent | PointerEvent, info: PanInfo) => {
-    if (info.offset.x < -50) handleNextSlide();
-    else if (info.offset.x > 50) handlePrevSlide();
-  };
+  // Critical absences count for badge
+  const criticalAbsencesCount = useMemo(() =>
+      grades.filter(g => g.limit > 0 && ((g.limit - g.absences) <= 2)).length
+  , [grades]);
 
   // Calendar Event Logic
   const getEventsForDate = (date: Date) => {
@@ -306,118 +289,134 @@ export const DashboardLayout: React.FC<DashboardProps> = ({
       return { text: "Moderado", color: primaryColor, sub: `${remaining} restantes` };
   };
 
-  // Render Carousel Slide
-  const renderSlideContent = (index: number) => {
-    if (index === 0) {
-        // STATUS CARD
-        const todayInt = new Date().getDay() + 1;
-        const todaysClasses = schedule.filter(s => s.dayInt === todayInt).sort((a,b) => a.startTime.localeCompare(b.startTime));
-        return (
-            <div className="h-full flex flex-col gap-3 relative overflow-hidden">
-                {!isMono && <div className={`absolute -right-8 -top-8 w-40 h-40 rounded-full blur-3xl opacity-50 ${isDarkMode ? `bg-${primaryColor}-500/20` : `bg-${primaryColor}-300/40`}`} />}
-                <div className="flex justify-between items-start relative z-10 shrink-0">
-                    <span className={`text-[10px] font-black uppercase tracking-wide px-2.5 py-1 rounded-lg transition-colors backdrop-blur-md 
-                        ${isMono ? (isDarkMode ? 'bg-white text-black' : 'bg-black text-white') : (isDarkMode ? `bg-${primaryColor}-900/40 text-${primaryColor}-300` : `bg-${primaryColor}-100/80 text-${primaryColor}-700`)}`}>
-                        {nextClass ? 'Próxima Aula' : 'Hoje'}
-                    </span>
-                    {todaysClasses.length > 0 && <div className={`text-[9px] font-bold px-2 py-1 rounded-lg border backdrop-blur-sm ${isDarkMode ? 'border-white/10 text-white/40' : 'border-black/5 text-black/40'}`}>{todaysClasses.length} Aulas</div>}
+  // Dashboard cards — substitui o carrossel
+  const renderDashboardCards = () => {
+    const todayInt = new Date().getDay() + 1;
+    const todaysClasses = schedule.filter(s => s.dayInt === todayInt).sort((a, b) => a.startTime.localeCompare(b.startTime));
+    const sortedByAbsences = [...grades].filter(g => g.limit > 0).sort((a, b) => (a.limit - a.absences) - (b.limit - b.absences));
+
+    const cardBase = `rounded-2xl p-4 border transition-colors ${isDarkMode ? 'bg-slate-900/90 border-white/10' : 'bg-white/90 border-white/20'} shadow-sm backdrop-blur-sm`;
+    const labelColor = isMono ? (isDarkMode ? 'text-gray-400' : 'text-gray-500') : (isDarkMode ? `text-${primaryColor}-400` : `text-${primaryColor}-600`);
+
+    return (
+      <div className="flex flex-col gap-3 w-full">
+
+        {/* Card: Próxima Aula */}
+        <div className={cardBase}>
+          <div className="flex items-center justify-between mb-2">
+            <span className={`text-[10px] font-black uppercase tracking-widest ${labelColor}`}>Próxima Aula</span>
+            {nextClass && (
+              <span className={`text-[9px] font-bold px-2 py-0.5 rounded-lg ${isDarkMode ? 'bg-white/10 text-white/50' : 'bg-black/5 text-black/40'}`}>
+                {nextClass.startTime}
+              </span>
+            )}
+          </div>
+          {nextClass ? (
+            <div>
+              <div className={`text-base font-black leading-tight mb-2 ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>{nextClass.name}</div>
+              <div className="flex items-center gap-2 flex-wrap">
+                <div className={`flex items-center gap-1 text-[10px] opacity-60 ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>
+                  <MapPin size={10} /> {nextClass.room}
                 </div>
-                <div className="relative z-10 flex-1 flex flex-col min-h-0">
-                    <div className="shrink-0 mb-3">
-                        {nextClassGrade ? (
-                            <div className={`bg-gradient-to-br from-transparent to-white/5 rounded-2xl p-0.5 group cursor-pointer ${isMono ? 'border border-white/20' : ''}`} onClick={() => setIsFocusMode(true)}>
-                                <div className="flex items-center justify-between mb-1.5 px-1">
-                                    <div className={`text-[10px] font-bold uppercase tracking-wider truncate max-w-[160px] ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>{nextClass?.name}</div>
-                                    <div className="flex items-center gap-1"><Maximize2 size={10} className="opacity-0 group-hover:opacity-50 transition-opacity" /><div className="text-[10px] font-mono opacity-60 bg-black/5 dark:bg-white/5 px-1.5 py-0.5 rounded text-[9px]">{nextClass?.startTime}</div></div>
-                                </div>
-                                {(() => {
-                                    const conf = getStatusConfig(nextClassGrade);
-                                    const remaining = nextClassGrade.limit - nextClassGrade.absences;
-                                    const statusBg = isMono ? 'bg-white/10 border border-white/20 text-white' : (isDarkMode ? `bg-${conf.color}-500/20 text-${conf.color}-400 ring-1 ring-${conf.color}-500/20` : `bg-${conf.color}-100 text-${conf.color}-600 ring-1 ring-${conf.color}-200`);
-                                    return (
-                                        <div className="flex items-center gap-3">
-                                            <div className={`px-3 py-2 rounded-xl text-xs font-black uppercase flex items-center gap-2 shadow-sm flex-1 ${statusBg}`}>
-                                                {conf.color === 'orange' || conf.color === secondaryColor || conf.color === 'red' ? <AlertTriangle size={14}/> : <CheckCircle size={14} />} {conf.text}
-                                            </div>
-                                            <div className="flex flex-col items-end leading-none pr-1"><span className={`text-sm font-black ${isDarkMode ? 'text-white' : 'text-gray-800'}`}>{remaining}</span><span className="text-[7px] font-bold uppercase opacity-50">Restantes</span></div>
-                                        </div>
-                                    )
-                                })()}
-                            </div>
-                        ) : bestSubjectToSkip ? (
-                             <div className="px-1">
-                                <div className={`text-[9px] font-bold uppercase tracking-wider mb-0.5 ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>Sugestão</div>
-                                <div className={`text-lg font-black leading-tight mb-2 truncate ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>{bestSubjectToSkip.subject}</div>
-                                <div className={`text-[10px] font-bold flex items-center gap-1.5 ${isMono ? (isDarkMode ? 'text-white' : 'text-black') : (isDarkMode ? `text-${primaryColor}-400` : `text-${primaryColor}-600`)}`}><ThumbsUp size={12} /><span>{bestSubjectToSkip.limit - bestSubjectToSkip.absences} faltas disponíveis.</span></div>
-                             </div>
-                        ) : (
-                            <div className="py-4 opacity-60 text-xs font-bold text-center border-2 border-dashed border-gray-500/10 rounded-xl">Sem dados de faltas.</div>
-                        )}
+                {nextClassGrade && (() => {
+                  const conf = getStatusConfig(nextClassGrade);
+                  const remaining = nextClassGrade.limit - nextClassGrade.absences;
+                  const isAlert = conf.color === 'orange' || conf.color === secondaryColor;
+                  return (
+                    <div className={`flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] font-black ml-auto
+                      ${isMono ? 'bg-white/10 text-white' : (isDarkMode ? `bg-${conf.color}-500/20 text-${conf.color}-400` : `bg-${conf.color}-100 text-${conf.color}-700`)}`}>
+                      {isAlert ? <AlertTriangle size={10} /> : <CheckCircle size={10} />}
+                      {remaining} restantes
                     </div>
-                    <div className="flex-1 flex flex-col min-h-0 border-t border-dashed border-gray-500/10 pt-2">
-                        <div className="text-[9px] font-bold uppercase tracking-widest opacity-40 mb-2 pl-1">Cronograma de Hoje</div>
-                        <div className="flex-1 overflow-y-auto custom-scroll pr-1 space-y-1.5">
-                            {todaysClasses.length > 0 ? todaysClasses.map((c, i) => (
-                                <div key={i} className={`flex items-center gap-3 p-2 rounded-lg transition-all ${nextClass && c.startTime === nextClass.startTime && c.name === nextClass.name ? (isDarkMode ? `bg-white/10 shadow-sm border border-white/5` : `bg-white shadow-sm border border-gray-100`) : 'opacity-70 hover:opacity-100'}`}>
-                                    <div className={`w-1 h-8 rounded-full shrink-0 ${nextClass && c.startTime === nextClass.startTime ? (isMono ? 'bg-white dark:bg-white' : `bg-${primaryColor}-500`) : `bg-gray-300 dark:bg-white/20`}`} />
-                                    <div className="flex-1 min-w-0">
-                                        <div className={`text-[10px] font-bold truncate leading-tight ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>{c.name}</div>
-                                        <div className="flex items-center gap-2 mt-0.5"><div className="flex items-center gap-1 text-[9px] opacity-70"><Clock size={8} /> {c.startTime}</div><div className="flex items-center gap-1 text-[9px] opacity-70"><MapPin size={8} /> {c.room}</div></div>
-                                    </div>
-                                </div>
-                            )) : <div className="h-full flex flex-col items-center justify-center opacity-30 gap-1"><span className="text-[10px] font-bold uppercase">Folga</span></div>}
-                        </div>
+                  );
+                })()}
+              </div>
+            </div>
+          ) : (
+            <div className={`text-xs opacity-50 ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>Nenhuma aula próxima.</div>
+          )}
+        </div>
+
+        {/* Card: Faltas */}
+        <div className={cardBase}>
+          <div className="flex items-center justify-between mb-3">
+            <span className={`text-[10px] font-black uppercase tracking-widest ${labelColor}`}>Faltas</span>
+            <button
+              onClick={() => onChangeView(ViewState.GRADES)}
+              className={`text-[9px] font-bold uppercase tracking-wide flex items-center gap-0.5 transition-colors
+                ${isDarkMode ? 'text-white/40 hover:text-white' : 'text-black/40 hover:text-black'}`}
+            >
+              Ver boletim <ChevronRight size={10} />
+            </button>
+          </div>
+          {sortedByAbsences.length > 0 ? (
+            <div className="space-y-2.5">
+              {sortedByAbsences.slice(0, 4).map((g) => {
+                const remaining = g.limit - g.absences;
+                const pct = Math.min(g.absences / g.limit, 1);
+                const isOver = remaining < 0;
+                const isCritical = !isOver && remaining <= 2;
+                const isCaution = !isOver && !isCritical && remaining <= 4;
+                const barColor = isOver || isCritical ? 'bg-red-500' : isCaution ? 'bg-orange-400' : (isMono ? (isDarkMode ? 'bg-white' : 'bg-black') : `bg-${primaryColor}-500`);
+                const textColor = isOver || isCritical ? (isDarkMode ? 'text-red-400' : 'text-red-600') : isCaution ? (isDarkMode ? 'text-orange-400' : 'text-orange-600') : (isDarkMode ? 'text-gray-400' : 'text-gray-500');
+                const label = isOver ? 'Reprovado' : isCritical ? 'Crítico' : isCaution ? 'Cuidado' : `${remaining} restam`;
+                return (
+                  <div key={g.subject} className="flex items-center gap-2">
+                    <div className="flex-1 min-w-0">
+                      <div className={`text-[10px] font-bold truncate mb-1 ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                        {g.subject.split(' ').slice(0, 3).join(' ')}
+                      </div>
+                      <div className={`h-1.5 rounded-full overflow-hidden ${isDarkMode ? 'bg-white/10' : 'bg-gray-200'}`}>
+                        <div className={`h-full rounded-full transition-all ${barColor}`} style={{ width: `${Math.min(pct * 100, 100)}%` }} />
+                      </div>
                     </div>
+                    <span className={`text-[9px] font-black shrink-0 w-16 text-right ${textColor}`}>{label}</span>
+                  </div>
+                );
+              })}
+              {sortedByAbsences.length > 4 && (
+                <div className={`text-[9px] opacity-40 font-bold ${isDarkMode ? 'text-white' : 'text-black'}`}>
+                  +{sortedByAbsences.length - 4} outras em situação tranquila
                 </div>
+              )}
             </div>
-        );
-    } else if (index === 1) {
-        // HOLIDAY CARD
-        return (
-            <div className="h-full flex flex-col gap-4">
-                {!isMono && <div className={`absolute -right-4 -top-4 w-24 h-24 rounded-full blur-xl ${isDarkMode ? 'bg-indigo-500/20' : 'bg-indigo-200/50'}`} />}
-                <div className="flex justify-between items-start relative z-10">
-                    <span className={`text-[10px] font-black uppercase tracking-wide px-2 py-1 rounded-md ${isMono ? (isDarkMode ? 'bg-white text-black' : 'bg-black text-white') : (isDarkMode ? 'bg-indigo-900 text-indigo-300' : 'bg-indigo-200 text-indigo-800')}`}>Próximo Feriado</span>
-                </div>
-                <div className="relative z-10 flex-1 flex flex-col justify-center gap-2">
-                    {upcomingHoliday ? (
-                        <><div className={`text-3xl font-black leading-none ${isMono ? (isDarkMode ? 'text-white' : 'text-black') : (isDarkMode ? 'text-indigo-400' : 'text-indigo-700')}`}>{isTodayHoliday ? "É FERIADO!" : "FALTA POUCO"}</div><div className={`text-sm font-bold leading-snug ${isMono ? (isDarkMode ? 'text-gray-300' : 'text-gray-700') : (isDarkMode ? 'text-indigo-200' : 'text-indigo-900')}`}>{upcomingHoliday.name}</div><div className={`text-xs font-medium opacity-70 ${isMono ? 'opacity-50' : (isDarkMode ? 'text-indigo-300' : 'text-indigo-600')}`}>{isTodayHoliday ? "Aproveite seu dia de folga." : `Em ${upcomingHoliday.diffDays} ${upcomingHoliday.diffDays === 1 ? 'dia' : 'dias'}.`}</div></>
-                    ) : (
-                        <><div className={`text-2xl font-black ${isMono ? (isDarkMode ? 'text-white' : 'text-black') : (isDarkMode ? 'text-indigo-400' : 'text-indigo-700')}`}>SEM FOLGA</div><div className={`text-xs font-medium ${isMono ? 'text-gray-500' : (isDarkMode ? 'text-indigo-300' : 'text-indigo-600')}`}>Nenhum feriado próximo encontrado.</div></>
-                    )}
-                </div>
+          ) : (
+            <div className={`text-xs opacity-50 ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>Dados de faltas não disponíveis.</div>
+          )}
+        </div>
+
+        {/* Card: Hoje */}
+        <div className={cardBase}>
+          <div className="flex items-center justify-between mb-2">
+            <span className={`text-[10px] font-black uppercase tracking-widest ${labelColor}`}>Hoje</span>
+            {upcomingHoliday && (
+              <span className={`text-[9px] font-bold px-2 py-0.5 rounded-lg ${isDarkMode ? 'bg-indigo-900/60 text-indigo-300' : 'bg-indigo-100 text-indigo-700'}`}>
+                {isTodayHoliday ? 'Feriado!' : `Feriado em ${upcomingHoliday.diffDays}d`}
+              </span>
+            )}
+          </div>
+          {todaysClasses.length > 0 ? (
+            <div className="space-y-1">
+              {todaysClasses.map((c, i) => {
+                const isNext = nextClass?.startTime === c.startTime && nextClass?.name === c.name;
+                return (
+                  <div key={i} className={`flex items-center gap-2 px-2 py-1.5 rounded-xl transition-colors
+                    ${isNext ? (isDarkMode ? 'bg-white/10 border border-white/10' : 'bg-gray-100 border border-gray-200') : 'opacity-60'}`}>
+                    <div className={`w-0.5 h-5 rounded-full shrink-0 ${isNext ? (isMono ? (isDarkMode ? 'bg-white' : 'bg-black') : `bg-${primaryColor}-500`) : (isDarkMode ? 'bg-white/20' : 'bg-gray-300')}`} />
+                    <div className={`flex items-center gap-1 text-[9px] opacity-50 shrink-0`}><Clock size={8} /> {c.startTime}</div>
+                    <div className={`text-[10px] font-bold truncate flex-1 ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>{c.name}</div>
+                    <div className={`flex items-center gap-0.5 text-[9px] opacity-40 shrink-0`}><MapPin size={8} /> {c.room}</div>
+                  </div>
+                );
+              })}
             </div>
-        );
-    } else {
-        // TASKS CARD
-        if (!isClassroomLinked) {
-            return (
-                <div className="h-full flex flex-col items-center justify-center text-center gap-4 p-4">
-                    {!isMono && <div className={`absolute -right-4 -top-4 w-24 h-24 rounded-full blur-xl ${isDarkMode ? `bg-gray-500/10` : `bg-gray-200/50`}`} />}
-                    <div className={`w-12 h-12 rounded-2xl flex items-center justify-center ${isDarkMode ? 'bg-white/10' : 'bg-gray-100 text-gray-400'}`}><Link2 size={24} /></div>
-                    <div><h3 className={`text-sm font-black uppercase mb-1 ${isDarkMode ? 'text-white' : 'text-gray-800'}`}>Classroom</h3><p className="text-[10px] opacity-60 max-w-[150px] mx-auto leading-relaxed">Conecte sua conta Google para ver tarefas aqui.</p></div>
-                    <button onClick={onOpenSettings} className={`text-[10px] font-bold uppercase tracking-wide px-4 py-2 rounded-xl transition-colors ${isDarkMode ? 'bg-white text-black hover:bg-gray-200' : 'bg-black text-white hover:bg-gray-800'}`}>Vincular</button>
-                </div>
-            )
-        }
-        return (
-            <div className="h-full flex flex-col gap-4">
-                {!isMono && <div className={`absolute -right-4 -top-4 w-24 h-24 rounded-full blur-xl ${isDarkMode ? `bg-${primaryColor}-500/10` : `bg-${primaryColor}-200/30`}`} />}
-                <div className="flex justify-between items-start relative z-10"><span className={`text-[10px] font-black uppercase tracking-wide px-2 py-1 rounded-md ${isMono ? (isDarkMode ? 'bg-white text-black' : 'bg-black text-white') : (isDarkMode ? `bg-${primaryColor}-900/50 text-${primaryColor}-400` : `bg-${primaryColor}-100 text-${primaryColor}-700`)}`}>Classroom</span></div>
-                <div className="relative z-10 flex-1 flex flex-col justify-center">
-                    {nextTask ? (
-                        <div className="flex flex-col gap-2">
-                            <div><div className={`text-[10px] font-bold uppercase mb-1 ${isMono ? (isDarkMode ? 'text-gray-400' : 'text-gray-600') : (isDarkMode ? `text-${primaryColor}-500/80` : `text-${primaryColor}-600`)}`}>Próxima Entrega</div><div className={`text-lg font-black leading-tight line-clamp-3 ${isMono ? (isDarkMode ? 'text-white' : 'text-black') : (isDarkMode ? `text-${primaryColor}-50` : 'text-gray-800')}`}>{nextTask.title}</div></div>
-                            <div className={`text-[10px] font-bold px-2 py-1 rounded-lg inline-block w-fit ${isDarkMode ? 'bg-white/10 text-gray-300' : 'bg-gray-100 text-gray-600'}`}>{nextTask.courseName}</div>
-                            <div className="pt-2 border-t border-dashed border-gray-500/20 flex justify-between items-center mt-auto"><div className={`text-xs font-bold ${isMono ? (isDarkMode ? 'text-gray-300' : 'text-gray-700') : (isDarkMode ? `text-${primaryColor}-400` : `text-${primaryColor}-600`)}`}>{nextTask.jsDate?.toLocaleDateString('pt-BR', { weekday: 'short', day: '2-digit' })}</div><div className={`text-xs font-bold opacity-70 ${isDarkMode ? 'text-white' : 'text-black'}`}>{nextTask.jsDate?.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</div></div>
-                        </div>
-                    ) : (
-                        <div className="text-center opacity-50"><Book size={24} className="mx-auto mb-2" /><p className="text-xs font-bold">Nenhuma tarefa pendente.</p></div>
-                    )}
-                </div>
-            </div>
-        );
-    }
+          ) : (
+            <div className={`text-xs opacity-40 text-center py-1 font-bold ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>Folga hoje</div>
+          )}
+        </div>
+
+      </div>
+    );
   };
 
   const frameBg = isMono ? (isDarkMode ? 'bg-black' : 'bg-white') : (isDarkMode ? DARK_FRAME : LIGHT_FRAME);
@@ -458,12 +457,12 @@ export const DashboardLayout: React.FC<DashboardProps> = ({
       <div className={`hidden md:block absolute bottom-0 inset-x-0 h-4 z-40 transition-colors duration-500 ${frameBg}`} />
 
       {/* LEFT SIDEBAR */}
-      <LeftSidebar 
-        activeNav={activeNav} 
-        onNavClick={handleNavClick} 
-        isDarkMode={isDarkMode} 
-        onToggleTheme={onToggleTheme} 
-        isRefreshing={isRefreshing} 
+      <LeftSidebar
+        activeNav={activeNav}
+        onNavClick={handleNavClick}
+        isDarkMode={isDarkMode}
+        onToggleTheme={onToggleTheme}
+        isRefreshing={isRefreshing}
         onRefresh={handleRefreshClick}
         userData={userData}
         userPhoto={userPhoto}
@@ -473,6 +472,7 @@ export const DashboardLayout: React.FC<DashboardProps> = ({
         frameBg={frameBg}
         frameText={frameText}
         themeVariant={themeVariant}
+        criticalAbsencesCount={criticalAbsencesCount}
       />
 
       {/* CENTER CONTENT */}
@@ -527,8 +527,8 @@ export const DashboardLayout: React.FC<DashboardProps> = ({
                         </motion.div>
                 </div>
 
-                {/* INTEGRATED CARD BLOCK (Unified Stacked Carousel) */}
-                <motion.div 
+                {/* DASHBOARD CARDS — substitui o carrossel */}
+                <motion.div
                     initial={{ x: -50, opacity: 0 }}
                     animate={{ x: showContent ? 0 : -50, opacity: showContent ? 1 : 0 }}
                     transition={{ type: 'spring', stiffness: 60, damping: 15, delay: showContent ? 0.6 : 0 }}
@@ -538,76 +538,20 @@ export const DashboardLayout: React.FC<DashboardProps> = ({
                         <InvertedCorner position="bottom-left" size={40} fill={cornerColor} />
                     </div>
 
-                    <div id="tut-carousel" className={`w-full max-w-[320px] md:w-[322px] rounded-[2rem] md:rounded-none md:rounded-tr-[40px] p-0 md:p-6 md:pb-12 relative transition-colors duration-500 bg-transparent md:${frameBg}`}>
-                        <div className="relative h-[240px] w-full perspective-1000">
-                             {[0, 1, 2].map((idx) => {
-                                 const position = (idx - carouselIndex + TOTAL_SLIDES) % TOTAL_SLIDES;
-                                 const isTop = position === 0;
-                                 const isBehind = position === 1;
-                                 const zIndex = isTop ? 30 : isBehind ? 20 : 10;
-                                 const scale = isTop ? 1 : isBehind ? 0.94 : 0.88;
-                                 const y = isTop ? 0 : isBehind ? -16 : -32;
-                                 const opacity = isTop ? 1 : isBehind ? 0.6 : 0.3;
-
-                                 const cardBg = isMono 
-                                    ? (isDarkMode ? 'bg-black border-white/20' : 'bg-white border-black/10')
-                                    : (isDarkMode ? `bg-slate-900/90 border-white/10` : `bg-white/90 border-white/50`);
-
-                                 return (
-                                     <motion.div 
-                                        key={idx}
-                                        animate={{ scale, y, zIndex, opacity }}
-                                        transition={{ type: "spring", stiffness: 300, damping: 30 }}
-                                        className={`absolute inset-0 rounded-[2rem] p-6 border h-full flex flex-col overflow-hidden shadow-2xl origin-bottom backdrop-blur-xl ${cardBg}`}
-                                        style={{ pointerEvents: isTop ? 'auto' : 'none' }}
-                                        drag={isTop ? "x" : false}
-                                        dragConstraints={{ left: 0, right: 0 }}
-                                        dragElastic={0.2}
-                                        onDragEnd={isTop ? onDragEnd : undefined}
-                                        whileTap={isTop ? { scale: 0.98 } : undefined}
-                                     >
-                                         {renderSlideContent(idx)}
-                                     </motion.div>
-                                 );
-                             })}
-                        </div>
-                        <div className="flex items-center justify-between px-2 mt-3 relative z-40">
-                             <div className="flex items-center gap-2">
-                                 {[0, 1, 2].map((idx) => (
-                                     <button key={idx} onClick={() => setCarouselIndex(idx)} className={`h-1.5 rounded-full transition-all duration-300 ${carouselIndex === idx ? (isMono ? (isDarkMode ? 'w-6 bg-white' : 'w-6 bg-black') : `w-6 bg-${primaryColor}-500`) : `w-1.5 ${isDarkMode ? 'bg-white/20' : 'bg-gray-300'}`}`} />
-                                 ))}
-                             </div>
-                             <button onClick={handleNextSlide} className={`w-8 h-8 rounded-full flex items-center justify-center transition-all active:scale-95 ${isDarkMode ? 'bg-white/10 hover:bg-white/20 text-white' : 'bg-black/5 hover:bg-black/10 text-black'}`}><ChevronRight size={16} /></button>
-                        </div>
+                    <div id="tut-carousel" className={`w-full max-w-[320px] md:w-[322px] md:rounded-none md:rounded-tr-[40px] p-0 md:p-6 md:pb-12 relative transition-colors duration-500 bg-transparent md:${frameBg}`}>
+                        {showContent ? renderDashboardCards() : (
+                            <div className="space-y-3">
+                                {[1, 2, 3].map(i => (
+                                    <div key={i} className={`h-20 rounded-2xl animate-pulse ${isDarkMode ? 'bg-white/5' : 'bg-black/5'}`} />
+                                ))}
+                            </div>
+                        )}
                     </div>
 
                     <div className="hidden md:block absolute bottom-0 -right-[40px] w-[40px] h-[40px]">
                         <InvertedCorner position="bottom-left" size={40} fill={cornerColor} />
                     </div>
                 </motion.div>
-
-                {/* MOBILE: Secondary Info List */}
-                <div className="md:hidden w-full max-w-[320px] mx-auto mt-6 space-y-4 pb-8">
-                     <div className={`p-4 rounded-2xl border backdrop-blur-sm ${isDarkMode ? 'bg-black/40 border-white/10' : 'bg-white/60 border-white/20'}`}>
-                         <div className="flex justify-between items-center mb-3">
-                            <h3 className={`text-xs font-bold uppercase ${frameText}`}>Próximas Entregas</h3>
-                            <div className={`text-[10px] px-2 py-0.5 rounded-md ${isDarkMode ? 'bg-white/10' : 'bg-black/10'}`}>{classroomWork.length}</div>
-                         </div>
-                         {isClassroomLinked ? (
-                             <>
-                                {classroomWork.slice(0, 3).map(work => (
-                                    <div key={work.id} className="flex justify-between items-center py-2 border-b border-dashed border-gray-500/10 last:border-0">
-                                        <span className={`text-xs truncate max-w-[70%] ${frameText}`}>{work.title}</span>
-                                        <span className={`text-[10px] font-bold ${isMono ? (isDarkMode ? 'text-white' : 'text-black') : (isDarkMode ? `text-${primaryColor}-400` : `text-${primaryColor}-600`)}`}>{work.jsDate?.toLocaleDateString('pt-BR', {day: '2-digit', month: '2-digit'})}</span>
-                                    </div>
-                                ))}
-                                {classroomWork.length === 0 && <p className="text-xs opacity-50 text-center py-2">Nada pendente.</p>}
-                             </>
-                         ) : (
-                             <div className="text-center py-4"><p className="text-xs opacity-50 mb-2">Classroom não vinculado</p><button onClick={onOpenSettings} className={`text-[10px] font-bold uppercase underline ${isDarkMode ? 'text-white' : 'text-black'}`}>Conectar</button></div>
-                         )}
-                     </div>
-                </div>
 
            </div>
         </div>

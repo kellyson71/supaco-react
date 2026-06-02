@@ -20,12 +20,15 @@ export const LandingPage: React.FC<LandingPageProps> = ({
 }) => {
   
   const [showLogin, setShowLogin] = useState(false);
-  
+
   // Login State
   const [mat, setMat] = useState('');
   const [pass, setPass] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
+  const [rememberMe, setRememberMe] = useState(
+      localStorage.getItem('suap_remember_me') !== 'false'
+  );
 
   // SUAP OAuth Config
   const CLIENT_ID = 'mtwXt4wCesctJiKA6BbRQ7DMROTJeNosSpQUc7dm';
@@ -62,11 +65,12 @@ export const LandingPage: React.FC<LandingPageProps> = ({
             localStorage.setItem('suap_access_token', data.access);
             localStorage.setItem('suap_refresh_token', data.refresh);
             localStorage.setItem('suap_username', mat);
-            
-            onLogin(); 
+            localStorage.setItem('suap_remember_me', String(rememberMe));
+
+            onLogin();
             setTimeout(() => {
                 onComplete();
-            }, 800); 
+            }, 800);
         } else {
             setError('Matrícula ou senha inválidos.');
         }
@@ -221,10 +225,21 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                                 </motion.div>
                             )}
 
-                            <button 
+                            <button
+                                type="button"
+                                onClick={() => setRememberMe(v => !v)}
+                                className="flex items-center gap-3 w-full px-1 py-1 mt-1 group"
+                            >
+                                <div className={`w-4 h-4 rounded flex items-center justify-center shrink-0 border transition-colors ${rememberMe ? 'bg-white border-white' : 'border-white/30 bg-transparent'}`}>
+                                    {rememberMe && <svg width="10" height="10" viewBox="0 0 10 10" fill="none"><path d="M2 5l2 2 4-4" stroke="black" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>}
+                                </div>
+                                <span className="text-[11px] font-bold text-white/60 group-hover:text-white/90 transition-colors">Lembrar de mim</span>
+                            </button>
+
+                            <button
                                 type="submit"
                                 disabled={!mat || !pass || isLoading}
-                                className={`w-full py-4 rounded-xl font-bold text-xs uppercase tracking-widest flex items-center justify-center gap-2 transition-all mt-4
+                                className={`w-full py-4 rounded-xl font-bold text-xs uppercase tracking-widest flex items-center justify-center gap-2 transition-all mt-2
                                     ${!mat || !pass ? 'opacity-50 cursor-not-allowed bg-white/10 text-white' : `bg-white text-black hover:scale-[1.02] shadow-lg`}`}
                             >
                                 {isLoading ? <div className="w-4 h-4 border-2 border-black/30 border-t-black rounded-full animate-spin" /> : 'Entrar'}

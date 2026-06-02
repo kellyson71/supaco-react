@@ -23,6 +23,7 @@ interface LeftSidebarProps {
   frameBg: string;
   frameText: string;
   themeVariant: ThemeVariant;
+  criticalAbsencesCount?: number;
 }
 
 const ClassroomIcon = ({ size = 20, className = "" }: { size?: number, className?: string }) => (
@@ -44,22 +45,27 @@ const ClassroomIcon = ({ size = 20, className = "" }: { size?: number, className
     />
 );
 
-const NavItem = ({ icon, active, onClick, label, activeColor, isDark, isMono }: any) => (
-  <button 
+const NavItem = ({ icon, active, onClick, label, activeColor, isDark, isMono, badge }: any) => (
+  <button
     onClick={onClick}
     className={`w-12 h-12 rounded-2xl flex items-center justify-center transition-all duration-300 group relative
-      ${active 
-        ? (isMono 
-            ? (isDark ? 'bg-white text-black scale-110 shadow-white/30' : 'bg-black text-white scale-110 shadow-black/30') 
-            : `bg-${activeColor}-500 text-white shadow-lg shadow-${activeColor}-500/40 scale-110`) 
+      ${active
+        ? (isMono
+            ? (isDark ? 'bg-white text-black scale-110 shadow-white/30' : 'bg-black text-white scale-110 shadow-black/30')
+            : `bg-${activeColor}-500 text-white shadow-lg shadow-${activeColor}-500/40 scale-110`)
         : (isDark ? 'text-gray-400 hover:bg-white/10 hover:text-white' : 'text-gray-400 hover:bg-gray-100 hover:text-gray-600')
       }
     `}
     title={label}
   >
     {React.cloneElement(icon, { size: 20 })}
+    {badge != null && badge > 0 && (
+      <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 bg-red-500 text-white text-[9px] font-black rounded-full flex items-center justify-center leading-none shadow-sm">
+        {badge > 9 ? '9+' : badge}
+      </span>
+    )}
     {active && (
-      <motion.div 
+      <motion.div
         layoutId="activeNavIndicator"
         className="absolute -right-2 w-1 h-6 rounded-full bg-white"
         transition={{ type: "spring", stiffness: 300, damping: 30 }}
@@ -70,7 +76,8 @@ const NavItem = ({ icon, active, onClick, label, activeColor, isDark, isMono }: 
 
 export const LeftSidebar: React.FC<LeftSidebarProps> = ({
   activeNav, onNavClick, isDarkMode, onToggleTheme, isRefreshing, onRefresh,
-  userData, userPhoto, primaryColor, isPremium, cornerColor, frameBg, frameText, themeVariant
+  userData, userPhoto, primaryColor, isPremium, cornerColor, frameBg, frameText, themeVariant,
+  criticalAbsencesCount = 0
 }) => {
   const isMono = themeVariant === 'monochrome';
 
@@ -80,7 +87,7 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
       <div className={`text-xl font-black italic mb-10 transition-colors duration-500 ${frameText}`}>SUPACO</div>
       
       <nav className="flex flex-col gap-6 w-full items-center flex-1">
-        <NavItem isDark={isDarkMode} isMono={isMono} icon={<BookOpen />} active={activeNav === ViewState.GRADES} onClick={() => onNavClick(ViewState.GRADES)} label="Boletim" activeColor={primaryColor} />
+        <NavItem isDark={isDarkMode} isMono={isMono} icon={<BookOpen />} active={activeNav === ViewState.GRADES} onClick={() => onNavClick(ViewState.GRADES)} label="Boletim" activeColor={primaryColor} badge={criticalAbsencesCount} />
         <NavItem isDark={isDarkMode} isMono={isMono} icon={<CalendarIcon />} active={activeNav === ViewState.SCHEDULE} onClick={() => onNavClick(ViewState.SCHEDULE)} label="Horário" activeColor={primaryColor} />
         <NavItem isDark={isDarkMode} isMono={isMono} icon={<ClassroomIcon />} active={activeNav === ViewState.CLASSROOM} onClick={() => onNavClick(ViewState.CLASSROOM)} label="Classroom" activeColor={primaryColor} />
         

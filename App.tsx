@@ -153,21 +153,59 @@ const App: React.FC = () => {
   const [initialChatContext, setInitialChatContext] = useState<ChatMessage[] | null>(null);
   const [pendingChatPrompt, setPendingChatPrompt] = useState<string | undefined>(undefined);
 
+  const isTokenExpiredOrSoon = (token: string): boolean => {
+      try {
+          const payload = JSON.parse(atob(token.split('.')[1]));
+          return Date.now() > payload.exp * 1000 - 5 * 60 * 1000;
+      } catch { return true; }
+  };
+
   useEffect(() => {
     const initApp = async () => {
       try { await document.fonts.ready; } catch (e) { console.warn("Fonts loading timeout"); }
 
-      fetchHolidays(); 
+      // Auto-ativar modo performance em mobile na primeira visita
+      const isMobileDevice = window.innerWidth < 768 || navigator.maxTouchPoints > 0;
+      const hasCustomPerf = localStorage.getItem(CACHE_KEYS.PERFORMANCE);
+      if (isMobileDevice && !hasCustomPerf) {
+          const mobileDefaults = { reduceMotion: true, disableBlur: true, disableGlow: false };
+          localStorage.setItem(CACHE_KEYS.PERFORMANCE, JSON.stringify(mobileDefaults));
+          setPerformanceSettings(mobileDefaults);
+      }
+
+      fetchHolidays();
       const token = localStorage.getItem('suap_access_token');
+      const refreshToken = localStorage.getItem('suap_refresh_token');
       const matricula = localStorage.getItem('suap_username');
 
-      if (token && matricula) {
-        setIsLoggedIn(true);
-        loadUserCache(matricula);
-        if (navigator.onLine) {
-          fetchAllUserDataBackground(matricula, false);
-          checkSubscription(matricula);
-        }
+      if (matricula) {
+          // Carregar cache imediatamente para app mostrar dados sem esperar
+          loadUserCache(matricula);
+
+          if (token && !isTokenExpiredOrSoon(token)) {
+              // Token válido
+              setIsLoggedIn(true);
+              if (navigator.onLine) {
+                  fetchAllUserDataBackground(matricula, false);
+                  checkSubscription(matricula);
+              }
+          } else if (refreshToken && navigator.onLine) {
+              // Token expirado ou ausente — tentar refresh proativo
+              const refreshed = await refreshSuapToken();
+              if (refreshed) {
+                  setIsLoggedIn(true);
+                  fetchAllUserDataBackground(matricula, false);
+                  checkSubscription(matricula);
+              } else {
+                  // Refresh falhou: manter cache mas pedir login (LoginModal, não landing)
+                  setIsLoggedIn(false);
+              }
+          } else if (token) {
+              // Offline com token existente: usar como está
+              setIsLoggedIn(true);
+          } else {
+              setIsLoggedIn(false);
+          }
       }
 
       if (currentWallpaper) {
@@ -1118,6 +1156,10 @@ const App: React.FC = () => {
       }
   }, [themeVariant, currentWallpaper]);
 
+  const criticalAbsencesCount = useMemo(() =>
+      processedGrades.filter(g => g.limit > 0 && (g.limit - g.absences) <= 2).length
+  , [processedGrades]);
+
   if (isCallbackRoute) return <CallbackPage isDarkMode={isDarkMode} primaryColor={palette.primary} />;
   if (!isAppReady) return <SplashScreen />;
 
@@ -1325,7 +1367,7 @@ const App: React.FC = () => {
             
             {(isLoggedIn || userData) && !showLanding && (
                <Suspense fallback={null}>
-                   <MobileNavBar currentView={currentView} onChangeView={handleViewChange} isDarkMode={isDarkMode} primaryColor={palette.primary} />
+                   <MobileNavBar currentView={currentView} onChangeView={handleViewChange} isDarkMode={isDarkMode} primaryColor={palette.primary} criticalAbsencesCount={criticalAbsencesCount} />
                </Suspense>
             )}
         </div>

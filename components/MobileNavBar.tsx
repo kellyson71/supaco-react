@@ -10,6 +10,7 @@ interface MobileNavBarProps {
   onChangeView: (view: ViewState) => void;
   isDarkMode: boolean;
   primaryColor: string;
+  criticalAbsencesCount?: number;
 }
 
 const ClassroomIcon = ({ size = 22, className = "" }: { size?: number, className?: string }) => (
@@ -31,8 +32,8 @@ const ClassroomIcon = ({ size = 22, className = "" }: { size?: number, className
     />
 );
 
-export const MobileNavBar: React.FC<MobileNavBarProps> = ({ currentView, onChangeView, isDarkMode, primaryColor }) => {
-  
+export const MobileNavBar: React.FC<MobileNavBarProps> = ({ currentView, onChangeView, isDarkMode, primaryColor, criticalAbsencesCount = 0 }) => {
+
   // Basic Nav Items (Home and Absences removed)
   const navItems = [
     { id: ViewState.GRADES, icon: BookOpen, label: 'Boletim' },
@@ -75,7 +76,14 @@ export const MobileNavBar: React.FC<MobileNavBarProps> = ({ currentView, onChang
               )}
               
               <div className={`relative z-10 transition-colors flex items-center justify-center ${isActive ? `text-${primaryColor}-500` : (isDarkMode ? 'text-gray-500' : 'text-gray-400')}`}>
-                 <item.icon size={22} />
+                 <div className="relative">
+                   <item.icon size={22} />
+                   {item.id === ViewState.GRADES && criticalAbsencesCount > 0 && (
+                     <span className="absolute -top-1.5 -right-1.5 min-w-[16px] h-[16px] px-0.5 bg-red-500 text-white text-[8px] font-black rounded-full flex items-center justify-center leading-none">
+                       {criticalAbsencesCount > 9 ? '9+' : criticalAbsencesCount}
+                     </span>
+                   )}
+                 </div>
               </div>
               
               {isActive && (
