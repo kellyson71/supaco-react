@@ -9,6 +9,7 @@ import { ViewState, ThemeVariant, SuapProfile, SuapMeusDadosAluno, SuapPeriod, S
 import { googleCredentials } from './google_credentials';
 import { geminiCredentials } from './gemini_credentials';
 import { CallbackPage } from './components/CallbackPage';
+import { FlashPage } from './components/FlashPage';
 
 // --- DYNAMIC IMPORTS (Code Splitting) ---
 const DashboardLayout = React.lazy(() => import('./components/DashboardLayout').then(module => ({ default: module.DashboardLayout })));
@@ -99,9 +100,11 @@ interface ChatMessage {
 
 const App: React.FC = () => {
   const [isCallbackRoute, setIsCallbackRoute] = useState(() => window.location.pathname === '/callback');
+  const [isFlashRoute] = useState(() => window.location.pathname === '/flash');
   const [isAppReady, setIsAppReady] = useState(false);
   const [showLanding, setShowLanding] = useState(() => {
-      return !localStorage.getItem(CACHE_KEYS.WELCOME_SEEN) && window.location.pathname !== '/callback';
+      const path = window.location.pathname;
+      return !localStorage.getItem(CACHE_KEYS.WELCOME_SEEN) && path !== '/callback' && path !== '/flash';
   });
 
   const [currentView, setCurrentView] = useState<ViewState>(ViewState.DASHBOARD);
@@ -1171,6 +1174,14 @@ const App: React.FC = () => {
 
   if (isCallbackRoute) return <CallbackPage isDarkMode={isDarkMode} primaryColor={palette.primary} />;
   if (!isAppReady) return <SplashScreen />;
+  if (isFlashRoute) return (
+    <FlashPage
+      grades={processedGrades}
+      schedule={processedSchedule}
+      isDark={isDarkMode}
+      primaryColor={palette.primary}
+    />
+  );
 
   return (
     <div className={`font-sans antialiased transition-colors duration-500 ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
