@@ -2,6 +2,7 @@
 
 export enum ViewState {
   DASHBOARD = 'DASHBOARD',
+  QUICK = 'QUICK',
   GRADES = 'GRADES',
   ABSENCES = 'ABSENCES',
   SCHEDULE = 'SCHEDULE',

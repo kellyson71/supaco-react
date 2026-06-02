@@ -1,8 +1,8 @@
 import React from 'react';
 import { motion } from 'framer-motion';
-import { 
-  BookOpen, Calendar as CalendarIcon, 
-  Flag, Shield, RefreshCw, Moon, Sun, Sparkles
+import {
+  BookOpen, Calendar as CalendarIcon,
+  Flag, Shield, RefreshCw, Moon, Sun, Sparkles, Zap
 } from 'lucide-react';
 import { InvertedCorner } from '../InvertedCorner';
 import { ViewState, ThemeVariant } from '../../types';
@@ -87,6 +87,7 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
       <div className={`text-xl font-black italic mb-10 transition-colors duration-500 ${frameText}`}>SUPACO</div>
       
       <nav className="flex flex-col gap-6 w-full items-center flex-1">
+        <NavItem isDark={isDarkMode} isMono={isMono} icon={<Zap />} active={activeNav === ViewState.QUICK} onClick={() => onNavClick(ViewState.QUICK)} label="Visão Rápida" activeColor={primaryColor} />
         <NavItem isDark={isDarkMode} isMono={isMono} icon={<BookOpen />} active={activeNav === ViewState.GRADES} onClick={() => onNavClick(ViewState.GRADES)} label="Boletim" activeColor={primaryColor} badge={criticalAbsencesCount} />
         <NavItem isDark={isDarkMode} isMono={isMono} icon={<CalendarIcon />} active={activeNav === ViewState.SCHEDULE} onClick={() => onNavClick(ViewState.SCHEDULE)} label="Horário" activeColor={primaryColor} />
         <NavItem isDark={isDarkMode} isMono={isMono} icon={<ClassroomIcon />} active={activeNav === ViewState.CLASSROOM} onClick={() => onNavClick(ViewState.CLASSROOM)} label="Classroom" activeColor={primaryColor} />

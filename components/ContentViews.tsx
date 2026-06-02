@@ -10,6 +10,7 @@ import { ConclusionModal } from './modals/ConclusionModal';
 import { AdminModal } from './modals/AdminModal';
 import { AIStudioModal } from './modals/AIStudioModal';
 import { ProfileLayout } from './profile/ProfileLayout';
+import { QuickView } from './QuickView';
 
 interface ChatMessage {
   id: string;
@@ -143,7 +144,8 @@ export const ContentView: React.FC<OverlayViewProps> = ({
             <div className={`h-16 md:h-20 border-b ${borderClass} flex items-center justify-between px-6 md:px-8 ${bgClass} shrink-0`}>
                 <div className="flex-1 min-w-0 pr-4">
                     <h2 className={`text-xl md:text-3xl font-black tracking-tight uppercase ${textClass} truncate`}>
-                        {view === ViewState.GRADES ? 'Boletim Escolar' : 
+                        {view === ViewState.QUICK ? 'Visão Rápida' :
+                        view === ViewState.GRADES ? 'Boletim Escolar' :
                         view === ViewState.SCHEDULE ? 'Horário Semanal' :
                         view === ViewState.CLASSROOM ? 'Google Classroom' :
                         view === ViewState.CONCLUSION ? 'Progresso do Curso' :
@@ -159,6 +161,17 @@ export const ContentView: React.FC<OverlayViewProps> = ({
 
         {/* CONTENT BODY */}
         <div className={`flex-1 overflow-hidden relative flex flex-col ${innerBgClass}`}>
+            {view === ViewState.QUICK && (
+                <div className="flex-1 overflow-y-auto p-4 md:p-8 custom-scroll">
+                    <QuickView
+                        grades={grades}
+                        schedule={schedule}
+                        isDark={isDarkMode}
+                        primaryColor={primaryColor}
+                    />
+                </div>
+            )}
+
             {view === ViewState.GRADES && (
                 <div className="flex-1 overflow-y-auto p-4 md:p-8 custom-scroll">
                     <GradesModal 
@@ -182,7 +195,6 @@ export const ContentView: React.FC<OverlayViewProps> = ({
                         isDark={isDarkMode}
                         accentColor={primaryColor}
                         secondaryColor={secondaryColor}
-                        grades={grades}
                     />
                 </div>
             )}

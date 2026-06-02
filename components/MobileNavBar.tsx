@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { BookOpen, Calendar, Shield, Sparkles } from 'lucide-react';
+import { BookOpen, Calendar, Shield, Sparkles, Zap } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { ViewState } from '../types';
 import { SecureStorage } from '../services/SecureStorage';
@@ -36,9 +36,9 @@ export const MobileNavBar: React.FC<MobileNavBarProps> = ({ currentView, onChang
 
   // Basic Nav Items (Home and Absences removed)
   const navItems = [
+    { id: ViewState.QUICK, icon: Zap, label: 'Hoje' },
     { id: ViewState.GRADES, icon: BookOpen, label: 'Boletim' },
     { id: ViewState.SCHEDULE, icon: Calendar, label: 'Horário' },
-    { id: ViewState.AI_STUDIO, icon: Sparkles, label: 'AI Studio' },
     { id: ViewState.CLASSROOM, icon: ClassroomIcon, label: 'Class' },
   ];
 
