@@ -177,11 +177,12 @@ export const ContentView: React.FC<OverlayViewProps> = ({
             
             {view === ViewState.SCHEDULE && (
                 <div className="flex-1 overflow-y-auto p-4 md:p-8 custom-scroll">
-                    <ScheduleModal 
-                        schedule={schedule} 
-                        isDark={isDarkMode} 
-                        accentColor={primaryColor} 
-                        secondaryColor={secondaryColor} 
+                    <ScheduleModal
+                        schedule={schedule}
+                        isDark={isDarkMode}
+                        accentColor={primaryColor}
+                        secondaryColor={secondaryColor}
+                        grades={grades}
                     />
                 </div>
             )}
