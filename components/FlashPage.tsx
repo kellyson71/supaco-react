@@ -2,7 +2,7 @@ import React, { useState, useMemo } from 'react';
 import {
   Zap, CheckCircle, AlertTriangle, XCircle,
   Clock, MapPin, Calendar, ArrowUpRight,
-  TrendingUp, BookOpen, Activity
+  TrendingUp, BookOpen, Activity, GraduationCap, Sunrise, ChevronRight
 } from 'lucide-react';
 import { GradeInfo, ProcessedClass } from '../types';
 
@@ -100,6 +100,25 @@ export const FlashPage: React.FC<FlashPageProps> = ({ grades, schedule, isDark, 
   const sortedGrades = [...grades]
     .filter(g => g.limit > 0)
     .sort((a, b) => (a.limit - a.absences) - (b.limit - b.absences));
+
+  // Tomorrow
+  const tomorrowDow   = (dow + 1) % 7;
+  const tomorrowIdx   = DAYS.findIndex((_, i) => DAY_INT[i] === tomorrowDow);
+  const tomorrowLabel = DAYS[tomorrowIdx] ?? '';
+  const tomorrowGrouped = tomorrowLabel ? group(dayClasses(tomorrowLabel)) : [];
+
+  // Today's attendance summary
+  const todayStatuses = group(dayClasses(todayLabel))
+    .map(c => absStatus(findGrade(c.name))).filter(Boolean) as AbsStatus[];
+  const todayCritical = todayStatuses.filter(s => s.type === 'critical' || s.type === 'over' || s.type === 'limit').length;
+  const todaySafe     = todayStatuses.filter(s => s.type === 'safe').length;
+
+  // Grade parser
+  const parseGrade = (v: string | number | null | undefined): number | null => {
+    if (v === null || v === undefined || v === '-') return null;
+    const n = typeof v === 'string' ? parseFloat(v.replace(',', '.')) : v;
+    return isNaN(n) ? null : n;
+  };
 
   // ── color tokens ─────────────────────────────────────────────────────────
 
@@ -200,7 +219,7 @@ export const FlashPage: React.FC<FlashPageProps> = ({ grades, schedule, isDark, 
           </h1>
 
           {/* stat chips */}
-          <div className="flex gap-3 flex-wrap">
+          <div className="flex gap-3 flex-wrap mb-5">
             {[
               { icon: Calendar, val: todayGrouped.length > 0 ? `${todayGrouped.length}` : '0', label: 'aulas hoje', dim: todayGrouped.length === 0 },
               { icon: TrendingUp, val: `${totalRemaining}`, label: 'faltas restam', dim: false },
@@ -222,6 +241,29 @@ export const FlashPage: React.FC<FlashPageProps> = ({ grades, schedule, isDark, 
               </div>
             ))}
           </div>
+
+          {/* Today attendance alert banner */}
+          {todayGrouped.length > 0 && todayStatuses.length > 0 && (() => {
+            const allSafe = todayCritical === 0;
+            const bg   = allSafe
+              ? (isDark ? 'rgba(34,197,94,0.08)' : 'rgba(34,197,94,0.07)')
+              : (isDark ? 'rgba(239,68,68,0.10)' : 'rgba(239,68,68,0.08)');
+            const bord = allSafe
+              ? (isDark ? 'rgba(34,197,94,0.20)' : 'rgba(34,197,94,0.20)')
+              : (isDark ? 'rgba(239,68,68,0.25)' : 'rgba(239,68,68,0.20)');
+            const col  = allSafe ? (isDark ? '#4ade80' : '#16a34a') : (isDark ? '#f87171' : '#dc2626');
+            const Icon = allSafe ? CheckCircle : AlertTriangle;
+            const msg  = allSafe
+              ? `Você pode faltar em ${todaySafe} matéria${todaySafe !== 1 ? 's' : ''} hoje.`
+              : `Atenção: ${todayCritical} matéria${todayCritical !== 1 ? 's' : ''} não pode${todayCritical !== 1 ? 'm' : ''} faltar hoje.`;
+            return (
+              <div style={{ background: bg, border: `1px solid ${bord}`, borderRadius: 14, color: col }}
+                className="flex items-center gap-3 px-4 py-3">
+                <Icon size={16} strokeWidth={2.5} />
+                <span className="text-sm font-bold">{msg}</span>
+              </div>
+            );
+          })()}
         </section>
 
         {/* ── TODAY'S CLASSES ── */}
@@ -328,6 +370,45 @@ export const FlashPage: React.FC<FlashPageProps> = ({ grades, schedule, isDark, 
           )}
         </section>
 
+        {/* ── AMANHÃ ── */}
+        {tomorrowGrouped.length > 0 && (
+          <section className="mb-10 fade-up fade-up-3">
+            <SectionLabel icon={Sunrise} label={`Amanhã — ${tomorrowLabel}`} />
+            <div className="space-y-2">
+              {tomorrowGrouped.map((c, i) => {
+                const g  = findGrade(c.name);
+                const st = absStatus(g);
+                const barColor = st ? STATUS[st.type].dot : (isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.08)');
+                return (
+                  <div key={i} style={{ background: CARD, border: `1px solid ${BORD}`, borderRadius: 16, overflow: 'hidden' }}
+                    className="flex items-stretch">
+                    <div style={{ width: 3, background: barColor, flexShrink: 0 }} />
+                    <div className="flex items-center gap-3 px-4 py-3 flex-1 min-w-0">
+                      <span style={{ fontFamily: "'DM Mono', monospace", color: TEXT, fontSize: 13, fontWeight: 600, flexShrink: 0 }}>
+                        {c.startTime}
+                      </span>
+                      <div style={{ width: 1, height: 16, background: RULE, flexShrink: 0 }} />
+                      <span style={{ color: TEXT, fontSize: 13, fontWeight: 600 }} className="truncate flex-1">
+                        {clean(c.name)}
+                      </span>
+                      {room(c.room) && (
+                        <span style={{ color: SUB, fontSize: 11, flexShrink: 0 }} className="flex items-center gap-1">
+                          <MapPin size={9} strokeWidth={2} /> {room(c.room)}
+                        </span>
+                      )}
+                      {st && (
+                        <span style={{ color: STATUS[st.type].text, fontSize: 11, fontWeight: 700, flexShrink: 0 }}>
+                          {STATUS[st.type].label(st.remaining)}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </section>
+        )}
+
         {/* ── WEEK STRIP ── */}
         <section className="mb-10 fade-up fade-up-3">
           <SectionLabel icon={Calendar} label="Visão da semana" />
@@ -376,8 +457,63 @@ export const FlashPage: React.FC<FlashPageProps> = ({ grades, schedule, isDark, 
           </div>
         </section>
 
+        {/* ── BOLETIM / NOTAS ── */}
+        {grades.length > 0 && (
+          <section className="mb-10 fade-up fade-up-4">
+            <SectionLabel icon={GraduationCap} label="Notas do período" />
+            <div style={{ background: CARD, border: `1px solid ${BORD}`, borderRadius: 20, overflow: 'hidden' }}>
+              {grades.map((g, i) => {
+                const avg = parseGrade(g.average);
+                const notes = [g.n1, g.n2, g.n3, g.n4].map(parseGrade);
+                const avgOk = avg !== null && avg >= 60;
+                const avgBad = avg !== null && avg < 60;
+                return (
+                  <div key={g.code}>
+                    {i > 0 && <div style={{ background: RULE }} className="h-px mx-5" />}
+                    <div className="px-5 py-4">
+                      <div className="flex items-center justify-between gap-3 mb-2.5">
+                        <span style={{ color: TEXT, fontSize: 13, fontWeight: 600 }} className="truncate flex-1">
+                          {clean(g.subject)}
+                        </span>
+                        <div style={{
+                          fontFamily: "'DM Mono', monospace",
+                          color: avgOk ? (isDark?'#4ade80':'#16a34a') : avgBad ? (isDark?'#f87171':'#dc2626') : SUB,
+                          fontSize: 18, fontWeight: 700, flexShrink: 0
+                        }}>
+                          {avg !== null ? avg.toFixed(0) : '—'}
+                        </div>
+                      </div>
+                      <div className="flex gap-1.5">
+                        {notes.map((n, j) => (
+                          <div key={j} style={{
+                            flex: 1,
+                            background: n === null ? RULE : n >= 60 ? (isDark?'rgba(34,197,94,0.12)':'rgba(34,197,94,0.09)') : (isDark?'rgba(239,68,68,0.12)':'rgba(239,68,68,0.08)'),
+                            border: `1px solid ${n === null ? 'transparent' : n >= 60 ? (isDark?'rgba(34,197,94,0.20)':'rgba(34,197,94,0.18)') : (isDark?'rgba(239,68,68,0.20)':'rgba(239,68,68,0.15)')}`,
+                            borderRadius: 8, padding: '5px 0', textAlign: 'center' as const
+                          }}>
+                            <div style={{ color: SUB, fontSize: 8, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase' as const, marginBottom: 2 }}>
+                              N{j+1}
+                            </div>
+                            <div style={{
+                              fontFamily: "'DM Mono', monospace",
+                              color: n === null ? SUB : n >= 60 ? (isDark?'#4ade80':'#16a34a') : (isDark?'#f87171':'#dc2626'),
+                              fontSize: 13, fontWeight: 600, opacity: n === null ? 0.3 : 1
+                            }}>
+                              {n !== null ? n : '·'}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </section>
+        )}
+
         {/* ── ABSENCE STATUS ── */}
-        <section className="fade-up fade-up-4">
+        <section className="mb-10 fade-up fade-up-4">
           <SectionLabel icon={BookOpen} label="Situação de faltas" />
 
           <div style={{ background: CARD, border: `1px solid ${BORD}`, borderRadius: 20, overflow: 'hidden' }}>
