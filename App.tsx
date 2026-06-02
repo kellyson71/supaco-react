@@ -185,9 +185,8 @@ const App: React.FC = () => {
       const hasSuapCallback = !!urlCode && urlState !== 'google_auth';
 
       if (hasSuapCallback) {
-          // Carregar cache para mostrar dados enquanto o exchange acontece
-          if (matricula) loadUserCache(matricula);
-          // Não tocar em isLoggedIn — exchangeSuapCodeForToken vai setar
+          // Não carregar cache nem tocar em isLoggedIn — evita o LoginModal
+          // durante o exchange; exchangeSuapCodeForToken vai setar tudo
       } else if (matricula) {
           // Carregar cache imediatamente para app mostrar dados sem esperar
           loadUserCache(matricula);

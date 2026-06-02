@@ -289,6 +289,20 @@ export const DashboardLayout: React.FC<DashboardProps> = ({
       return { text: "Moderado", color: primaryColor, sub: `${remaining} restantes` };
   };
 
+  // Helpers de formatação
+  const shortRoom = (room: string): string => {
+    if (!room || room === 'N/A') return room;
+    const salaMatch = room.match(/Sala de Aula\s+(\d+)/i);
+    if (salaMatch) return `Sala ${salaMatch[1]}`;
+    const labMatch = room.match(/(Lab(?:orat[oó]rio)?\s+\d+)/i);
+    if (labMatch) return labMatch[1];
+    const first = room.split(' - ')[0];
+    return first.length <= 12 ? first : first.slice(0, 12) + '…';
+  };
+
+  const cleanSubject = (name: string): string =>
+    name.replace(/\s*\(Curso\s+\d+\)/gi, '').trim();
+
   // Dashboard cards — substitui o carrossel
   const renderDashboardCards = () => {
     const todayInt = new Date().getDay() + 1;
@@ -313,20 +327,22 @@ export const DashboardLayout: React.FC<DashboardProps> = ({
           </div>
           {nextClass ? (
             <div>
-              <div className={`text-base font-black leading-tight mb-2 ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>{nextClass.name}</div>
-              <div className="flex items-center gap-2 flex-wrap">
-                <div className={`flex items-center gap-1 text-[10px] opacity-60 ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>
-                  <MapPin size={10} /> {nextClass.room}
+              <div className={`text-sm font-black leading-tight mb-2 ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                {cleanSubject(nextClass.name)}
+              </div>
+              <div className="flex items-center gap-2">
+                <div className={`flex items-center gap-1 text-[10px] ${isDarkMode ? 'text-gray-500' : 'text-gray-400'}`}>
+                  <MapPin size={9} /> {shortRoom(nextClass.room)}
                 </div>
                 {nextClassGrade && (() => {
                   const conf = getStatusConfig(nextClassGrade);
                   const remaining = nextClassGrade.limit - nextClassGrade.absences;
                   const isAlert = conf.color === 'orange' || conf.color === secondaryColor;
                   return (
-                    <div className={`flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] font-black ml-auto
+                    <div className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10px] font-black ml-auto
                       ${isMono ? 'bg-white/10 text-white' : (isDarkMode ? `bg-${conf.color}-500/20 text-${conf.color}-400` : `bg-${conf.color}-100 text-${conf.color}-700`)}`}>
-                      {isAlert ? <AlertTriangle size={10} /> : <CheckCircle size={10} />}
-                      {remaining} restantes
+                      {isAlert ? <AlertTriangle size={9} /> : <CheckCircle size={9} />}
+                      {remaining < 0 ? 'Reprovado' : `${remaining} restantes`}
                     </div>
                   );
                 })()}
@@ -351,32 +367,37 @@ export const DashboardLayout: React.FC<DashboardProps> = ({
           </div>
           {sortedByAbsences.length > 0 ? (
             <div className="space-y-2.5">
-              {sortedByAbsences.slice(0, 4).map((g) => {
+              {sortedByAbsences.slice(0, 5).map((g) => {
                 const remaining = g.limit - g.absences;
                 const pct = Math.min(g.absences / g.limit, 1);
                 const isOver = remaining < 0;
                 const isCritical = !isOver && remaining <= 2;
                 const isCaution = !isOver && !isCritical && remaining <= 4;
-                const barColor = isOver || isCritical ? 'bg-red-500' : isCaution ? 'bg-orange-400' : (isMono ? (isDarkMode ? 'bg-white' : 'bg-black') : `bg-${primaryColor}-500`);
-                const textColor = isOver || isCritical ? (isDarkMode ? 'text-red-400' : 'text-red-600') : isCaution ? (isDarkMode ? 'text-orange-400' : 'text-orange-600') : (isDarkMode ? 'text-gray-400' : 'text-gray-500');
-                const label = isOver ? 'Reprovado' : isCritical ? 'Crítico' : isCaution ? 'Cuidado' : `${remaining} restam`;
+                const barColor = isOver || isCritical ? 'bg-red-500' : isCaution ? 'bg-orange-400' : (isMono ? (isDarkMode ? 'bg-white/60' : 'bg-black/30') : `bg-${primaryColor}-500`);
+                const countColor = isOver || isCritical ? (isDarkMode ? 'text-red-400' : 'text-red-500') : isCaution ? (isDarkMode ? 'text-orange-400' : 'text-orange-500') : (isDarkMode ? 'text-gray-400' : 'text-gray-500');
+                const statusDot = isOver || isCritical ? 'bg-red-500' : isCaution ? 'bg-orange-400' : (isMono ? (isDarkMode ? 'bg-white/40' : 'bg-black/20') : `bg-${primaryColor}-400`);
                 return (
-                  <div key={g.subject} className="flex items-center gap-2">
+                  <div key={g.subject} className="flex items-center gap-2.5">
+                    <div className={`w-1.5 h-1.5 rounded-full shrink-0 ${statusDot}`} />
                     <div className="flex-1 min-w-0">
-                      <div className={`text-[10px] font-bold truncate mb-1 ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>
-                        {g.subject.split(' ').slice(0, 3).join(' ')}
+                      <div className="flex items-center justify-between gap-1 mb-1">
+                        <span className={`text-[10px] font-bold truncate ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                          {cleanSubject(g.subject).split(' ').slice(0, 3).join(' ')}
+                        </span>
+                        <span className={`text-[10px] font-black shrink-0 ${countColor}`}>
+                          {isOver ? 'Reprovado' : `${remaining} restam`}
+                        </span>
                       </div>
-                      <div className={`h-1.5 rounded-full overflow-hidden ${isDarkMode ? 'bg-white/10' : 'bg-gray-200'}`}>
-                        <div className={`h-full rounded-full transition-all ${barColor}`} style={{ width: `${Math.min(pct * 100, 100)}%` }} />
+                      <div className={`h-1 rounded-full overflow-hidden ${isDarkMode ? 'bg-white/10' : 'bg-gray-200'}`}>
+                        <div className={`h-full rounded-full ${barColor}`} style={{ width: `${Math.min(pct * 100, 100)}%` }} />
                       </div>
                     </div>
-                    <span className={`text-[9px] font-black shrink-0 w-16 text-right ${textColor}`}>{label}</span>
                   </div>
                 );
               })}
-              {sortedByAbsences.length > 4 && (
+              {sortedByAbsences.length > 5 && (
                 <div className={`text-[9px] opacity-40 font-bold ${isDarkMode ? 'text-white' : 'text-black'}`}>
-                  +{sortedByAbsences.length - 4} outras em situação tranquila
+                  +{sortedByAbsences.length - 5} em situação tranquila
                 </div>
               )}
             </div>
@@ -400,12 +421,20 @@ export const DashboardLayout: React.FC<DashboardProps> = ({
               {todaysClasses.map((c, i) => {
                 const isNext = nextClass?.startTime === c.startTime && nextClass?.name === c.name;
                 return (
-                  <div key={i} className={`flex items-center gap-2 px-2 py-1.5 rounded-xl transition-colors
-                    ${isNext ? (isDarkMode ? 'bg-white/10 border border-white/10' : 'bg-gray-100 border border-gray-200') : 'opacity-60'}`}>
-                    <div className={`w-0.5 h-5 rounded-full shrink-0 ${isNext ? (isMono ? (isDarkMode ? 'bg-white' : 'bg-black') : `bg-${primaryColor}-500`) : (isDarkMode ? 'bg-white/20' : 'bg-gray-300')}`} />
-                    <div className={`flex items-center gap-1 text-[9px] opacity-50 shrink-0`}><Clock size={8} /> {c.startTime}</div>
-                    <div className={`text-[10px] font-bold truncate flex-1 ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>{c.name}</div>
-                    <div className={`flex items-center gap-0.5 text-[9px] opacity-40 shrink-0`}><MapPin size={8} /> {c.room}</div>
+                  <div key={i} className={`px-2.5 py-2 rounded-xl transition-colors
+                    ${isNext ? (isDarkMode ? 'bg-white/10 border border-white/10' : 'bg-gray-100 border border-gray-200') : 'opacity-55'}`}>
+                    <div className="flex items-center gap-2">
+                      <div className={`w-0.5 h-full min-h-[28px] rounded-full self-stretch shrink-0 ${isNext ? (isMono ? (isDarkMode ? 'bg-white' : 'bg-black') : `bg-${primaryColor}-500`) : (isDarkMode ? 'bg-white/15' : 'bg-gray-300')}`} />
+                      <div className="flex-1 min-w-0">
+                        <div className={`text-[10px] font-bold truncate leading-tight ${isDarkMode ? 'text-gray-200' : 'text-gray-800'}`}>
+                          {cleanSubject(c.name)}
+                        </div>
+                        <div className={`flex items-center gap-2 mt-0.5 ${isDarkMode ? 'text-gray-500' : 'text-gray-400'}`}>
+                          <span className="flex items-center gap-0.5 text-[9px]"><Clock size={8} /> {c.startTime}</span>
+                          <span className="flex items-center gap-0.5 text-[9px]"><MapPin size={8} /> {shortRoom(c.room)}</span>
+                        </div>
+                      </div>
+                    </div>
                   </div>
                 );
               })}
