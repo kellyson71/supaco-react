@@ -446,7 +446,14 @@ export const DashboardLayout: React.FC<DashboardProps> = ({
 
       <AnimatePresence>
         {!isLoggedIn && !isLoginModalDismissed && userData && (
-          <LoginModal isDarkMode={isDarkMode} primaryColor={primaryColor} onSuapLogin={handleSuapLogin} onGoogleLogin={onLinkClassroom} onDismiss={() => setIsLoginModalDismissed(true)} />
+          <LoginModal
+            isDarkMode={isDarkMode}
+            primaryColor={primaryColor}
+            onSuapLogin={handleSuapLogin}
+            onGoogleLogin={onLinkClassroom}
+            onDismiss={() => setIsLoginModalDismissed(true)}
+            onManualLogin={async () => { onLogin(); return true; }}
+          />
         )}
       </AnimatePresence>
 

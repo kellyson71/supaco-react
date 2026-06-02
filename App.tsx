@@ -178,7 +178,17 @@ const App: React.FC = () => {
       const refreshToken = localStorage.getItem('suap_refresh_token');
       const matricula = localStorage.getItem('suap_username');
 
-      if (matricula) {
+      // Se há código OAuth do SUAP na URL, não interferir — exchangeSuapCodeForToken cuida do login
+      const urlParams = new URLSearchParams(window.location.search);
+      const urlCode = urlParams.get('code');
+      const urlState = urlParams.get('state');
+      const hasSuapCallback = !!urlCode && urlState !== 'google_auth';
+
+      if (hasSuapCallback) {
+          // Carregar cache para mostrar dados enquanto o exchange acontece
+          if (matricula) loadUserCache(matricula);
+          // Não tocar em isLoggedIn — exchangeSuapCodeForToken vai setar
+      } else if (matricula) {
           // Carregar cache imediatamente para app mostrar dados sem esperar
           loadUserCache(matricula);
 
