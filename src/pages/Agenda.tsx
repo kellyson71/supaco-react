@@ -1,11 +1,11 @@
 import { useState } from 'react';
-import { Loader2 } from 'lucide-react';
+import { m } from 'motion/react';
 import { useAvaliacoes, useTasks } from '../lib/data';
 import { classroom, connectClassroom } from '../lib/classroom';
 import { buildDeadlines, type Deadline } from '../lib/agenda';
 import { daysBetween } from '../lib/dates';
 import { refreshAll } from '../lib/store';
-import { Card, Empty, ErrorNote, Eyebrow, PageHeader, Skeleton } from '../components/ui';
+import { Button, Card, EMPHASIZED, Empty, ErrorNote, Item, SectionHeader, Shape, Skeleton, Stagger, TopTitle } from '../components/ui';
 import { DeadlineRow } from './Today';
 
 export function Agenda() {
@@ -17,33 +17,33 @@ export function Agenda() {
   const list = buildDeadlines(suap.data, gc.data);
 
   const now = new Date();
-  const groups: [string, Deadline[]][] = [
-    ['Atrasadas', list.filter((d) => d.date && daysBetween(now, d.date) < 0)],
-    ['Próximos 7 dias', list.filter((d) => d.date && daysBetween(now, d.date) >= 0 && daysBetween(now, d.date) <= 7)],
-    ['Depois', list.filter((d) => d.date && daysBetween(now, d.date) > 7)],
-    ['Sem data', list.filter((d) => !d.date)],
+  const groups: [string, string, Deadline[]][] = [
+    ['Atrasadas', 'running_with_errors', list.filter((d) => d.date && daysBetween(now, d.date) < 0)],
+    ['Esta semana', 'bolt', list.filter((d) => d.date && daysBetween(now, d.date) >= 0 && daysBetween(now, d.date) <= 7)],
+    ['Mais pra frente', 'upcoming', list.filter((d) => d.date && daysBetween(now, d.date) > 7)],
+    ['Sem data', 'event_busy', list.filter((d) => !d.date)],
   ];
 
   return (
-    <div className="rise">
-      <PageHeader title="Agenda" subtitle="Avaliações do SUAP e tarefas do Classroom que você ainda não entregou" />
+    <>
+      <TopTitle title="Agenda" sub={list.length ? `${list.length} ${list.length === 1 ? 'prazo' : 'prazos'} pela frente` : 'Provas do SUAP e tarefas do Classroom'} />
 
-      <ClassroomBanner linked={linked} tokenOk={tokenOk} authError={gc.error?.name === 'ClassroomAuthError' || /Reconecte/.test(gc.error?.message ?? '')} onChange={() => force((x) => x + 1)} />
+      <ClassroomBanner linked={linked} tokenOk={tokenOk} authError={/Reconecte/.test(gc.error?.message ?? '')} onChange={() => force((x) => x + 1)} />
 
       {suap.error && !suap.data && <div className="mb-4"><ErrorNote error={suap.error} onRetry={suap.refresh} /></div>}
       {suap.loading ? <Skeleton className="h-64" /> : list.length === 0 ? (
-        <Card><Empty title="Nenhum prazo pela frente">Quando professores cadastrarem avaliações no SUAP, elas aparecem aqui.</Empty></Card>
+        <Card className="rounded-2xl"><Empty icon="event_available" title="Nenhum prazo pela frente">Quando professores cadastrarem avaliações no SUAP, elas aparecem aqui.</Empty></Card>
       ) : (
-        <div className="flex flex-col gap-6">
-          {groups.filter(([, l]) => l.length).map(([title, l]) => (
-            <div key={title}>
-              <Eyebrow right={<span className="font-mono text-xs text-muted">{l.length}</span>}>{title}</Eyebrow>
-              <Card><ul className="divide-y divide-line">{l.map((d) => <DeadlineRow key={d.id} d={d} />)}</ul></Card>
-            </div>
+        <Stagger className="grid grid-cols-1 gap-6 lg:grid-cols-2 xl:grid-cols-3">
+          {groups.filter(([, , l]) => l.length).map(([title, icon, l]) => (
+            <Item key={title}>
+              <SectionHeader title={`${title} · ${l.length}`} icon={icon} />
+              <div className="flex flex-col gap-1 overflow-hidden rounded-2xl">{l.map((d) => <DeadlineRow key={d.id} d={d} />)}</div>
+            </Item>
           ))}
-        </div>
+        </Stagger>
       )}
-    </div>
+    </>
   );
 }
 
@@ -67,25 +67,23 @@ function ClassroomBanner({ linked, tokenOk, authError, onChange }: { linked: boo
   };
 
   return (
-    <Card className="mb-6 flex flex-col gap-3 p-5 sm:flex-row sm:items-center">
-      <GoogleMark />
+    <m.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4, ease: EMPHASIZED }}
+      className="relative mb-6 flex flex-col gap-4 overflow-hidden rounded-2xl bg-primary-container p-5 text-on-primary-container sm:flex-row sm:items-center">
+      <Shape shape="clover" size={56} className="text-surface"><GoogleMark /></Shape>
       <div className="flex-1">
-        <p className="font-medium">{linked ? 'Reconecte o Google Classroom' : 'Traga as tarefas do Google Classroom'}</p>
-        <p className="mt-0.5 text-sm text-muted">
-          {linked ? 'O acesso do Google expira a cada hora. Um clique renova.' : 'Só leitura: o Supaco vê suas turmas e tarefas pendentes, nada mais.'}
+        <p className="text-lg font-medium">{linked ? 'Reconecte o Google Classroom' : 'Traga suas tarefas do Google Classroom'}</p>
+        <p className="mt-0.5 text-sm opacity-85">
+          {linked ? 'O acesso do Google expira a cada hora. Um toque renova.' : 'Só leitura: o Supaco vê suas turmas e o que falta entregar, nada mais.'}
         </p>
-        {err && <p className="mt-1 text-sm text-bad">{err}</p>}
+        {err && <p className="mt-1 text-sm font-medium text-error">{err}</p>}
       </div>
-      <button onClick={connect} disabled={busy} className="flex items-center justify-center gap-2 rounded-xl bg-ink px-4 py-2.5 text-sm font-semibold text-bg transition hover:opacity-90 disabled:opacity-60">
-        {busy && <Loader2 size={15} className="animate-spin" />}
-        {linked ? 'Reconectar' : 'Conectar'}
-      </button>
-    </Card>
+      <Button icon={busy ? 'progress_activity' : linked ? 'refresh' : 'add_link'} onClick={connect} disabled={busy}>{linked ? 'Reconectar' : 'Conectar'}</Button>
+    </m.div>
   );
 }
 
 const GoogleMark = () => (
-  <svg viewBox="0 0 48 48" className="size-9 shrink-0" aria-hidden>
+  <svg viewBox="0 0 48 48" className="size-6" aria-hidden>
     <path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3C33.7 32.7 29.2 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.8 1.2 7.9 3.1l5.7-5.7C34 6.1 29.3 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20 20-8.9 20-20c0-1.3-.1-2.4-.4-3.5z" />
     <path fill="#FF3D00" d="m6.3 14.7 6.6 4.8C14.7 15.1 19 12 24 12c3.1 0 5.8 1.2 7.9 3.1l5.7-5.7C34 6.1 29.3 4 24 4 16.3 4 9.7 8.3 6.3 14.7z" />
     <path fill="#4CAF50" d="M24 44c5.2 0 9.9-2 13.4-5.2l-6.2-5.2C29.2 35.1 26.7 36 24 36c-5.2 0-9.6-3.3-11.3-8l-6.5 5C9.5 39.6 16.2 44 24 44z" />
