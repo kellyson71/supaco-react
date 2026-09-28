@@ -1,11 +1,12 @@
-import { useState } from 'react';
-import { ArrowLeft, MapPin } from 'lucide-react';
-import { useDisciplinas, usePeriod } from '../lib/data';
-import { absenceLevel, FINAL_MIN, gradeTone, neededFinal, outlook, PASS, weightsFor, type GradeOutlook } from '../lib/grades';
+import { useMemo, useState } from 'react';
+import { useAulas, useCalendario, useDisciplinas, usePeriod } from '../lib/data';
+import { absenceLevel, currentAverage, FINAL_MIN, gradeTone, neededFinal, outlook, PASS, weightsFor, type GradeOutlook } from '../lib/grades';
 import { WEEKDAYS } from '../lib/schedule';
 import { back } from '../lib/router';
-import type { Subject } from '../lib/suap';
-import { Badge, Card, cx, Empty, Eyebrow, levelText, Skeleton, Tally } from '../components/ui';
+import { cleanName, subjectTone, type Aula, type Subject } from '../lib/suap';
+import { TONES } from '../lib/tones';
+import { parseDay } from '../lib/dates';
+import { AbsenceMeter, Badge, Button, Card, CountUp, cx, Empty, Icon, IconButton, Item, levelColor, Ring, SectionHeader, Shape, Skeleton, Stagger } from '../components/ui';
 
 export function SubjectDetail({ code }: { code: string }) {
   const { period } = usePeriod();
@@ -13,54 +14,14 @@ export function SubjectDetail({ code }: { code: string }) {
   const s = data?.find((x) => x.code === code);
 
   return (
-    <div className="rise">
-      <button onClick={() => back('/disciplinas')} className="-ml-2 mb-4 flex items-center gap-1.5 rounded-lg px-2 py-1 text-sm font-medium text-muted hover:text-ink">
-        <ArrowLeft size={16} /> Disciplinas
-      </button>
-      {loading && <Skeleton className="h-80" />}
-      {data && !s && <Card><Empty title="Disciplina não encontrada neste período" /></Card>}
-      {s && <Detail s={s} />}
-    </div>
-  );
-}
-
-function Detail({ s }: { s: Subject }) {
-  const o = outlook(s);
-  const status = s.status && !/cursando/i.test(s.status) ? s.status : null;
-
-  return (
     <>
-      <header className="mb-6">
-        <p className="font-mono text-xs text-muted">{s.sigla}</p>
-        <h1 className="mt-1 font-display text-[28px] leading-tight font-semibold tracking-tight md:text-4xl">{s.name}</h1>
-        <div className="mt-3 flex flex-wrap gap-2">
-          {status && <Badge tone={/aprovad/i.test(status) ? 'brand' : /reprovad/i.test(status) ? 'bad' : 'muted'}>{status}</Badge>}
-          <Badge>{s.workload} aulas no total</Badge>
-          <Badge>{s.stages} {s.stages === 1 ? 'etapa' : 'etapas'}</Badge>
-        </div>
-      </header>
-
-      <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
-        <GradesCard s={s} o={o} />
-        <AbsencesCard s={s} />
+      <div className="mb-3 flex items-center gap-2">
+        <IconButton icon="arrow_back" label="Voltar" onClick={() => back('/disciplinas')} />
+        <span className="text-sm font-medium text-on-surface-variant">Matérias</span>
       </div>
-
-      {s.slots.length > 0 && (
-        <div className="mt-6">
-          <Eyebrow>Horários</Eyebrow>
-          <Card className="divide-y divide-line">
-            {s.slots.map((sl, i) => (
-              <div key={i} className="flex items-center gap-4 px-4 py-3">
-                <span className="w-16 shrink-0 font-medium">{WEEKDAYS[sl.day]}</span>
-                <span className="shrink-0 font-mono text-sm whitespace-nowrap">{sl.start}–{sl.end}</span>
-                <span className="ml-auto flex min-w-0 items-center gap-1 truncate text-sm text-muted">
-                  {sl.room && <><MapPin size={13} />{sl.room}</>}
-                </span>
-              </div>
-            ))}
-          </Card>
-        </div>
-      )}
+      {loading && <Skeleton className="h-80" />}
+      {data && !s && <Card className="rounded-2xl"><Empty icon="search_off" title="Matéria não encontrada neste período" /></Card>}
+      {s && <Detail s={s} />}
     </>
   );
 }
@@ -68,132 +29,229 @@ function Detail({ s }: { s: Subject }) {
 function verdict(o: GradeOutlook, s: Subject): string {
   switch (o.kind) {
     case 'passed': return `Aprovado com média ${Math.round(o.average)}.`;
-    case 'failed': return o.average !== null && o.average < FINAL_MIN ? 'Média abaixo de 20: sem direito à prova final.' : 'Reprovado nesta disciplina.';
-    case 'secured': return 'Média 60 já garantida, mesmo tirando zero no que falta.';
-    case 'empty': return `Sem notas lançadas ainda. Para passar direto, a média precisa chegar a ${PASS}.`;
+    case 'failed': return o.average !== null && o.average < FINAL_MIN ? 'Média abaixo de 20: sem direito à prova final.' : 'Reprovado nesta matéria.';
+    case 'secured': return 'Média 60 garantida, mesmo tirando zero no que falta.';
+    case 'empty': return `Nenhuma nota lançada ainda. Para passar direto, a média precisa chegar a ${PASS}.`;
     case 'needs': {
-      const which = o.stagesLeft === 1 ? `na N${s.grades.findIndex((g) => g === null) + 1}` : `em cada uma das ${o.stagesLeft} etapas restantes`;
-      return o.needed > 100
-        ? `Mesmo com 100 ${which} não dá para fechar 60. Você deve ir para a prova final.`
-        : `Você precisa de ${o.needed} ${which} para passar direto.`;
+      const which = o.stagesLeft === 1 ? `na N${s.grades.findIndex((g) => g === null) + 1}` : `em cada uma das ${o.stagesLeft} etapas que faltam`;
+      return o.needed > 100 ? `Nem com 100 ${which} fecha 60: vai para a prova final.` : `Você precisa de ${o.needed} ${which} para passar direto.`;
     }
-    case 'final': return o.needed !== null ? `Média ${Math.round(o.average)}: vai para a prova final e precisa de ${o.needed} nela.` : `Média ${Math.round(o.average)}: prova final.`;
+    case 'final': return o.needed !== null ? `Média ${Math.round(o.average)}: prova final, e precisa de ${o.needed} nela.` : `Média ${Math.round(o.average)}: prova final.`;
   }
 }
 
-function GradesCard({ s, o }: { s: Subject; o: GradeOutlook }) {
-  const w = weightsFor(s.stages);
-  const [sim, setSim] = useState<Record<number, string>>({});
-  const missing = s.grades.map((g, i) => (g === null ? i : -1)).filter((i) => i >= 0);
-  const simGrades = s.grades.map((g, i) => (g ?? (sim[i] !== undefined && sim[i] !== '' ? Math.min(100, Number(sim[i])) : null)));
-  const simComplete = simGrades.every((g) => g !== null);
-  const simAvg = simComplete ? simGrades.reduce<number>((a, g, i) => a + g! * w[i], 0) / w.reduce((a, b) => a + b, 0) : null;
-  const avg = s.finalAverage ?? s.average;
+function Detail({ s }: { s: Subject }) {
+  const t = TONES[subjectTone(s)];
+  const o = outlook(s);
+  const avg = currentAverage(s);
+  const official = (s.finalAverage ?? s.average) !== null;
+  const status = s.status && !/cursando/i.test(s.status) ? s.status : null;
 
   return (
-    <Card className="p-5">
-      <div className="flex items-baseline justify-between">
-        <h2 className="text-[11px] font-semibold tracking-[0.14em] text-muted uppercase">Notas</h2>
-        <span className="text-xs text-muted">passa com {PASS}</span>
-      </div>
-      <div className="mt-4 flex items-end gap-5">
-        {avg === null && o.kind === 'needs' && o.needed <= 100 ? (
-          <div>
-            <p className="font-mono text-6xl leading-none font-semibold text-ink/70 tabular">{o.needed}</p>
-            <p className="mt-1 text-xs text-muted">precisa{o.stagesLeft > 1 ? ' por etapa' : ` na N${s.grades.indexOf(null) + 1}`}</p>
+    <Stagger className="grid grid-cols-1 gap-4 xl:grid-cols-12">
+      <Item className="xl:col-span-12">
+        <div className={cx('relative overflow-hidden rounded-2xl p-6 md:p-8', t.container, t.onContainer)}>
+          <Shape shape="sunny" size={320} spin className="pointer-events-none absolute -top-24 -right-20 opacity-10" />
+          <div className="relative flex flex-col gap-6 md:flex-row md:items-center">
+            <div className="min-w-0 flex-1">
+              <div className="flex flex-wrap gap-2">
+                {s.sigla && <Badge className="bg-white/50 !text-current dark:bg-black/25">{s.sigla}</Badge>}
+                {status && <Badge className="bg-white/50 !text-current dark:bg-black/25">{status}</Badge>}
+                <Badge className="bg-white/50 !text-current dark:bg-black/25">{s.workload} aulas · {s.stages} {s.stages === 1 ? 'etapa' : 'etapas'}</Badge>
+              </div>
+              <h1 className="mt-3 text-[36px] leading-[44px] font-semibold tracking-tight md:text-[52px] md:leading-[60px]">{s.name}</h1>
+              <p className="mt-2 max-w-xl text-base opacity-90">{verdict(o, s)}</p>
+            </div>
+            <Ring value={(avg ?? 0) / 100} size={132} stroke={12} color="currentColor" track="rgb(0 0 0 / .1)" className="self-start md:self-center">
+              <div className="text-center leading-none">
+                <CountUp value={avg !== null ? Math.round(avg) : null} className="text-[44px] font-semibold" />
+                <p className="mt-1 text-xs font-medium opacity-80">{official ? 'média' : 'média parcial'}</p>
+              </div>
+            </Ring>
           </div>
-        ) : (
-          <div>
-            <p className={cx('font-mono text-6xl leading-none font-semibold tabular', gradeTone(avg))}>{avg ?? '–'}</p>
-            <p className="mt-1 text-xs text-muted">{s.finalAverage !== null ? 'média final' : 'média'}</p>
+        </div>
+      </Item>
+
+      <Item className="xl:col-span-7"><Grades s={s} /></Item>
+      <Item className="xl:col-span-5"><Absences s={s} /></Item>
+      <Item className="xl:col-span-12"><History s={s} /></Item>
+    </Stagger>
+  );
+}
+
+function Grades({ s }: { s: Subject }) {
+  const w = weightsFor(s.stages);
+  const missing = s.grades.map((g, i) => (g === null ? i : -1)).filter((i) => i >= 0);
+  const [sim, setSim] = useState<Record<number, number>>(() => Object.fromEntries(missing.map((i) => [i, 60])));
+  const closed = /aprovad|reprovad/i.test(s.status);
+  const grades = s.grades.map((g, i) => g ?? sim[i] ?? 0);
+  const simAvg = grades.reduce((a, g, i) => a + g * w[i], 0) / w.reduce((a, b) => a + b, 0);
+
+  return (
+    <Card variant="filled" className="h-full rounded-2xl p-5">
+      <SectionHeader title="Notas" icon="grade" action={<span className="text-sm text-on-surface-variant">passa com {PASS}</span>} />
+      <div className="flex gap-2">
+        {s.grades.map((g, i) => (
+          <div key={i} className={cx('flex-1 rounded-lg px-2 py-3 text-center', g === null ? 'border-2 border-dashed border-outline-variant' : 'bg-surface-container-highest')}>
+            <p className="text-xs font-medium text-on-surface-variant">N{i + 1} · peso {w[i]}</p>
+            <p className={cx('mt-1 text-[28px] leading-9 font-semibold tabular', gradeTone(g))}>{g ?? '–'}</p>
+          </div>
+        ))}
+        {s.finalExam !== null && (
+          <div className="flex-1 rounded-lg bg-warning-container px-2 py-3 text-center text-on-warning-container">
+            <p className="text-xs font-medium">Final</p>
+            <p className="mt-1 text-[28px] leading-9 font-semibold tabular">{s.finalExam}</p>
           </div>
         )}
-        <div className="grid flex-1 grid-cols-4 gap-2">
-          {s.grades.map((g, i) => (
-            <div key={i} className="rounded-xl bg-surface-2 px-2 py-2 text-center">
-              <p className="text-[10px] text-muted">N{i + 1} <span className="opacity-70">×{w[i]}</span></p>
-              <p className={cx('font-mono text-lg font-semibold tabular', gradeTone(g))}>{g ?? '–'}</p>
-            </div>
-          ))}
-          {s.finalExam !== null && (
-            <div className="rounded-xl bg-surface-2 px-2 py-2 text-center">
-              <p className="text-[10px] text-muted">Final</p>
-              <p className={cx('font-mono text-lg font-semibold tabular', gradeTone(s.finalExam))}>{s.finalExam}</p>
-            </div>
-          )}
-        </div>
       </div>
 
-      <p className="mt-5 text-[15px] leading-snug">{verdict(o, s)}</p>
+      <NextStep s={s} />
 
-      {missing.length > 0 && o.kind !== 'passed' && o.kind !== 'failed' && (
-        <div className="mt-5 border-t border-line pt-4">
-          <p className="text-xs font-medium text-muted">Simular notas que faltam</p>
-          <div className="mt-2 flex flex-wrap items-center gap-2">
+      {missing.length > 0 && !closed && (
+        <div className="mt-4 rounded-xl bg-surface-container-low p-4">
+          <p className="flex items-center gap-2 font-medium"><Icon name="science" className="text-tertiary" fill /> Simular: e se eu tirar…</p>
+          <div className="mt-3 flex flex-col gap-3">
             {missing.map((i) => (
-              <label key={i} className="flex items-center gap-1.5 text-sm">
-                <span className="text-muted">N{i + 1}</span>
-                <input
-                  type="number" min={0} max={100} inputMode="numeric"
-                  value={sim[i] ?? ''}
-                  onChange={(e) => setSim({ ...sim, [i]: e.target.value })}
-                  className="w-20 rounded-lg border border-line bg-surface px-2.5 py-1.5 font-mono outline-none focus:border-brand"
-                  placeholder="nota"
-                />
+              <label key={i} className="flex items-center gap-3">
+                <span className="w-8 text-sm font-medium text-on-surface-variant">N{i + 1}</span>
+                <input type="range" min={0} max={100} value={sim[i]} onChange={(e) => setSim({ ...sim, [i]: Number(e.target.value) })}
+                  className="h-2 flex-1 cursor-pointer accent-[var(--md-primary)]" aria-label={`Nota simulada da N${i + 1}`} />
+                <span className="w-10 rounded-md bg-primary py-1 text-center text-sm font-semibold text-on-primary tabular">{sim[i]}</span>
               </label>
             ))}
-            {simAvg !== null && (
-              <span className={cx('ml-auto font-mono text-sm font-semibold', simAvg >= PASS ? 'text-brand' : simAvg >= FINAL_MIN ? 'text-warn' : 'text-bad')}>
-                média {Math.round(simAvg)}
-                {simAvg < PASS && simAvg >= FINAL_MIN && ` · final ${neededFinal({ ...s, grades: simGrades })}`}
-              </span>
-            )}
           </div>
+          <p className="mt-3 text-sm">
+            Média ficaria <b className={cx('text-lg tabular', simAvg >= PASS ? 'text-success' : simAvg >= FINAL_MIN ? 'text-warning' : 'text-error')}>{Math.round(simAvg)}</b>
+            <span className="text-on-surface-variant">
+              {simAvg >= PASS ? ' · passa direto' : simAvg >= FINAL_MIN ? ` · na final precisaria de ${neededFinal({ ...s, grades })}` : ' · sem direito à final'}
+            </span>
+          </p>
         </div>
       )}
     </Card>
   );
 }
 
-function AbsencesCard({ s }: { s: Subject }) {
+/** Quando não há mais o que simular, mostra o próximo passo (prova final, aprovado...). */
+function NextStep({ s }: { s: Subject }) {
+  const o = outlook(s);
+  if (o.kind === 'final' && o.needed !== null) {
+    return (
+      <div className="mt-4 flex items-center gap-4 rounded-xl bg-warning-container p-4 text-on-warning-container">
+        <Ring value={o.needed / 100} size={72} stroke={7} color="currentColor" track="rgb(0 0 0 / .1)">
+          <span className="text-xl font-semibold tabular">{o.needed}</span>
+        </Ring>
+        <div>
+          <p className="font-medium">Nota mínima na prova final</p>
+          <p className="text-sm opacity-85">A média final é a maior entre (média + final) ÷ 2 e a média trocando a pior etapa pela final.</p>
+        </div>
+      </div>
+    );
+  }
+  if (o.kind === 'passed' || o.kind === 'secured') {
+    return (
+      <div className="mt-4 flex items-center gap-4 rounded-xl bg-success-container p-4 text-on-success-container">
+        <Shape shape="flower" size={56} className="text-success"><Icon name="celebration" className="text-on-success" fill /></Shape>
+        <p className="font-medium">{o.kind === 'passed' ? 'Aprovado nesta matéria.' : 'Média garantida: dá para passar mesmo tirando zero no resto.'}</p>
+      </div>
+    );
+  }
+  return null;
+}
+
+function Absences({ s }: { s: Subject }) {
   const lvl = absenceLevel(s);
+  const c = levelColor[lvl];
   const left = s.limit - s.absences;
-  // Aulas por dia da semana para traduzir "faltar um dia" em número de faltas
   const perDay = new Map<number, number>();
   s.slots.forEach((sl) => perDay.set(sl.day, (perDay.get(sl.day) ?? 0) + sl.lessons));
-  const avgPerDay = perDay.size ? [...perDay.values()].reduce((a, b) => a + b, 0) / perDay.size : 0;
 
   return (
-    <Card className="p-5">
-      <div className="flex items-baseline justify-between">
-        <h2 className="text-[11px] font-semibold tracking-[0.14em] text-muted uppercase">Faltas</h2>
-        <span className="text-xs text-muted">limite {s.limit} (25%)</span>
+    <Card variant="filled" className="h-full rounded-2xl p-5">
+      <SectionHeader title="Faltas" icon="event_busy" action={<span className="text-sm text-on-surface-variant">limite de 25%</span>} />
+      <div className="flex items-center gap-4">
+        <Shape shape="cookie" size={72} className={c.text}><Icon name={c.icon} size={34} className="text-[var(--md-surface)]" fill /></Shape>
+        <div>
+          <p className={cx('text-[52px] leading-none font-semibold tracking-tight', c.text)}><CountUp value={Math.max(left, 0)} /></p>
+          <p className="mt-1 text-sm text-on-surface-variant">{left < 0 ? `${-left} acima do limite` : left === 1 ? 'falta livre' : 'faltas livres'}</p>
+        </div>
       </div>
-      <div className="mt-4 flex items-end gap-3">
-        <p className={cx('font-mono text-6xl leading-none font-semibold tabular', levelText[lvl])}>{Math.max(left, 0)}</p>
-        <p className="mb-1 text-sm text-muted">{left < 0 ? `faltas acima do limite (${-left})` : left === 1 ? 'falta livre' : 'faltas livres'}</p>
-      </div>
-      <div className="mt-5"><Tally used={s.absences} limit={s.limit} level={lvl} /></div>
-      <p className="mt-3 text-sm text-muted">{s.absences} de {s.limit} usadas · frequência {Math.round(s.attendance)}%</p>
+      <div className="mt-5"><AbsenceMeter used={s.absences} limit={s.limit} level={lvl} /></div>
 
-      {avgPerDay > 0 && left >= 0 && (
-        <p className="mt-5 border-t border-line pt-4 text-[15px] leading-snug">
-          {Math.floor(left / avgPerDay) === 0
-            ? <>Faltar <b className="font-semibold">mais um dia</b> dessa disciplina já passa do limite.</>
-            : <>Dá para faltar mais <b className="font-semibold">{Math.floor(left / avgPerDay)} {Math.floor(left / avgPerDay) === 1 ? 'dia' : 'dias'}</b> dessa disciplina.</>}
-          <span className="mt-1 block text-sm text-muted">
-            {[...perDay.entries()].sort((a, b) => a[0] - b[0]).map(([d, n]) => `${WEEKDAYS[d].toLowerCase()} = ${n} ${n === 1 ? 'falta' : 'faltas'}`).join(' · ')}
-          </span>
-        </p>
-      )}
-
-      {s.workload > 0 && (
+      {perDay.size > 0 && (
         <div className="mt-5">
-          <div className="flex justify-between text-xs text-muted"><span>Aulas dadas</span><span className="font-mono">{s.workloadDone}/{s.workload}</span></div>
-          <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-surface-2">
-            <div className="h-full rounded-full bg-ink/40" style={{ width: `${Math.min(100, (s.workloadDone / s.workload) * 100)}%` }} />
+          <p className="mb-2 text-sm font-medium">Se faltar um dia inteiro…</p>
+          <div className="flex flex-col gap-1.5">
+            {[...perDay.entries()].sort((a, b) => a[0] - b[0]).map(([d, n]) => {
+              const after = left - n;
+              const days = Math.floor(Math.max(left, 0) / n);
+              return (
+                <div key={d} className="flex items-center gap-3 rounded-lg bg-surface-container-low px-3 py-2 text-sm">
+                  <span className="w-16 font-medium">{WEEKDAYS[d]}</span>
+                  <span className="text-on-surface-variant">−{n} {n === 1 ? 'falta' : 'faltas'}</span>
+                  <span className={cx('ml-auto font-medium', after < 0 ? 'text-error' : after <= 2 ? 'text-warning' : 'text-success')}>
+                    {after < 0 ? 'estoura o limite' : `ainda pode ${days} ${days === 1 ? 'vez' : 'vezes'}`}
+                  </span>
+                </div>
+              );
+            })}
           </div>
         </div>
+      )}
+      <p className="mt-4 text-xs text-on-surface-variant">Frequência {Math.round(s.attendance)}% · {s.workloadDone} de {s.workload} aulas dadas</p>
+    </Card>
+  );
+}
+
+/** Histórico de aulas do SUAP (minhas-aulas): o que foi dado e em quais dias você faltou. */
+function History({ s }: { s: Subject }) {
+  const { period } = usePeriod();
+  const { data: cal } = useCalendario(period);
+  const { data, loading, error } = useAulas(period, cal?.data_inicio);
+  const [onlyAbsent, setOnlyAbsent] = useState(false);
+
+  const mine = useMemo(() => {
+    const name = s.name.toLowerCase();
+    return (data ?? []).filter((a: Aula) => {
+      const d = a.disciplina || '';
+      return (s.sigla && d.includes(s.sigla)) || cleanName(d).toLowerCase() === name;
+    });
+  }, [data, s]);
+  const list = onlyAbsent ? mine.filter((a) => a.faltas > 0) : mine;
+  const absentDays = mine.filter((a) => a.faltas > 0).length;
+
+  return (
+    <Card variant="filled" className="rounded-2xl p-5">
+      <SectionHeader title="Histórico de aulas" icon="history_edu"
+        action={mine.length > 0 && (
+          <Button variant={onlyAbsent ? 'tonal' : 'outlined'} size="sm" icon={onlyAbsent ? 'check' : 'filter_list'} onClick={() => setOnlyAbsent(!onlyAbsent)}>
+            Só faltas ({absentDays})
+          </Button>
+        )} />
+      {loading ? <Skeleton className="h-40" /> : error && !data ? (
+        <p className="text-sm text-on-surface-variant">Não foi possível carregar o histórico.</p>
+      ) : list.length === 0 ? (
+        <Empty icon="menu_book" title={onlyAbsent ? 'Nenhuma falta registrada' : 'Sem aulas registradas ainda'}>O SUAP mostra aqui o conteúdo de cada aula lançada pelo professor.</Empty>
+      ) : (
+        <ol className="grid grid-cols-1 gap-1.5 md:grid-cols-2">
+          {list.slice(0, 40).map((a) => {
+            const d = parseDay(a.data);
+            return (
+              <li key={a.id} className={cx('flex gap-3 rounded-lg px-3 py-2.5', a.faltas > 0 ? 'bg-error-container text-on-error-container' : 'bg-surface-container-low')}>
+                <div className="w-11 shrink-0 text-center leading-tight">
+                  <p className="text-lg font-semibold tabular">{d?.getDate() ?? '–'}</p>
+                  <p className="text-[10px] font-medium uppercase opacity-75">{d?.toLocaleDateString('pt-BR', { month: 'short' }).replace('.', '')}</p>
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="line-clamp-2 text-sm">{a.conteudo || 'Sem conteúdo informado'}</p>
+                  <p className="mt-0.5 text-xs opacity-75">
+                    {a.qtd_aulas} {a.qtd_aulas === 1 ? 'aula' : 'aulas'}{a.faltas > 0 ? ` · ${a.faltas} ${a.faltas === 1 ? 'falta' : 'faltas'}` : ' · presente'}
+                  </p>
+                </div>
+              </li>
+            );
+          })}
+        </ol>
       )}
     </Card>
   );
