@@ -74,13 +74,33 @@ export function absenceLevel(s: Subject): AbsenceLevel {
   return 'safe';
 }
 
-/** Média ponderada geral (por carga horária) das disciplinas com média. */
+/** Média da matéria até agora: a oficial se existir, senão a ponderada só das etapas já lançadas. */
+export function currentAverage(s: Subject): number | null {
+  const official = s.finalAverage ?? s.average;
+  if (official !== null) return official;
+  const w = weightsFor(s.stages);
+  let sum = 0, wsum = 0;
+  s.grades.forEach((g, i) => { if (g !== null) { sum += g * w[i]; wsum += w[i]; } });
+  return wsum ? sum / wsum : null;
+}
+
+/** Média geral (ponderada por carga horária) usando a média atual de cada matéria. */
 export function overallAverage(subjects: Subject[]) {
-  const withAvg = subjects.filter((s) => (s.finalAverage ?? s.average) !== null);
-  if (!withAvg.length) return null;
-  const totalW = withAvg.reduce((a, s) => a + (s.workload || 1), 0);
-  return withAvg.reduce((a, s) => a + (s.finalAverage ?? s.average)! * (s.workload || 1), 0) / totalW;
+  const items = subjects.map((s) => ({ avg: currentAverage(s), w: s.workload || 1 })).filter((x) => x.avg !== null);
+  if (!items.length) return null;
+  return items.reduce((a, x) => a + x.avg! * x.w, 0) / items.reduce((a, x) => a + x.w, 0);
+}
+
+/** Etapa em andamento deduzida pelo boletim (primeira etapa ainda sem nota na maioria das matérias). */
+export function stageFromGrades(subjects: Subject[]): number | null {
+  const counts = new Map<number, number>();
+  subjects.forEach((s) => {
+    const idx = s.grades.findIndex((g) => g === null);
+    if (idx >= 0) counts.set(idx + 1, (counts.get(idx + 1) ?? 0) + 1);
+  });
+  if (!counts.size) return null;
+  return [...counts.entries()].sort((a, b) => b[1] - a[1] || a[0] - b[0])[0][0];
 }
 
 export const gradeTone = (g: number | null) =>
-  g === null ? 'text-muted' : g >= PASS ? 'text-ink' : g >= FINAL_MIN ? 'text-warn' : 'text-bad';
+  g === null ? 'text-on-surface-variant' : g >= PASS ? 'text-on-surface' : g >= FINAL_MIN ? 'text-warning' : 'text-error';

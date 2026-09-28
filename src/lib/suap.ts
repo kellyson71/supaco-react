@@ -3,6 +3,7 @@ import { get, getAll, SUAP } from './api';
 
 export { SUAP as SUAP_URL };
 import { parseHorarios, shortRoom, type Slot } from './schedule';
+import { TONE_ORDER, toneFor, type Tone } from './tones';
 
 // ---------- Tipos crus da API (subset do openapi) ----------
 
@@ -91,6 +92,8 @@ export type Calendario = {
   data_fim_prova_final: string;
 } & { [K in `data_${'inicio' | 'fim'}_etapa_${1 | 2 | 3 | 4}`]: string | null };
 
+export type Aula = { id: number; etapa: string; conteudo: string; data: string; qtd_aulas: number; faltas: number; disciplina: string };
+
 export type Frequencia = { total_aulas: number; total_faltas: number; total_abonos: number; percentual_frequencia: number };
 
 type CH = { ch_esperada: number; ch_cumprida: number; ch_pendente: number };
@@ -115,7 +118,10 @@ export type Subject = {
   limit: number;
   rooms: string[];
   slots: Slot[];
+  tone?: Tone;
 };
+
+export const subjectTone = (s: Pick<Subject, 'code' | 'tone'>) => s.tone ?? toneFor(s.code);
 
 // ---------- Helpers ----------
 
@@ -156,6 +162,9 @@ export const api = {
     return mergeSubjects(boletim, turmas);
   },
 
+  /** Aulas registradas no mês (conteúdo e faltas por dia). */
+  aulas: (ano: number, mes: number) => getAll<Aula>(`/api/ensino/minhas-aulas/${ano}/${mes}/`),
+
   avaliacoes: () => getAll<Avaliacao>('/api/ensino/minhas-proximas-avaliacoes/'),
   frequencia: (p: Periodo) => get<Frequencia>(`/api/ensino/frequencia-periodo-letivo/${p.ano}/${p.periodo}/`),
   calendario: (p: Periodo) => get<Calendario | null>(`/api/ensino/meu-calendario-academico/${p.ano}/${p.periodo}/`),
@@ -178,6 +187,11 @@ function mergeSubjects(boletim: BoletimRaw[], turmas: TurmaVirtualRaw[]): Subjec
     const stages = [1, 2, 4].includes(b.quantidade_avaliacoes) ? b.quantidade_avaliacoes : 2;
     const etapas = [b.nota_etapa_1, b.nota_etapa_2, b.nota_etapa_3, b.nota_etapa_4];
     const rooms = (turma?.locais_de_aula ?? []).map(shortRoom);
+    const average = num(b.media_disciplina);
+    const finalExam = num(b.nota_avaliacao_final?.nota);
+    // media_final_disciplina às vezes vem na escala 0–10 ("7,5") e só vale depois da prova final
+    let finalAverage = finalExam !== null ? num(b.media_final_disciplina) : null;
+    if (finalAverage !== null && finalAverage <= 10 && (average ?? 0) > 10) finalAverage *= 10;
 
     return {
       code: b.codigo_diario,
@@ -186,9 +200,9 @@ function mergeSubjects(boletim: BoletimRaw[], turmas: TurmaVirtualRaw[]): Subjec
       status: b.situacao || '',
       stages,
       grades: etapas.slice(0, stages).map((e) => num(e?.nota)),
-      finalExam: num(b.nota_avaliacao_final?.nota),
-      average: num(b.media_disciplina),
-      finalAverage: num(b.media_final_disciplina),
+      finalExam,
+      average,
+      finalAverage,
       absences: b.numero_faltas || 0,
       workload: b.carga_horaria || 0,
       workloadDone: b.carga_horaria_cumprida || 0,
@@ -197,5 +211,6 @@ function mergeSubjects(boletim: BoletimRaw[], turmas: TurmaVirtualRaw[]): Subjec
       rooms,
       slots: parseHorarios(turma?.horarios_de_aula, rooms[0] ?? ''),
     };
-  }).sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'));
+  }).sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'))
+    .map((s, i) => ({ ...s, tone: TONE_ORDER[i % TONE_ORDER.length] }));
 }

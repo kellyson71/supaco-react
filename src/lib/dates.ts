@@ -3,11 +3,19 @@ const MONTHS_LONG = ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho',
 const DOW = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sáb'];
 const DOW_LONG = ['domingo', 'segunda-feira', 'terça-feira', 'quarta-feira', 'quinta-feira', 'sexta-feira', 'sábado'];
 
-/** "2026-10-03" vira data local (sem o deslocamento de fuso do `new Date(iso)`). */
-export const parseDay = (s: string) => {
-  const [y, m, d] = s.slice(0, 10).split('-').map(Number);
-  return new Date(y, m - 1, d);
-};
+/**
+ * Converte datas do SUAP para data local. Aceita "2026-10-03", "2026-10-03T10:00:00" e "03/10/2026".
+ * Retorna null se não reconhecer o formato.
+ */
+export function parseDay(s: string | null | undefined): Date | null {
+  if (!s) return null;
+  let m = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (m) return new Date(+m[1], +m[2] - 1, +m[3]);
+  m = s.match(/^(\d{2})\/(\d{2})\/(\d{4})/);
+  if (m) return new Date(+m[3], +m[2] - 1, +m[1]);
+  const d = new Date(s);
+  return Number.isNaN(d.getTime()) ? null : d;
+}
 
 const startOfDay = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate());
 
