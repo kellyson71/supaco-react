@@ -1,6 +1,8 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
+import { LazyMotion, MotionConfig } from 'motion/react';
 import App from './App';
+import { applyTheme } from './lib/theme';
 import './index.css';
 
 // Limpa chaves do app antigo (tokens, caches criptografados, configurações de wallpaper etc.)
@@ -22,8 +24,14 @@ if ('serviceWorker' in navigator && import.meta.env.PROD) {
   window.addEventListener('load', () => navigator.serviceWorker.register('/sw.js'));
 }
 
+applyTheme();
+
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <App />
+    <LazyMotion features={() => import('./motion-features').then((r) => r.default)} strict>
+      <MotionConfig reducedMotion="user">
+        <App />
+      </MotionConfig>
+    </LazyMotion>
   </StrictMode>,
 );

@@ -1,16 +1,20 @@
-import { useEffect, useSyncExternalStore } from 'react';
+import { lazy, Suspense, useEffect, useSyncExternalStore } from 'react';
 import { onSessionChange, session } from './lib/api';
 import { PeriodProvider } from './lib/data';
 import { navigate, usePath } from './lib/router';
 import { Shell } from './components/Shell';
-import { Login } from './pages/Login';
+import { Skeleton } from './components/ui';
 import { Today } from './pages/Today';
-import { Subjects } from './pages/Subjects';
-import { SubjectDetail } from './pages/SubjectDetail';
-import { Schedule } from './pages/Schedule';
-import { Agenda } from './pages/Agenda';
-import { Me } from './pages/Me';
-import { Messages } from './pages/Messages';
+
+// Telas secundárias carregam sob demanda para a primeira abertura ser leve
+const Login = lazy(() => import('./pages/Login').then((m) => ({ default: m.Login })));
+const Subjects = lazy(() => import('./pages/Subjects').then((m) => ({ default: m.Subjects })));
+const SubjectDetail = lazy(() => import('./pages/SubjectDetail').then((m) => ({ default: m.SubjectDetail })));
+const Schedule = lazy(() => import('./pages/Schedule').then((m) => ({ default: m.Schedule })));
+const Agenda = lazy(() => import('./pages/Agenda').then((m) => ({ default: m.Agenda })));
+const Me = lazy(() => import('./pages/Me').then((m) => ({ default: m.Me })));
+const Messages = lazy(() => import('./pages/Messages').then((m) => ({ default: m.Messages })));
+const Diagnostics = lazy(() => import('./pages/Diagnostics').then((m) => ({ default: m.Diagnostics })));
 
 const useLoggedIn = () => useSyncExternalStore(onSessionChange, () => session.isLoggedIn);
 
@@ -25,7 +29,7 @@ export default function App() {
     if (LEGACY[path]) navigate(LEGACY[path], true);
   }, [path]);
 
-  if (!loggedIn) return <Login />;
+  if (!loggedIn) return <Suspense fallback={null}><Login /></Suspense>;
 
   const detail = path.match(/^\/disciplinas\/([^/]+)/);
   const page =
@@ -35,11 +39,12 @@ export default function App() {
     path === '/agenda' ? <Agenda /> :
     path === '/voce' ? <Me /> :
     path === '/mensagens' ? <Messages /> :
+    path === '/diagnostico' ? <Diagnostics /> :
     <Today />;
 
   return (
     <PeriodProvider>
-      <Shell wide={path === '/' || path === '/horario' || path === '/voce'}>{page}</Shell>
+      <Shell><Suspense fallback={<Skeleton className="mt-4 h-96" />}>{page}</Suspense></Shell>
     </PeriodProvider>
   );
 }
