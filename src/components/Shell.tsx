@@ -1,126 +1,109 @@
 import type { ReactNode } from 'react';
-import { BookOpen, CalendarDays, House, ListChecks, RefreshCw, UserRound, WifiOff } from 'lucide-react';
-import { navigate, usePath } from '../lib/router';
+import { AnimatePresence, m } from 'motion/react';
+import { usePath } from '../lib/router';
 import { refreshAll, useIsRefreshing } from '../lib/store';
-import { useEu, useMensagens } from '../lib/data';
-import { photoUrl } from '../lib/suap';
+import { useMensagens } from '../lib/data';
 import { useOnline } from '../lib/hooks';
-import { cx } from './ui';
-
-const NAV = [
-  { to: '/', label: 'Hoje', icon: House },
-  { to: '/disciplinas', label: 'Disciplinas', icon: BookOpen },
-  { to: '/horario', label: 'Horário', icon: CalendarDays },
-  { to: '/agenda', label: 'Agenda', icon: ListChecks },
-  { to: '/voce', label: 'Você', icon: UserRound },
-];
-
-const isActive = (path: string, to: string) => (to === '/' ? path === '/' : path.startsWith(to) || (to === '/voce' && path === '/mensagens'));
-
-function Link({ to, className, children, label }: { to: string; className?: string; children: ReactNode; label?: string }) {
-  return (
-    <a
-      href={to}
-      aria-label={label}
-      onClick={(e) => {
-        if (e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0) return;
-        e.preventDefault();
-        navigate(to);
-      }}
-      className={className}
-    >
-      {children}
-    </a>
-  );
-}
+import { toggleDark, useThemeState } from '../lib/theme';
+import { cx, EMPHASIZED, Icon, IconButton, spring } from './ui';
+import { Link } from './Link';
+import { Logo } from './Logo';
+import { Avatar } from './Avatar';
 
 export { Link };
 
-function SyncButton() {
-  const refreshing = useIsRefreshing();
-  const online = useOnline();
-  if (!online) {
-    return (
-      <span className="flex items-center gap-1.5 rounded-full bg-warn-soft px-3 py-1.5 text-xs font-semibold text-warn">
-        <WifiOff size={13} /> Offline
-      </span>
-    );
-  }
+const NAV = [
+  { to: '/', label: 'Hoje', icon: 'today' },
+  { to: '/disciplinas', label: 'Matérias', icon: 'school' },
+  { to: '/horario', label: 'Horário', icon: 'calendar_view_week' },
+  { to: '/agenda', label: 'Agenda', icon: 'event_note' },
+  { to: '/voce', label: 'Você', icon: 'person' },
+];
+
+const isActive = (path: string, to: string) =>
+  to === '/' ? path === '/' : path.startsWith(to) || (to === '/voce' && (path === '/mensagens' || path === '/diagnostico'));
+
+/** Botão de tema com o ícone girando entre sol e lua. */
+export function ThemeButton({ variant = 'standard' }: { variant?: 'standard' | 'tonal' }) {
+  const { dark } = useThemeState();
   return (
-    <button
-      onClick={() => refreshAll()}
-      disabled={refreshing}
-      className="flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium text-muted transition-colors hover:bg-surface-2 hover:text-ink disabled:opacity-100"
-      aria-label="Atualizar dados do SUAP"
-    >
-      <RefreshCw size={13} className={refreshing ? 'animate-spin' : ''} />
-      {refreshing ? 'Atualizando' : 'Atualizar'}
-    </button>
+    <m.span key={dark ? 'd' : 'l'} initial={{ rotate: -90, opacity: 0 }} animate={{ rotate: 0, opacity: 1 }} transition={{ duration: 0.35, ease: EMPHASIZED }} className="inline-flex">
+      <IconButton icon={dark ? 'dark_mode' : 'light_mode'} fill label={dark ? 'Mudar para tema claro' : 'Mudar para tema escuro'} onClick={toggleDark} variant={variant} />
+    </m.span>
   );
 }
 
-export function Shell({ children, wide }: { children: ReactNode; wide?: boolean }) {
+export function SyncButton() {
+  const refreshing = useIsRefreshing();
+  const online = useOnline();
+  if (!online) return <span className="flex h-8 items-center gap-1 rounded-lg bg-warning-container px-3 text-sm font-medium text-on-warning-container"><Icon name="cloud_off" size={18} />Offline</span>;
+  return (
+    <span className={cx('inline-flex', refreshing && '[&_.msr]:animate-spin')}>
+      <IconButton icon="sync" label="Atualizar dados do SUAP" onClick={() => refreshAll()} />
+    </span>
+  );
+}
+
+function NavItem({ to, label, icon, active, unread, rail }: { to: string; label: string; icon: string; active: boolean; unread: boolean; rail?: boolean }) {
+  return (
+    <Link to={to} label={label} className={cx('group flex flex-col items-center gap-1 outline-none', rail ? 'w-full py-1' : 'flex-1 pt-3 pb-4')}>
+      <span className="state relative flex h-8 w-14 items-center justify-center rounded-full text-on-surface-variant">
+        {active && <m.span layoutId={rail ? 'rail-ind' : 'bar-ind'} transition={spring} className="absolute inset-0 rounded-full bg-secondary-container" />}
+        <Icon name={icon} fill={active} className={cx('relative', active && 'text-on-secondary-container')} />
+        {unread && <span className="absolute top-0.5 right-3 size-2 rounded-full bg-error" />}
+      </span>
+      <span className={cx('text-xs font-medium tracking-wide', active ? 'text-on-surface' : 'text-on-surface-variant')}>{label}</span>
+    </Link>
+  );
+}
+
+export function Shell({ children }: { children: ReactNode }) {
   const path = usePath();
-  const { data: eu } = useEu();
   const { data: msgs } = useMensagens();
-  const unread = msgs?.filter((m) => !m.registro_leitura).length ?? 0;
+  const unread = (msgs?.filter((x) => !x.registro_leitura).length ?? 0) > 0;
+  const pageKey = path.startsWith('/disciplinas/') ? 'detail' : path;
 
   return (
-    <div className="min-h-dvh md:flex">
-      {/* Barra lateral (desktop) */}
-      <aside className="sticky top-0 hidden h-dvh w-60 shrink-0 flex-col border-r border-line px-4 py-6 md:flex">
-        <Link to="/" className="mb-8 flex items-center gap-2 px-2">
-          <img src="/icon.svg" alt="" className="size-7" />
-          <span className="font-display text-xl font-semibold tracking-tight">supaco</span>
-        </Link>
-        <nav className="flex flex-col gap-1">
-          {NAV.map(({ to, label, icon: Icon }) => (
-            <Link
-              key={to}
-              to={to}
-              className={cx(
-                'flex items-center gap-3 rounded-xl px-3 py-2.5 text-[15px] font-medium transition-colors',
-                isActive(path, to) ? 'bg-brand-soft text-brand' : 'text-muted hover:bg-surface-2 hover:text-ink',
-              )}
-            >
-              <Icon size={18} strokeWidth={2} />
-              <span className="flex-1">{label}</span>
-              {to === '/voce' && unread > 0 && <span className="rounded-full bg-bad px-1.5 text-[11px] font-bold text-white">{unread}</span>}
-            </Link>
-          ))}
+    <div className="min-h-dvh bg-surface">
+      {/* Trilho de navegação (telas médias e grandes) */}
+      <aside className="fixed inset-y-0 left-0 z-30 hidden w-24 flex-col items-center bg-surface py-5 md:flex">
+        <Link to="/" label="Início" className="mb-8 rounded-full"><Logo size={52} /></Link>
+        <nav className="flex w-full flex-col gap-3">
+          {NAV.map((n) => <NavItem key={n.to} {...n} active={isActive(path, n.to)} unread={n.to === '/voce' && unread} rail />)}
         </nav>
-        <div className="mt-auto flex items-center gap-3 px-2">
-          {eu?.foto && <img src={photoUrl(eu.foto)} alt="" className="size-9 rounded-full object-cover" />}
-          <div className="min-w-0 text-sm">
-            <p className="truncate font-medium">{eu?.nome_usual}</p>
-            <p className="truncate font-mono text-xs text-muted">{eu?.identificacao}</p>
-          </div>
+        <div className="mt-auto flex flex-col items-center gap-2">
+          <SyncButton />
+          <ThemeButton variant="tonal" />
         </div>
       </aside>
 
-      <div className="min-w-0 flex-1">
-        <div className="sticky top-0 z-20 flex justify-end bg-bg/85 px-4 pt-[max(env(safe-area-inset-top),0.5rem)] pb-1 backdrop-blur md:px-8">
+      <div className="md:pl-24">
+        {/* Barra superior (celular) */}
+        <header className="sticky top-0 z-20 flex h-16 items-center gap-1 bg-surface/90 px-2 pt-[env(safe-area-inset-top)] backdrop-blur-md md:hidden">
+          <Link to="/" label="Início" className="flex items-center gap-2 rounded-full px-2">
+            <Logo size={36} />
+            <span className="text-[22px] font-semibold tracking-tight">Supaco</span>
+          </Link>
+          <span className="flex-1" />
           <SyncButton />
-        </div>
-        <main className={cx('mx-auto px-4 pb-28 md:px-8 md:pb-16', wide ? 'max-w-5xl' : 'max-w-3xl')}>{children}</main>
+          <ThemeButton />
+          <Avatar size={32} />
+        </header>
+
+        <main className="mx-auto w-full max-w-[1440px] px-4 pb-28 md:px-8 md:pt-6 md:pb-12">
+          <AnimatePresence mode="wait" initial={false}>
+            <m.div key={pageKey}
+              initial={{ opacity: 0, scale: 0.985, y: 8 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.99 }}
+              transition={{ duration: 0.3, ease: EMPHASIZED }}>
+              {children}
+            </m.div>
+          </AnimatePresence>
+        </main>
       </div>
 
-      {/* Abas inferiores (mobile) */}
-      <nav className="pb-safe fixed inset-x-0 bottom-0 z-30 border-t border-line bg-surface/95 backdrop-blur md:hidden">
-        <div className="grid grid-cols-5">
-          {NAV.map(({ to, label, icon: Icon }) => {
-            const active = isActive(path, to);
-            return (
-              <Link key={to} to={to} className={cx('relative flex flex-col items-center gap-1 pt-2.5 pb-2 text-[11px] font-medium', active ? 'text-brand' : 'text-muted')}>
-                <span className={cx('flex h-7 w-12 items-center justify-center rounded-full transition-colors', active && 'bg-brand-soft')}>
-                  <Icon size={19} strokeWidth={active ? 2.4 : 2} />
-                </span>
-                {label}
-                {to === '/voce' && unread > 0 && <span className="absolute top-2 left-1/2 ml-3 size-2 rounded-full bg-bad" />}
-              </Link>
-            );
-          })}
-        </div>
+      {/* Barra de navegação (celular) */}
+      <nav className="fixed inset-x-0 bottom-0 z-30 flex bg-surface-container pb-[env(safe-area-inset-bottom)] md:hidden">
+        {NAV.map((n) => <NavItem key={n.to} {...n} active={isActive(path, n.to)} unread={n.to === '/voce' && unread} />)}
       </nav>
     </div>
   );
