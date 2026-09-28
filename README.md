@@ -1,20 +1,34 @@
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
-</div>
+# Supaco
 
-# Run and deploy your AI Studio app
+Cliente web do SUAP (IFRN) focado no que o aluno precisa ver rápido: aula de agora, notas, faltas que ainda restam e próximos prazos.
 
-This contains everything you need to run your app locally.
+## Telas
 
-View your app in AI Studio: https://ai.studio/apps/drive/1Gd_iPGAUcV_93x006SAx0VwA2UZUbLQs
+- **Hoje** — aula atual/próxima, aulas do dia, disciplinas em risco, próximos prazos e resumo do período.
+- **Disciplinas** — notas por etapa, média, quanto falta para passar e faltas livres (marcas de chamada). O detalhe traz simulador de notas, nota necessária na prova final e quantos dias ainda dá para faltar.
+- **Horário** — semana em grade (desktop) ou por dia (mobile).
+- **Agenda** — avaliações do SUAP + tarefas pendentes do Google Classroom.
+- **Você** — curso, IRA, conclusão do curso, mensagens do SUAP, tema e conexão com o Classroom.
 
-## Run Locally
+## Desenvolvimento
 
-**Prerequisites:**  Node.js
+```bash
+npm install
+npm run dev      # http://localhost:5173
+npm run build
+```
 
+Opcional em `.env.local`:
 
-1. Install dependencies:
-   `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
-   `npm run dev`
+```
+VITE_GOOGLE_CLIENT_ID=<client id OAuth do Google>
+```
+
+O Classroom usa o fluxo de token do Google Identity Services (sem client secret). A origem do app (ex.: `https://supaco.vercel.app` e `http://localhost:5173`) precisa estar em **Authorized JavaScript origins** no Google Cloud Console.
+
+## Como os dados funcionam
+
+- Login direto na API do SUAP (`/api/token/pair`); só os tokens ficam no aparelho.
+- Cada consulta é salva localmente e exibida na hora; a atualização acontece em segundo plano (ao abrir, ao voltar para a aba e no botão "Atualizar").
+- Regras do IFRN em `src/lib/grades.ts`: média 60, pesos 2/3 (2 etapas) e 2/2/3/3 (4 etapas), prova final e limite de 25% de faltas.
+- Horários vêm de `minhas-turmas-virtuais` (código `3V1234`), convertidos em `src/lib/schedule.ts`.

@@ -1,89 +1,26 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="pt-BR">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-    <meta name="theme-color" content="#020617" />
-    
-    <!-- SEO & Metadata -->
-    <title>Supaco | Cliente SUAP IFRN - Notas, Faltas e Horários</title>
-    <meta name="description" content="O Supaco é um cliente moderno e alternativo para o SUAP do IFRN. Acompanhe suas notas, calcule faltas, visualize horários e integre com o Google Classroom. Uma experiência acadêmica fluida e inteligente." />
-    <meta name="keywords" content="Supaco, SUAP, IFRN, Notas, Boletim, Faltas, Horário Escolar, Instituto Federal, Rio Grande do Norte, Acadêmico, Estudante, Calculadora de Faltas, Inteligência Artificial, Cliente SUAP" />
-    <meta name="author" content="Supaco Team" />
-    <meta name="robots" content="index, follow" />
-    <meta name="application-name" content="Supaco" />
-
-    <!-- Open Graph / Facebook / WhatsApp -->
-    <meta property="og:type" content="website" />
-    <meta property="og:title" content="Supaco | A melhor forma de acessar o SUAP do IFRN" />
-    <meta property="og:description" content="Visualize suas notas, controle suas faltas e organize seus horários com uma interface moderna, rápida e com inteligência artificial." />
-    <meta property="og:site_name" content="Supaco" />
-    <meta property="og:locale" content="pt_BR" />
-
-    <!-- Twitter -->
-    <meta name="twitter:card" content="summary" />
-    <meta name="twitter:title" content="Supaco | Cliente SUAP IFRN" />
-    <meta name="twitter:description" content="Acesse notas, faltas e horários do IFRN de forma rápida e elegante." />
-
-    <link rel="manifest" href="/manifest.json" />
-    <script src="https://cdn.tailwindcss.com"></script>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🎓</text></svg>">
-    <script src="https://accounts.google.com/gsi/client" async defer></script>
-    <style>
-      body {
-        font-family: 'Outfit', sans-serif;
-        margin: 0;
-        padding: 0;
-        overflow: hidden; /* Prevent scroll on main body for the app-like feel */
-        background-color: #f3f4f6;
-        -webkit-tap-highlight-color: transparent; /* Remove tap highlight on mobile */
-      }
-      /* Custom Scrollbar for internal panels */
-      .custom-scroll::-webkit-scrollbar {
-        width: 6px;
-      }
-      .custom-scroll::-webkit-scrollbar-track {
-        background: transparent;
-      }
-      .custom-scroll::-webkit-scrollbar-thumb {
-        background-color: rgba(0,0,0,0.1);
-        border-radius: 20px;
-      }
-    </style>
-  <script type="importmap">
-{
-  "imports": {
-    "react": "https://aistudiocdn.com/react@^19.2.0",
-    "react-dom/": "https://aistudiocdn.com/react-dom@^19.2.0/",
-    "react/": "https://aistudiocdn.com/react@^19.2.0/",
-    "framer-motion": "https://aistudiocdn.com/framer-motion@^12.23.24",
-    "lucide-react": "https://aistudiocdn.com/lucide-react@^0.554.0",
-    "recharts": "https://aistudiocdn.com/recharts@^3.4.1",
-    "@google/genai": "https://aistudiocdn.com/@google/genai@^1.30.0",
-    "react-markdown": "https://esm.sh/react-markdown@9.0.1?bundle&external=react,react-dom",
-    "@supabase/supabase-js": "https://esm.sh/@supabase/supabase-js@2.39.3"
-  }
-}
-</script>
-</head>
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#f3f6f3" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#0d1310" media="(prefers-color-scheme: dark)" />
+    <title>Supaco · notas, faltas e horários do IFRN</title>
+    <meta name="description" content="Suas notas, faltas e horários do SUAP/IFRN em um só lugar, rápido e direto." />
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <link rel="icon" href="/icon.svg" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="/icon.svg" />
+    <script>
+      // Aplica o tema antes do primeiro paint para evitar flash
+      try {
+        var t = localStorage.getItem('supaco:theme');
+        var dark = t ? t === 'dark' : matchMedia('(prefers-color-scheme: dark)').matches;
+        if (dark) document.documentElement.classList.add('dark');
+      } catch (e) {}
+    </script>
+  </head>
   <body>
     <div id="root"></div>
-    <script>
-      if ('serviceWorker' in navigator) {
-        window.addEventListener('load', () => {
-          navigator.serviceWorker.register('/sw.js')
-            .then(registration => {
-              console.log('SW registered: ', registration);
-            })
-            .catch(registrationError => {
-              console.log('SW registration failed: ', registrationError);
-            });
-        });
-      }
-    </script>
-    <script type="module" src="/index.tsx"></script>
+    <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
