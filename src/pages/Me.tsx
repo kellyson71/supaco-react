@@ -1,13 +1,14 @@
-import { useState } from 'react';
-import { ChevronRight, ExternalLink, LogOut, Mail, Moon, Sun } from 'lucide-react';
+import { useState, type ReactNode } from 'react';
+import { m } from 'motion/react';
 import { useAluno, useEu, useMensagens, useRequisitos } from '../lib/data';
-import { photoUrl, SUAP_URL } from '../lib/suap';
+import { SUAP_URL } from '../lib/suap';
 import { classroom, connectClassroom } from '../lib/classroom';
 import { session } from '../lib/api';
 import { clearCache, refreshAll } from '../lib/store';
-import { useTheme } from '../lib/hooks';
-import { Card, cx, Eyebrow, Skeleton } from '../components/ui';
-import { Link } from '../components/Shell';
+import { SEEDS, setMode, setSeed, useThemeState, type Mode } from '../lib/theme';
+import { shareSite, SITE_URL, useInstall } from '../lib/hooks';
+import { Badge, Card, CountUp, cx, Icon, Item, Ring, SectionHeader, Segmented, Skeleton, spring, Stagger, Switch, Tap, WavyProgress } from '../components/ui';
+import { Avatar } from '../components/Avatar';
 
 const REQ_LABELS: Record<string, string> = {
   regulares_obrigatorios: 'Disciplinas obrigatórias',
@@ -31,8 +32,10 @@ export function Me() {
   const { data: eu } = useEu();
   const { data: aluno } = useAluno();
   const { data: msgs } = useMensagens();
-  const unread = msgs?.filter((m) => !m.registro_leitura).length ?? 0;
-  const { dark, toggle } = useTheme();
+  const unread = msgs?.filter((x) => !x.registro_leitura).length ?? 0;
+  const ira = aluno ? Number(String(aluno.ira).replace(',', '.')) : null;
+  const { canInstall, install } = useInstall();
+  const [shareMsg, setShareMsg] = useState('');
 
   const logout = () => {
     classroom.unlink();
@@ -40,145 +43,165 @@ export function Me() {
     session.clear();
   };
 
+  const share = async () => {
+    const r = await shareSite();
+    if (r === 'copied') { setShareMsg('Link copiado!'); setTimeout(() => setShareMsg(''), 2500); }
+  };
+
   return (
-    <div className="rise">
-      <header className="mt-2 mb-8 flex items-center gap-4">
-        {eu?.foto ? (
-          <img src={photoUrl(eu.foto)} alt="" className="size-20 rounded-2xl object-cover ring-1 ring-line" />
-        ) : eu ? (
-          <div className="flex size-20 items-center justify-center rounded-2xl bg-brand-soft font-display text-3xl font-semibold text-brand">{eu.nome_usual[0]}</div>
-        ) : <Skeleton className="size-20" />}
-        <div className="min-w-0">
-          <h1 className="font-display text-2xl leading-tight font-semibold tracking-tight md:text-3xl">{eu?.nome_usual ?? ' '}</h1>
-          <p className="mt-1 font-mono text-sm text-muted">{eu?.identificacao}</p>
-          {eu?.campus && <p className="text-sm text-muted">Campus {eu.campus}</p>}
-        </div>
-      </header>
-
-      <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
-        <div className="flex flex-col gap-6">
-          <div>
-            <Eyebrow>Curso</Eyebrow>
-            <Card className="p-5">
-              {aluno ? (
-                <>
-                  <p className="font-medium leading-snug">{aluno.curso}</p>
-                  <dl className="mt-4 grid grid-cols-3 gap-3">
-                    <Fact label="IRA" value={aluno.ira || '—'} mono />
-                    <Fact label="Período" value={aluno.qtd_periodos ? `${aluno.periodo_referencia}º de ${aluno.qtd_periodos}` : `${aluno.periodo_referencia}º`} mono />
-                    <Fact label="Ingresso" value={aluno.ingresso} mono />
-                  </dl>
-                  <p className="mt-4 text-sm text-muted">Situação: <span className="font-medium text-ink">{aluno.situacao}</span></p>
-                </>
-              ) : <Skeleton className="h-28" />}
-            </Card>
+    <Stagger className="grid grid-cols-1 gap-4 lg:grid-cols-12">
+      <Item className="lg:col-span-12">
+        <Card variant="primary" className="flex flex-col gap-5 rounded-2xl p-6 md:flex-row md:items-center">
+          <Avatar size={88} link={false} />
+          <div className="min-w-0 flex-1">
+            <h1 className="text-[32px] leading-10 font-semibold tracking-tight">{eu?.nome_usual ?? ' '}</h1>
+            <p className="mt-1 text-sm opacity-85 tabular">{eu?.identificacao}{eu?.campus && ` · Campus ${eu.campus}`}</p>
+            {aluno && <p className="mt-2 text-base font-medium">{aluno.curso}</p>}
+            {aluno && (
+              <div className="mt-3 flex flex-wrap gap-2">
+                <Badge className="bg-white/50 !text-current dark:bg-black/25">{aluno.situacao}</Badge>
+                <Badge className="bg-white/50 !text-current dark:bg-black/25">Ingresso {aluno.ingresso}</Badge>
+                <Badge className="bg-white/50 !text-current dark:bg-black/25">{aluno.periodo_referencia}º período{aluno.qtd_periodos ? ` de ${aluno.qtd_periodos}` : ''}</Badge>
+              </div>
+            )}
           </div>
-          <Completion />
-        </div>
+          {aluno && (
+            <Ring value={(ira ?? 0) / 100} size={112} stroke={10} color="currentColor" track="rgb(0 0 0 / .1)">
+              <div className="text-center leading-none">
+                <CountUp value={ira} decimals={1} className="text-3xl font-semibold" />
+                <p className="mt-1 text-xs font-medium opacity-80">IRA</p>
+              </div>
+            </Ring>
+          )}
+        </Card>
+      </Item>
 
-        <div className="flex flex-col gap-6">
-          <div>
-            <Eyebrow>Atalhos</Eyebrow>
-            <Card className="divide-y divide-line overflow-hidden">
-              <Link to="/mensagens" className="flex items-center gap-3 px-4 py-3.5 transition-colors hover:bg-surface-2">
-                <Mail size={18} className="text-muted" />
-                <span className="flex-1 font-medium">Mensagens do SUAP</span>
-                {unread > 0 && <span className="rounded-full bg-bad px-2 py-0.5 text-xs font-bold text-white">{unread} nova{unread > 1 ? 's' : ''}</span>}
-                <ChevronRight size={16} className="text-muted" />
-              </Link>
-              <a href={SUAP_URL} target="_blank" rel="noreferrer" className="flex items-center gap-3 px-4 py-3.5 transition-colors hover:bg-surface-2">
-                <ExternalLink size={18} className="text-muted" />
-                <span className="flex-1 font-medium">Abrir o SUAP</span>
-              </a>
-            </Card>
-          </div>
+      <Item className="lg:col-span-6"><Appearance /></Item>
+      <Item className="lg:col-span-6"><Completion /></Item>
 
-          <div>
-            <Eyebrow>Preferências</Eyebrow>
-            <Card className="divide-y divide-line overflow-hidden">
-              <button onClick={toggle} className="flex w-full items-center gap-3 px-4 py-3.5 text-left transition-colors hover:bg-surface-2">
-                {dark ? <Moon size={18} className="text-muted" /> : <Sun size={18} className="text-muted" />}
-                <span className="flex-1 font-medium">Tema</span>
-                <span className="text-sm text-muted">{dark ? 'Escuro' : 'Claro'}</span>
-              </button>
-              <ClassroomRow />
-            </Card>
-          </div>
+      <Item className="lg:col-span-6">
+        <SectionHeader title="Atalhos" icon="bolt" />
+        <List>
+          <Row to="/mensagens" icon="mail" label="Mensagens do SUAP" sub={unread ? `${unread} não ${unread === 1 ? 'lida' : 'lidas'}` : 'Caixa de entrada'}
+            right={unread > 0 ? <Badge tone="error">{unread}</Badge> : <Icon name="chevron_right" />} />
+          <Row href={SUAP_URL} icon="open_in_new" label="Abrir o SUAP" sub="suap.ifrn.edu.br" right={<Icon name="chevron_right" />} />
+          {canInstall && <Row onClick={install} icon="install_mobile" label="Instalar o Supaco" sub="Abre como app, direto da tela inicial" right={<Icon name="download" />} />}
+          <Row onClick={share} icon="share" label="Compartilhar com a turma" sub={shareMsg || SITE_URL.replace('https://', '')} right={<Icon name="chevron_right" />} />
+          <Row to="/diagnostico" icon="troubleshoot" label="Diagnóstico" sub="Ver o que o SUAP está respondendo" right={<Icon name="chevron_right" />} />
+        </List>
+      </Item>
 
-          <button onClick={logout} className="flex items-center justify-center gap-2 rounded-2xl border border-line bg-surface px-4 py-3.5 font-medium text-bad transition-colors hover:bg-bad-soft">
-            <LogOut size={17} /> Sair da conta
-          </button>
-        </div>
-      </div>
-    </div>
+      <Item className="lg:col-span-6">
+        <SectionHeader title="Conta" icon="manage_accounts" />
+        <List>
+          <ClassroomRow />
+          <Row onClick={logout} icon="logout" label="Sair da conta" sub="Apaga os dados salvos neste aparelho" danger />
+        </List>
+      </Item>
+    </Stagger>
   );
 }
 
-function Fact({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
+function List({ children }: { children: ReactNode }) {
+  return <div className="flex flex-col gap-1 overflow-hidden rounded-2xl">{children}</div>;
+}
+
+function Row({ icon, label, sub, right, to, href, onClick, danger }: { icon: string; label: string; sub?: string; right?: ReactNode; to?: string; href?: string; onClick?: () => void; danger?: boolean }) {
   return (
-    <div>
-      <dt className="text-xs text-muted">{label}</dt>
-      <dd className={cx('mt-0.5 font-semibold', mono && 'font-mono')}>{value}</dd>
-    </div>
+    <Tap to={to} href={href} onClick={onClick} className="flex min-h-[72px] items-center gap-4 rounded-sm bg-surface-container px-4 py-3">
+      <span className={cx('flex size-10 shrink-0 items-center justify-center rounded-full', danger ? 'bg-error-container text-on-error-container' : 'bg-secondary-container text-on-secondary-container')}>
+        <Icon name={icon} size={22} />
+      </span>
+      <div className="min-w-0 flex-1">
+        <p className={cx('text-base', danger && 'text-error')}>{label}</p>
+        {sub && <p className="truncate text-sm text-on-surface-variant">{sub}</p>}
+      </div>
+      <span className="text-on-surface-variant">{right}</span>
+    </Tap>
+  );
+}
+
+function Appearance() {
+  const { mode, seed } = useThemeState();
+  return (
+    <>
+      <SectionHeader title="Aparência" icon="palette" />
+      <Card variant="filled" className="rounded-2xl p-5">
+        <p className="mb-2 text-sm font-medium text-on-surface-variant">Modo</p>
+        <Segmented<Mode> value={mode} onChange={setMode} className="w-full"
+          options={[{ value: 'light', label: 'Claro', icon: 'light_mode' }, { value: 'dark', label: 'Escuro', icon: 'dark_mode' }, { value: 'system', label: 'Sistema', icon: 'brightness_auto' }]} />
+        <p className="mt-5 mb-3 text-sm font-medium text-on-surface-variant">Cor do tema</p>
+        <div className="flex flex-wrap gap-3">
+          {SEEDS.map((s) => (
+            <button key={s.id} onClick={() => setSeed(s.id)} aria-label={s.label} title={s.label} aria-pressed={seed === s.id}
+              className="flex flex-col items-center gap-1.5">
+              <span className="relative flex size-14 items-center justify-center rounded-full" style={{ background: s.hex }}>
+                {seed === s.id && (
+                  <m.span layoutId="seed-check" transition={spring} className="flex size-7 items-center justify-center rounded-full bg-white text-black">
+                    <Icon name="check" size={18} weight={700} />
+                  </m.span>
+                )}
+              </span>
+              <span className="text-xs text-on-surface-variant">{s.label}</span>
+            </button>
+          ))}
+        </div>
+      </Card>
+    </>
   );
 }
 
 function Completion() {
   const { data } = useRequisitos();
-  if (!data) return null;
-  const pct = Math.round(Number(data.percentual_cumprida) || 0);
-  const pending = Object.entries(data)
+  const pct = data ? Math.round(Number(data.percentual_cumprida) || 0) : 0;
+  const pending = data ? Object.entries(data)
     .filter(([k, v]) => REQ_LABELS[k] && typeof v === 'object' && v && (v as { ch_pendente: number }).ch_pendente > 0)
-    .map(([k, v]) => ({ label: REQ_LABELS[k], ...(v as { ch_esperada: number; ch_cumprida: number; ch_pendente: number }) }));
+    .map(([k, v]) => ({ label: REQ_LABELS[k], ...(v as { ch_pendente: number }) })) : [];
 
   return (
-    <div>
-      <Eyebrow>Conclusão do curso</Eyebrow>
-      <Card className="p-5">
-        <div className="flex items-end justify-between">
-          <p className="font-mono text-4xl font-semibold tabular">{pct}%</p>
-          <p className="text-sm text-muted">{data.totais.ch_cumprida} de {data.totais.ch_esperada} h</p>
-        </div>
-        <div className="mt-3 h-2 overflow-hidden rounded-full bg-surface-2">
-          <div className="h-full rounded-full bg-brand" style={{ width: `${pct}%` }} />
-        </div>
-        {pending.length > 0 && (
-          <ul className="mt-5 space-y-2.5">
-            {pending.map((p) => (
-              <li key={p.label} className="flex items-baseline justify-between gap-3 text-sm">
-                <span>{p.label}</span>
-                <span className="font-mono text-xs text-muted">faltam {p.ch_pendente} h</span>
-              </li>
-            ))}
-          </ul>
+    <>
+      <SectionHeader title="Conclusão do curso" icon="workspace_premium" />
+      <Card variant="filled" className="rounded-2xl p-5">
+        {!data ? <Skeleton className="h-32" /> : (
+          <>
+            <div className="flex items-end justify-between gap-4">
+              <p className="text-[57px] leading-none font-semibold tracking-tight"><CountUp value={pct} suffix="%" /></p>
+              <p className="mb-1 text-right text-sm text-on-surface-variant">{data.totais.ch_cumprida} de {data.totais.ch_esperada} h</p>
+            </div>
+            <WavyProgress value={pct / 100} className="mt-4" />
+            {pending.length > 0 && (
+              <ul className="mt-4 flex flex-col gap-1.5">
+                {pending.map((p) => (
+                  <li key={p.label} className="flex items-center justify-between gap-3 rounded-lg bg-surface-container-low px-3.5 py-2.5 text-sm">
+                    <span>{p.label}</span>
+                    <span className="shrink-0 font-medium text-tertiary">faltam {p.ch_pendente} h</span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </>
         )}
       </Card>
-    </div>
+    </>
   );
 }
 
 function ClassroomRow() {
   const [linked, setLinked] = useState(classroom.linked);
   const [busy, setBusy] = useState(false);
-  const act = async () => {
-    if (linked) {
-      classroom.unlink();
-      setLinked(false);
-      refreshAll();
-      return;
-    }
+  const toggle = async (on: boolean) => {
+    if (!on) { classroom.unlink(); setLinked(false); refreshAll(); return; }
     setBusy(true);
-    try {
-      await connectClassroom();
-      setLinked(true);
-      refreshAll();
-    } catch { /* usuário fechou o popup */ } finally { setBusy(false); }
+    try { await connectClassroom(); setLinked(true); refreshAll(); } catch { /* popup fechado */ } finally { setBusy(false); }
   };
   return (
-    <button onClick={act} disabled={busy} className="flex w-full items-center gap-3 px-4 py-3.5 text-left transition-colors hover:bg-surface-2">
-      <span className={cx('size-2.5 rounded-full', linked ? 'bg-brand' : 'bg-line')} />
-      <span className="flex-1 font-medium">Google Classroom</span>
-      <span className={cx('text-sm', linked ? 'text-bad' : 'text-brand')}>{busy ? 'Conectando…' : linked ? 'Desconectar' : 'Conectar'}</span>
-    </button>
+    <div className="flex min-h-[72px] items-center gap-4 rounded-sm bg-surface-container px-4 py-3">
+      <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-secondary-container text-on-secondary-container"><Icon name="assignment" size={22} /></span>
+      <div className="min-w-0 flex-1">
+        <p className="text-base">Google Classroom</p>
+        <p className="text-sm text-on-surface-variant">{busy ? 'Conectando…' : linked ? 'Conectado · tarefas na Agenda' : 'Desconectado'}</p>
+      </div>
+      <Switch on={linked} onChange={toggle} label="Conectar Google Classroom" />
+    </div>
   );
 }
