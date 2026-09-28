@@ -1,5 +1,6 @@
 // Service worker enxuto: o app abre offline, e os dados vêm do cache local do próprio app.
-const CACHE = 'supaco-v3';
+const CACHE = 'supaco-v4';
+const FONT_HOSTS = ['fonts.googleapis.com', 'fonts.gstatic.com'];
 
 self.addEventListener('install', () => self.skipWaiting());
 
@@ -14,7 +15,18 @@ self.addEventListener('activate', (event) => {
 self.addEventListener('fetch', (event) => {
   const { request } = event;
   const url = new URL(request.url);
-  if (request.method !== 'GET' || url.origin !== self.location.origin) return;
+  if (request.method !== 'GET') return;
+
+  // Fontes do Google (texto e ícones): cache primeiro, para funcionar offline
+  if (FONT_HOSTS.includes(url.hostname)) {
+    event.respondWith(caches.match(request).then((hit) => hit || fetch(request).then((res) => {
+      const copy = res.clone();
+      caches.open(CACHE).then((c) => c.put(request, copy));
+      return res;
+    })));
+    return;
+  }
+  if (url.origin !== self.location.origin) return;
 
   // Navegação: rede primeiro, cai no index em cache quando offline
   if (request.mode === 'navigate') {

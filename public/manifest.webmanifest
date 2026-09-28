@@ -4,8 +4,8 @@
   "description": "Notas, faltas e horários do SUAP/IFRN.",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#f3f6f3",
-  "theme_color": "#1f7a34",
+  "background_color": "#f8faf3",
+  "theme_color": "#2f7d3a",
   "icons": [
     { "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
   ]
