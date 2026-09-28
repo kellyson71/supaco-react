@@ -1,8 +1,10 @@
 // Hooks de dados compartilhados pelas telas + período letivo selecionado.
 import { createContext, useContext, useMemo, useState, type ReactNode } from 'react';
 import { useResource } from './store';
-import { api, type Periodo } from './suap';
-import { classroom, fetchPendingTasks } from './classroom';
+import { api, type Aula, type Periodo } from './suap';
+import { parseDay } from './dates';
+import { fetchPendingTasks } from './classroom';
+import type { Holiday } from './insights';
 
 export const useEu = () => useResource('eu', api.eu, 24 * 60);
 export const useAluno = () => useResource('aluno', api.aluno, 24 * 60);
@@ -18,10 +20,23 @@ export const useFrequencia = (p: Periodo | undefined) =>
 export const useCalendario = (p: Periodo | undefined) =>
   useResource(p ? `calendario:${p.label}` : null, () => api.calendario(p!).catch(() => null), 24 * 60);
 
+/** Aulas registradas no período (do início do semestre até hoje, no máx. 6 meses). */
+export function useAulas(p: Periodo | undefined, inicio?: string | null) {
+  return useResource(p ? `aulas:${p.label}` : null, async () => {
+    const now = new Date();
+    const start = parseDay(inicio) ?? new Date(p!.ano, p!.periodo === 1 ? 1 : 6, 1);
+    const months: [number, number][] = [];
+    for (let d = new Date(start.getFullYear(), start.getMonth(), 1); d <= now && months.length < 6; d.setMonth(d.getMonth() + 1)) {
+      months.push([d.getFullYear(), d.getMonth() + 1]);
+    }
+    const lists = await Promise.all(months.map(([y, m]) => api.aulas(y, m).catch(() => [] as Aula[])));
+    return lists.flat().sort((a, b) => (b.data > a.data ? 1 : -1));
+  }, 60);
+}
+
 export const useTasks = (enabled: boolean) =>
   useResource(enabled ? 'classroom' : null, fetchPendingTasks, 20);
 
-type Holiday = { date: string; name: string };
 export const useHolidays = () => {
   const year = new Date().getFullYear();
   return useResource(`feriados:${year}`, async () => {
@@ -53,4 +68,3 @@ export const usePeriod = () => useContext(Ctx);
 /** Disciplinas do período letivo atual (sempre o mais recente, independente do seletor). */
 export const useCurrentSubjects = () => useDisciplinas(usePeriod().current);
 
-export const classroomLinked = () => classroom.linked;
