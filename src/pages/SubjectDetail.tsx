@@ -3,7 +3,7 @@ import { useAulas, useCalendario, useDisciplinas, usePeriod } from '../lib/data'
 import { absenceLevel, currentAverage, FINAL_MIN, gradeTone, neededFinal, outlook, PASS, weightsFor, type GradeOutlook } from '../lib/grades';
 import { WEEKDAYS } from '../lib/schedule';
 import { back } from '../lib/router';
-import { cleanName, subjectTone, type Aula, type Subject } from '../lib/suap';
+import { aulaMatchesSubject, subjectTone, type Aula, type Subject } from '../lib/suap';
 import { TONES } from '../lib/tones';
 import { parseDay } from '../lib/dates';
 import { AbsenceMeter, Badge, Button, Card, CountUp, cx, Empty, Icon, IconButton, Item, levelColor, Ring, SectionHeader, Shape, Skeleton, Stagger } from '../components/ui';
@@ -210,13 +210,7 @@ function History({ s }: { s: Subject }) {
   const { data, loading, error } = useAulas(period, cal?.data_inicio);
   const [onlyAbsent, setOnlyAbsent] = useState(false);
 
-  const mine = useMemo(() => {
-    const name = s.name.toLowerCase();
-    return (data ?? []).filter((a: Aula) => {
-      const d = a.disciplina || '';
-      return (s.sigla && d.includes(s.sigla)) || cleanName(d).toLowerCase() === name;
-    });
-  }, [data, s]);
+  const mine = useMemo(() => (data ?? []).filter((a: Aula) => aulaMatchesSubject(a, s)), [data, s]);
   const list = onlyAbsent ? mine.filter((a) => a.faltas > 0) : mine;
   const absentDays = mine.filter((a) => a.faltas > 0).length;
 
