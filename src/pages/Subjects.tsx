@@ -1,10 +1,10 @@
 import { useMemo, useState } from 'react';
-import { useAulas, useCalendario, useDisciplinas, usePeriod } from '../lib/data';
+import { useAulas, useDisciplinas, usePeriod } from '../lib/data';
 import { absenceLevel, currentAverage, gradeTone, outlook, type GradeOutlook } from '../lib/grades';
 import { aulaMatchesSubject, subjectTone, type Aula, type Subject } from '../lib/suap';
 import { parseDay, relativeDay } from '../lib/dates';
 import { TONES } from '../lib/tones';
-import { AbsenceMeter, Card, Chip, cx, Empty, ErrorNote, Icon, Item, Ring, Segmented, Skeleton, Stagger, Tap, TopTitle } from '../components/ui';
+import { AbsenceMeter, Card, levelColor, Chip, cx, Empty, ErrorNote, Icon, Item, Ring, Segmented, Skeleton, Stagger, Tap, TopTitle } from '../components/ui';
 import { PeriodSelect } from '../components/PeriodSelect';
 
 type Sort = 'nome' | 'faltas' | 'media';
@@ -15,8 +15,7 @@ const isRisk = (s: Subject) => { const l = absenceLevel(s); return l === 'critic
 export function Subjects() {
   const { period } = usePeriod();
   const { data, error, loading, refresh } = useDisciplinas(period);
-  const { data: cal } = useCalendario(period);
-  const { data: aulas } = useAulas(period, cal?.data_inicio);
+  const { data: aulas } = useAulas(period);
   const [sort, setSort] = useState<Sort>('nome');
   const [filter, setFilter] = useState<Filter>('todas');
 
@@ -88,6 +87,7 @@ function SubjectCard({ s, last }: { s: Subject; last?: Aula }) {
   const label = outlookLabel(o);
   const avg = currentAverage(s);
   const official = (s.finalAverage ?? s.average) !== null;
+  const left = s.limit - s.absences;
 
   return (
     <Tap to={`/disciplinas/${s.code}`} className="flex h-full flex-col gap-4 rounded-2xl bg-surface-container p-4">
@@ -99,9 +99,19 @@ function SubjectCard({ s, last }: { s: Subject; last?: Aula }) {
           <p className="truncate text-base font-medium">{s.name}</p>
           <p className={cx('mt-0.5 flex items-center gap-1 text-sm', label.tone)}><Icon name={label.icon} size={16} />{label.text}</p>
         </div>
-        <Ring value={(avg ?? 0) / 100} size={52} stroke={5} color={t.varColor} track={t.varContainer}>
-          <span className={cx('text-base font-semibold tabular', gradeTone(avg))}>{avg !== null ? Math.round(avg) : '–'}</span>
-        </Ring>
+        {avg !== null ? (
+          <Ring value={avg / 100} size={52} stroke={5} color={t.varColor} track={t.varContainer}>
+            <span className={cx('text-base font-semibold tabular', gradeTone(avg))}>{Math.round(avg)}</span>
+          </Ring>
+        ) : (
+          // Sem nota ainda: o anel mostra as faltas que sobram, para o card não ficar vazio
+          <Ring value={s.limit ? Math.max(left, 0) / s.limit : 0} size={52} stroke={5} color={levelColor[lvl].bar} track={t.varContainer}>
+            <span className="flex flex-col items-center leading-none">
+              <span className={cx('text-base font-semibold tabular', levelColor[lvl].text)}>{Math.max(left, 0)}</span>
+              <span className="mt-0.5 text-[8px] font-medium tracking-wide text-on-surface-variant uppercase">livres</span>
+            </span>
+          </Ring>
+        )}
       </div>
       {last && (
         <div className="flex items-start gap-2 rounded-lg bg-surface-container-low px-3 py-2 text-sm">

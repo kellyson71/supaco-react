@@ -1,8 +1,8 @@
 // Hooks de dados compartilhados pelas telas + período letivo selecionado.
 import { createContext, useContext, useMemo, useState, type ReactNode } from 'react';
 import { useResource } from './store';
-import { api, type Aula, type Periodo } from './suap';
-import { parseDay } from './dates';
+import { api, aulaMatchesSubject, type Calendario, type Periodo, type Turma } from './suap';
+import { isoDay, parseDay } from './dates';
 import { fetchPendingTasks } from './classroom';
 import type { Holiday } from './insights';
 
@@ -31,22 +31,53 @@ export function useMyTeachers(codes: string[] | undefined) {
     return [...new Set(turmas.flatMap((t) => t?.professores.map((p) => p.nome) ?? []))];
   }, 24 * 60);
 }
+/** Turmas de várias matérias (para saber em quais você divide sala com alguém). */
+export function useTurmas(codes: string[] | undefined) {
+  const key = codes?.length ? `turmas:${[...codes].sort().join(',')}` : null;
+  return useResource(key, async () => {
+    const list = await Promise.all(codes!.map(async (c) => [c, await api.turma(c).catch(() => null)] as const));
+    return Object.fromEntries(list.filter(([, t]) => t)) as Record<string, Turma>;
+  }, 12 * 60);
+}
 export const useCalendario = (p: Periodo | undefined) =>
   useResource(p ? `calendario:${p.label}` : null, () => api.calendario(p!).catch(() => null), 24 * 60);
 
-/** Aulas registradas no período (do início do semestre até hoje, no máx. 6 meses). */
-export function useAulas(p: Periodo | undefined, inicio?: string | null) {
-  // v2: datas passaram a vir em ISO; o cache antigo (dd/mm/aaaa) é ignorado
-  return useResource(p ? `aulas:v2:${p.label}` : null, async () => {
-    const now = new Date();
-    const start = parseDay(inicio) ?? new Date(p!.ano, p!.periodo === 1 ? 1 : 6, 1);
+/** Início e fim do semestre: pelo calendário acadêmico, ou uma estimativa se o SUAP não tiver calendário. */
+function semesterRange(p: Periodo, cal: Calendario | null) {
+  const start = parseDay(cal?.data_inicio) ?? new Date(p.ano, p.periodo === 1 ? 1 : 7, 1);
+  const end = parseDay(cal?.data_fim) ?? new Date(p.ano, p.periodo === 1 ? 6 : 11, 31);
+  return { start: isoDay(start), end: isoDay(end) };
+}
+
+/**
+ * Aulas lançadas no semestre, só das matérias do período.
+ * O minhas-aulas é por mês e mistura semestres (julho traz aulas do período anterior),
+ * então espera o calendário para saber o intervalo e ainda filtra por data e matéria.
+ */
+export function useAulas(p: Periodo | undefined) {
+  const cal = useCalendario(p);
+  const subjects = useDisciplinas(p);
+  const calReady = cal.data !== undefined || !!cal.error;
+  const range = p && calReady ? semesterRange(p, cal.data ?? null) : null;
+
+  const raw = useResource(p && range ? `aulas:v3:${p.label}:${range.start}` : null, async () => {
+    const [sy, sm] = range!.start.split('-').map(Number);
+    const last = new Date(Math.min(Date.now(), parseDay(range!.end)!.getTime()));
     const months: [number, number][] = [];
-    for (let d = new Date(start.getFullYear(), start.getMonth(), 1); d <= now && months.length < 6; d.setMonth(d.getMonth() + 1)) {
+    for (let d = new Date(sy, sm - 1, 1); d <= last && months.length < 7; d.setMonth(d.getMonth() + 1)) {
       months.push([d.getFullYear(), d.getMonth() + 1]);
     }
-    const lists = await Promise.all(months.map(([y, m]) => api.aulas(y, m).catch(() => [] as Aula[])));
+    // Sem .catch por mês: um mês faltando daria totais errados; melhor falhar e manter o último dado bom
+    const lists = await Promise.all(months.map(([y, m]) => api.aulas(y, m)));
     return lists.flat().sort((a, b) => (b.data > a.data ? 1 : -1));
   }, 60);
+
+  const data = useMemo(() => {
+    if (!raw.data || !range || !subjects.data) return undefined;
+    return raw.data.filter((a) => a.data >= range.start && a.data <= range.end && subjects.data!.some((s) => aulaMatchesSubject(a, s)));
+  }, [raw.data, range?.start, range?.end, subjects.data]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  return { ...raw, data, loading: !data && !raw.error, range };
 }
 
 export const useTasks = (enabled: boolean) =>

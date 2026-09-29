@@ -1,13 +1,17 @@
-import { useId, useMemo, useState } from 'react';
+import { useCallback, useId, useMemo, useState } from 'react';
 import { AnimatePresence, m } from 'motion/react';
 import { session } from '../lib/api';
 import { useTurma } from '../lib/data';
 import { initials, shortName, titleCase, type Material, type Pessoa } from '../lib/suap';
 import { TONES, toneFor } from '../lib/tones';
 import { parseDay } from '../lib/dates';
+import { PersonSheet, type Role } from './PersonSheet';
 import { Button, Card, cx, EMPHASIZED, Icon, SectionHeader, SHAPES, Skeleton, Tap, type ShapeName } from './ui';
 
 const STACK = 6;
+/** Mola da foto compartilhada entre a miniatura e o cartão (container transform do M3). */
+const SHARED = { type: 'spring', stiffness: 380, damping: 34 } as const;
+const big = (foto: string) => foto.replace('75x100', '150x200');
 const STACK_MOBILE = 3;
 
 const More = ({ n, className }: { n: number; className?: string }) => (
@@ -19,6 +23,8 @@ const More = ({ n, className }: { n: number; className?: string }) => (
 /** Professores, colegas e materiais da turma; some sem alarde se o SUAP não responder. */
 export function Turma({ code }: { code: string }) {
   const { data, loading } = useTurma(code);
+  const [sel, setSel] = useState<{ p: Pessoa; role: Role } | null>(null);
+  const close = useCallback(() => setSel(null), []);
 
   if (loading) return <Skeleton className="h-48 rounded-2xl" />;
   if (!data || (!data.professores.length && !data.colegas.length)) return null;
@@ -29,20 +35,30 @@ export function Turma({ code }: { code: string }) {
       <div className="grid grid-cols-1 gap-3 lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)]">
         {data.professores.length > 0 && (
           <div className="flex flex-col gap-3">
-            {data.professores.map((p) => <Teacher key={p.matricula} p={p} />)}
+            {data.professores.map((p) => <Teacher key={p.matricula} p={p} open={sel?.p.matricula === p.matricula} onOpen={() => setSel({ p, role: 'teacher' })} />)}
           </div>
         )}
-        {data.colegas.length > 0 && <Classmates list={data.colegas} />}
+        {data.colegas.length > 0 && <Classmates list={data.colegas} openId={sel?.role === 'student' ? sel.p.matricula : undefined} onOpen={(p) => setSel({ p, role: 'student' })} />}
       </div>
       {data.materiais.length > 0 && <Materials list={data.materiais} />}
+      <AnimatePresence>
+        {sel && (
+          <PersonSheet key={sel.p.matricula} p={sel.p} role={sel.role} onClose={close}
+            photo={sel.role === 'teacher'
+              ? <m.div layoutId={`photo-${sel.p.matricula}`} transition={SHARED}><ShapedPhoto src={big(sel.p.foto)} name={sel.p.nome} shape="flower" size={128} still /></m.div>
+              : <m.div layoutId={`photo-${sel.p.matricula}`} transition={SHARED} className="rounded-full ring-4 ring-[var(--md-surface-container-high)]"><Face p={{ ...sel.p, foto: big(sel.p.foto) }} size={120} eager /></m.div>} />
+        )}
+      </AnimatePresence>
     </Card>
   );
 }
 
-function Teacher({ p }: { p: Pessoa }) {
+function Teacher({ p, open, onOpen }: { p: Pessoa; open: boolean; onOpen: () => void }) {
   return (
     <div className="relative flex items-center gap-4 overflow-hidden rounded-xl bg-secondary-container p-4 text-on-secondary-container">
-      <ShapedPhoto src={p.foto.replace('75x100', '150x200')} name={p.nome} shape="flower" size={76} />
+      <button onClick={onOpen} aria-label={`Ver detalhes de ${titleCase(p.nome)}`} className="shrink-0 rounded-full transition-transform active:scale-95" style={{ width: 76, height: 76 }}>
+        {!open && <m.div layoutId={`photo-${p.matricula}`} transition={SHARED}><ShapedPhoto src={big(p.foto)} name={p.nome} shape="flower" size={76} /></m.div>}
+      </button>
       <div className="min-w-0 flex-1">
         <p className="text-xs font-medium tracking-wide uppercase opacity-75">Docente</p>
         <p className="mt-0.5 text-lg leading-6 font-medium">{titleCase(p.nome)}</p>
@@ -54,7 +70,7 @@ function Teacher({ p }: { p: Pessoa }) {
   );
 }
 
-function Classmates({ list }: { list: Pessoa[] }) {
+function Classmates({ list, openId, onOpen }: { list: Pessoa[]; openId?: string; onOpen: (p: Pessoa) => void }) {
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState('');
   const me = session.user;
@@ -105,9 +121,17 @@ function Classmates({ list }: { list: Pessoa[] }) {
               {filtered.map((p) => {
                 const isMe = p.matricula === me;
                 return (
-                  <li key={p.matricula} className="flex flex-col items-center gap-1.5 text-center" title={titleCase(p.nome)}>
-                    <Face p={p} size={56} className={isMe ? 'ring-[3px] ring-primary ring-offset-2 ring-offset-[var(--md-surface-container-low)]' : undefined} />
-                    <span className={cx('line-clamp-2 text-xs leading-4', isMe && 'font-semibold text-primary')}>{isMe ? 'Você' : shortName(p.nome)}</span>
+                  <li key={p.matricula}>
+                    <button onClick={() => onOpen(p)} className="group flex w-full flex-col items-center gap-1.5 text-center" title={titleCase(p.nome)} aria-label={`Ver detalhes de ${titleCase(p.nome)}`}>
+                      <span className="rounded-full transition-transform group-active:scale-95" style={{ width: 56, height: 56 }}>
+                        {openId !== p.matricula && (
+                          <m.span layoutId={`photo-${p.matricula}`} transition={SHARED} className="block rounded-full">
+                            <Face p={p} size={56} className={isMe ? 'ring-[3px] ring-primary ring-offset-2 ring-offset-[var(--md-surface-container-low)]' : 'transition-shadow group-hover:ring-2 group-hover:ring-primary/60'} />
+                          </m.span>
+                        )}
+                      </span>
+                      <span className={cx('line-clamp-2 text-xs leading-4', isMe && 'font-semibold text-primary')}>{isMe ? 'Você' : shortName(p.nome)}</span>
+                    </button>
                   </li>
                 );
               })}
@@ -175,12 +199,12 @@ function Face({ p, size, className, eager }: { p: Pessoa; size: number; classNam
 }
 
 /** Foto recortada numa forma expressiva do M3. */
-function ShapedPhoto({ src, name, shape, size }: { src: string; name: string; shape: ShapeName; size: number }) {
+function ShapedPhoto({ src, name, shape, size, still }: { src: string; name: string; shape: ShapeName; size: number; still?: boolean }) {
   const id = useId();
   const [failed, setFailed] = useState(!src);
   return (
     <m.svg viewBox="0 0 100 100" width={size} height={size} className="shrink-0" aria-hidden
-      initial={{ rotate: -20, scale: 0.8, opacity: 0 }} animate={{ rotate: 0, scale: 1, opacity: 1 }} transition={{ type: 'spring', stiffness: 260, damping: 18 }}>
+      initial={still ? false : { rotate: -20, scale: 0.8, opacity: 0 }} animate={{ rotate: 0, scale: 1, opacity: 1 }} transition={{ type: 'spring', stiffness: 260, damping: 18 }}>
       <defs><clipPath id={id}><path d={SHAPES[shape]} /></clipPath></defs>
       <path d={SHAPES[shape]} className="fill-[var(--md-tertiary-container)]" />
       {failed ? (

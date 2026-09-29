@@ -1,10 +1,10 @@
 import { useMemo, type ReactNode } from 'react';
 import { m } from 'motion/react';
-import { useAluno, useAulas, useCalendario, useCampus, useEu, useMensagens, useMyTeachers, usePeriod, usePeriodos, useRequisitos } from '../lib/data';
+import { useAluno, useAulas, useCampus, useEu, useFrequencia, useMensagens, useMyTeachers, usePeriod, usePeriodos, useRequisitos } from '../lib/data';
 import { graduationForecast, presenceByDay, streaks } from '../lib/semester';
 import { shortName, type Subject } from '../lib/suap';
 import { parseDay, relativeDay } from '../lib/dates';
-import { cx, EMPHASIZED, Icon, Ring, Shape, Tap, type ShapeName } from './ui';
+import { cx, EMPHASIZED, Icon, Ring, SectionHeader, Shape, Tap, type ShapeName } from './ui';
 
 const norm = (s: string) => s.toLowerCase().normalize('NFD').replace(/\p{M}/gu, '').trim();
 
@@ -12,8 +12,7 @@ const norm = (s: string) => s.toLowerCase().normalize('NFD').replace(/\p{M}/gu, 
 export function Highlights({ subjects }: { subjects: Subject[] }) {
   const { data: eu } = useEu();
   const { current } = usePeriod();
-  const { data: cal } = useCalendario(current);
-  const { data: aulas } = useAulas(current, cal?.data_inicio);
+  const { data: aulas } = useAulas(current);
   const { data: msgs } = useMensagens();
   const { data: campus } = useCampus(eu?.campus);
   const { data: req } = useRequisitos();
@@ -23,8 +22,10 @@ export function Highlights({ subjects }: { subjects: Subject[] }) {
 
   const days = useMemo(() => (aulas ? presenceByDay(aulas) : []), [aulas]);
   const s = streaks(days);
-  const lessons = days.reduce((a, d) => a + d.lessons, 0);
-  const presence = lessons ? (lessons - days.reduce((a, d) => a + d.absences, 0)) / lessons : null;
+  const { data: freq } = useFrequencia(current);
+  // Totais oficiais do SUAP; a soma das aulas lançadas é só para a sequência
+  const lessons = freq?.total_aulas ?? 0;
+  const presence = freq && lessons ? freq.percentual_frequencia / 100 : null;
   const unread = msgs?.filter((x) => !x.registro_leitura) ?? [];
   const event = campus?.eventos[0];
   const eventDay = parseDay(event?.inicio);
@@ -107,6 +108,8 @@ export function Highlights({ subjects }: { subjects: Subject[] }) {
   if (!cards.length) return null;
 
   return (
+    <section>
+    <SectionHeader title="Mais pra você" icon="auto_awesome" />
     <div className="no-scrollbar -mx-4 mb-4 flex snap-x snap-mandatory gap-3 overflow-x-auto scroll-px-4 px-4 pb-1 md:mx-0 md:scroll-px-0 md:px-0">
       {cards.map((c, i) => (
         <m.div key={i} initial={{ opacity: 0, x: 24 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: i * 0.05, duration: 0.4, ease: EMPHASIZED }}
@@ -115,6 +118,7 @@ export function Highlights({ subjects }: { subjects: Subject[] }) {
         </m.div>
       ))}
     </div>
+    </section>
   );
 }
 

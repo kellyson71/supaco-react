@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { m } from 'motion/react';
-import { useAulas, useCalendario, useDisciplinas, useEu, usePeriod } from '../lib/data';
+import { useAulas, useCalendario, useDisciplinas, useEu, useFrequencia, usePeriod } from '../lib/data';
 import { presenceByDay, retrospective, type Retro } from '../lib/semester';
 import { subjectTone } from '../lib/suap';
 import { TONES } from '../lib/tones';
@@ -14,8 +14,9 @@ export function Retrospective() {
   const { current } = usePeriod();
   const { data: cal } = useCalendario(current);
   const { data: subjects } = useDisciplinas(current);
-  const { data: aulas, loading } = useAulas(current, cal?.data_inicio);
-  const r = useMemo(() => (aulas && subjects ? retrospective(aulas, subjects) : null), [aulas, subjects]);
+  const { data: aulas, loading } = useAulas(current);
+  const { data: freq } = useFrequencia(current);
+  const r = useMemo(() => (aulas && subjects ? retrospective(aulas, subjects, freq) : null), [aulas, subjects, freq]);
   const days = useMemo(() => (aulas ? presenceByDay(aulas) : []), [aulas]);
 
   useEffect(() => {

@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { useAulas, useCalendario, useDisciplinas, usePeriod } from '../lib/data';
+import { useAulas, useDisciplinas, usePeriod } from '../lib/data';
 import { absenceLevel, currentAverage, FINAL_MIN, gradeTone, neededFinal, outlook, PASS, weightsFor, type GradeOutlook } from '../lib/grades';
 import { WEEKDAYS } from '../lib/schedule';
 import { back } from '../lib/router';
@@ -208,8 +208,7 @@ function Absences({ s }: { s: Subject }) {
 /** Histórico de aulas do SUAP (minhas-aulas): o que foi dado e em quais dias você faltou. */
 function History({ s }: { s: Subject }) {
   const { period } = usePeriod();
-  const { data: cal } = useCalendario(period);
-  const { data, loading, error } = useAulas(period, cal?.data_inicio);
+  const { data, loading, error } = useAulas(period);
   const [onlyAbsent, setOnlyAbsent] = useState(false);
 
   const mine = useMemo(() => (data ?? []).filter((a: Aula) => aulaMatchesSubject(a, s)), [data, s]);

@@ -1,5 +1,5 @@
 // Cálculos do semestre a partir das aulas lançadas: presença por dia, sequências, retrospectiva e formatura.
-import { aulaMatchesSubject, type Aula, type DadosAluno, type Periodo, type Requisitos, type Subject } from './suap';
+import { aulaMatchesSubject, type Aula, type DadosAluno, type Frequencia, type Periodo, type Requisitos, type Subject } from './suap';
 import { parseDay } from './dates';
 
 // ---------- Presença por dia ----------
@@ -43,10 +43,11 @@ export type Retro = {
   firstDay: string | null;
 };
 
-export function retrospective(aulas: Aula[], subjects: Subject[]): Retro {
+/** `official`: totais do SUAP (frequencia-periodo-letivo), que valem mais que a soma das aulas lançadas. */
+export function retrospective(aulas: Aula[], subjects: Subject[], official?: Frequencia): Retro {
   const days = presenceByDay(aulas);
-  const lessons = days.reduce((a, d) => a + d.lessons, 0);
-  const absences = days.reduce((a, d) => a + d.absences, 0);
+  const lessons = official?.total_aulas ?? days.reduce((a, d) => a + d.lessons, 0);
+  const absences = official ? official.total_faltas - (official.total_abonos ?? 0) : days.reduce((a, d) => a + d.absences, 0);
 
   const per = subjects.map((s) => {
     const mine = aulas.filter((a) => aulaMatchesSubject(a, s));

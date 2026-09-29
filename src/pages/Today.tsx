@@ -48,7 +48,6 @@ export function Today() {
       {res.error && !subjects && <div className="mb-4"><ErrorNote error={res.error} onRetry={res.refresh} /></div>}
 
       {subjects && <News subjects={subjects} />}
-      {subjects && <Highlights subjects={subjects} />}
 
       <Stagger className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-12">
         <Item className="md:col-span-2 xl:col-span-7 xl:row-span-2">
@@ -62,6 +61,8 @@ export function Today() {
         <Item className="xl:col-span-4">{subjects && <Attention subjects={subjects} />}</Item>
         <Item className="md:col-span-2 xl:col-span-4"><Deadlines /></Item>
       </Stagger>
+
+      {subjects && <div className="mt-6"><Highlights subjects={subjects} /></div>}
     </>
   );
 }
@@ -126,18 +127,21 @@ function NowCard({ subjects, now, holiday }: { subjects: Subject[]; now: Date; h
 
   const upcoming = nextSchoolDay(subjects, now);
   return (
-    <Card variant="tertiary" className="relative flex h-full min-h-72 flex-col overflow-hidden rounded-2xl p-6">
-      <Shape shape="sunny" size={260} spin className="absolute -top-16 -right-16 text-on-tertiary-container/10" />
-      <Shape shape="flower" size={64} className="relative text-tertiary"><Icon name={holiday ? 'celebration' : 'weekend'} size={30} className="text-on-tertiary" fill /></Shape>
-      <Recap subjects={subjects} now={now} />
-      <p className="relative mt-auto pt-6 text-sm font-medium opacity-80">{holiday ? 'Feriado' : today.length ? 'Por hoje é só' : 'Dia livre'}</p>
-      <p className="relative text-[36px] leading-[44px] font-semibold tracking-tight">{holiday ?? (today.length ? 'Aulas encerradas' : 'Sem aulas hoje')}</p>
+    <Card variant="filled" className="relative flex h-full min-h-72 flex-col overflow-hidden rounded-2xl p-5 md:p-6">
+      <div className="flex items-center gap-4">
+        <Shape shape="flower" size={52} className="text-tertiary-container"><Icon name={holiday ? 'celebration' : 'weekend'} size={26} className="text-on-tertiary-container" fill /></Shape>
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-medium text-on-surface-variant">{holiday ? 'Feriado' : today.length ? 'Por hoje é só' : 'Dia livre'}</p>
+          <p className="text-[28px] leading-9 font-semibold tracking-tight">{holiday ?? (today.length ? 'Aulas encerradas' : 'Sem aulas hoje')}</p>
+        </div>
+      </div>
       {upcoming && (
-        <p className="relative mt-3 flex items-center gap-2 text-base">
-          <Icon name="arrow_forward" size={20} />
-          <span><b className="font-semibold">{upcoming.first.subject}</b> · {daysBetween(now, upcoming.date) === 1 ? 'amanhã' : WEEKDAYS[upcoming.date.getDay()].toLowerCase()} às {upcoming.first.start}</span>
+        <p className="mt-3 flex items-center gap-2 text-sm text-on-surface-variant">
+          <Icon name="arrow_forward" size={18} className="text-primary" />
+          <span>Próxima: <b className="font-semibold text-on-surface">{upcoming.first.subject}</b> · {daysBetween(now, upcoming.date) === 1 ? 'amanhã' : WEEKDAYS[upcoming.date.getDay()].toLowerCase()} às {upcoming.first.start}</span>
         </p>
       )}
+      <Recap subjects={subjects} now={now} />
     </Card>
   );
 }
@@ -155,8 +159,7 @@ function lessonOn(aulas: Aula[] | undefined, s: Subject, date: string) {
 
 function useSemesterAulas() {
   const { current } = usePeriod();
-  const { data: cal } = useCalendario(current);
-  return useAulas(current, cal?.data_inicio).data;
+  return useAulas(current).data;
 }
 
 /** Resumo do que foi dado: as aulas que já acabaram hoje, ou as do último dia com aula lançada. */
@@ -167,24 +170,25 @@ function Recap({ subjects, now }: { subjects: Subject[]; now: Date }) {
   const mm = nowMin(now);
   const byCode = new Map(subjects.map((s) => [s.code, s]));
 
-  const endedToday = classesOn(subjects, now.getDay()).filter((c) => toMin(c.end) <= mm);
-  const seen = new Set<string>();
-  let rows = endedToday.filter((c) => !seen.has(c.code) && seen.add(c.code)).map((c) => {
-    const s = byCode.get(c.code)!;
-    return { s, lesson: s ? lessonOn(aulas, s, date) : null, pending: attendanceFor(c.code, date, checks)?.status };
-  }).filter((r) => r.s);
+  type Row = { s: Subject; lesson: ReturnType<typeof lessonOn>; pending?: AttendanceCheck['status'] };
+  /** Matérias do dia: as do horário mais as que o SUAP lançou nesse dia (reposição, evento, etc.). */
+  const rowsFor = (day: string, scheduled: string[]): Row[] => {
+    const lançadas = subjects.filter((s) => aulas?.some((a) => a.data === day && aulaMatchesSubject(a, s))).map((s) => s.code);
+    return [...new Set([...scheduled, ...lançadas])]
+      .map((code) => byCode.get(code))
+      .filter((s): s is Subject => !!s)
+      .map((s) => ({ s, lesson: lessonOn(aulas, s, day), pending: attendanceFor(s.code, day, checks)?.status }));
+  };
+
+  const endedToday = classesOn(subjects, now.getDay()).filter((c) => toMin(c.end) <= mm).map((c) => c.code);
+  let rows = rowsFor(date, endedToday);
   let title = 'O que rolou hoje';
 
   if (!rows.length) {
-    // Último dia letivo pelo horário (inclui aulas que o professor ainda não lançou)
+    // Último dia com aula: pelo horário ou pelo que foi lançado (inclui aulas que o professor ainda não lançou)
     for (let i = 1; i <= 7 && !rows.length; i++) {
       const d = new Date(now); d.setDate(d.getDate() - i);
-      const day = isoDay(d);
-      const codes = [...new Set(classesOn(subjects, d.getDay()).map((c) => c.code))];
-      rows = codes.map((code) => {
-        const s = byCode.get(code)!;
-        return { s, lesson: lessonOn(aulas, s, day), pending: attendanceFor(code, day, checks)?.status };
-      }).filter((r) => r.s);
+      rows = rowsFor(isoDay(d), classesOn(subjects, d.getDay()).map((c) => c.code));
       // Dia sem nada lançado e sem conferência (ex.: feriado) não conta como "última aula"
       if (rows.length && !rows.some((r) => r.lesson || r.pending)) rows = [];
       if (rows.length) title = `Última aula · ${relativeDay(d, now)}`;
@@ -193,16 +197,16 @@ function Recap({ subjects, now }: { subjects: Subject[]; now: Date }) {
   if (!rows.length) return null;
 
   return (
-    <div className="relative mt-5">
-      <p className="mb-2 flex items-center gap-1.5 text-sm font-medium opacity-80"><Icon name="history_edu" size={18} />{title}</p>
+    <div className="mt-5 border-t border-outline-variant pt-4">
+      <p className="mb-2 flex items-center gap-1.5 text-sm font-medium text-on-surface-variant"><Icon name="history_edu" size={18} className="text-primary" />{title}</p>
       <ul className="flex flex-col gap-1.5">
-        {rows.slice(0, 4).map(({ s, lesson, pending }, i) => (
+        {rows.map(({ s, lesson, pending }, i) => (
           <m.li key={s.code} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.06, duration: 0.3, ease: EMPHASIZED }}>
-            <Tap to={`/disciplinas/${s.code}`} className="flex items-start gap-3 rounded-xl bg-white/40 px-3.5 py-3 dark:bg-black/20">
+            <Tap to={`/disciplinas/${s.code}`} className="flex items-start gap-3 rounded-xl bg-surface-container-high px-3.5 py-3">
               <span className={cx('mt-1.5 size-2.5 shrink-0 rounded-full', TONES[subjectTone(s)].color)} />
               <div className="min-w-0 flex-1">
                 <p className="truncate font-medium">{s.name}</p>
-                <p className="line-clamp-2 text-sm opacity-85">{lesson ? lesson.conteudo || 'Conteúdo não informado' : 'O professor ainda não lançou a aula no SUAP.'}</p>
+                <p className="mt-0.5 line-clamp-2 text-sm text-on-surface-variant">{lesson ? lesson.conteudo || 'Conteúdo não informado' : 'O professor ainda não lançou a aula no SUAP.'}</p>
               </div>
               <LessonBadge lesson={lesson} pending={pending} />
             </Tap>

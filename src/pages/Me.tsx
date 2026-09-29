@@ -1,8 +1,8 @@
 import { useMemo, useState, type ReactNode } from 'react';
 import { m } from 'motion/react';
-import { useAluno, useAulas, useCalendario, useEu, useMensagens, usePeriod, usePeriodos, useRequisitos } from '../lib/data';
+import { useAluno, useAulas, useCalendario, useEu, useFrequencia, useMensagens, usePeriod, usePeriodos, useRequisitos } from '../lib/data';
 import { graduationForecast, presenceByDay, streaks, type Forecast } from '../lib/semester';
-import { isoDay, parseDay } from '../lib/dates';
+import { daysBetween, isoDay, parseDay } from '../lib/dates';
 import { PresenceCalendar } from '../components/PresenceCalendar';
 import { SUAP_URL } from '../lib/suap';
 import { classroom, connectClassroom } from '../lib/classroom';
@@ -223,26 +223,42 @@ function ForecastBox({ f }: { f: Forecast }) {
 function Presence() {
   const { current } = usePeriod();
   const { data: cal } = useCalendario(current);
-  const { data: aulas, loading } = useAulas(current, cal?.data_inicio);
+  const { data: freq } = useFrequencia(current);
+  const { data: aulas, loading } = useAulas(current);
   const days = useMemo(() => (aulas ? presenceByDay(aulas) : []), [aulas]);
   const s = streaks(days);
   const start = parseDay(cal?.data_inicio);
+  const end = parseDay(cal?.data_fim);
+  const weeksLeft = end ? Math.max(0, Math.ceil(daysBetween(new Date(), end) / 7)) : null;
+  const pct = freq?.percentual_frequencia ?? null;
 
   return (
     <>
       <SectionHeader title="Presença no semestre" icon="calendar_month"
         action={<Button variant="text" size="sm" icon="auto_awesome" to="/retrospectiva">Retrospectiva</Button>} />
       <Card variant="filled" className="rounded-2xl p-5">
-        {loading ? <Skeleton className="h-40" /> : days.length === 0 ? (
+        {loading ? <Skeleton className="h-48" /> : days.length === 0 ? (
           <p className="text-sm text-on-surface-variant">Nenhuma aula lançada ainda neste semestre.</p>
         ) : (
-          <>
-            <div className="mb-4 flex flex-wrap gap-3">
+          <div className="flex flex-col gap-5 lg:flex-row lg:items-center">
+            <div className="min-w-0 flex-1"><PresenceCalendar days={days} from={start ? isoDay(start) : null} to={end ?? undefined} /></div>
+            <div className="flex flex-col gap-3 lg:w-72 lg:shrink-0 lg:border-l lg:border-outline-variant lg:pl-5">
+              {pct !== null && freq && (
+                <div className="flex items-center gap-4">
+                  <Ring value={pct / 100} size={76} stroke={8} color={pct < 75 ? 'var(--md-error)' : 'var(--c-success)'}>
+                    <span className="text-lg font-semibold tabular">{pct}%</span>
+                  </Ring>
+                  <div className="text-sm">
+                    <p className="font-medium">{pct < 75 ? 'Abaixo dos 75%' : 'Frequência em dia'}</p>
+                    <p className="text-on-surface-variant tabular">{freq.total_aulas - freq.total_faltas} de {freq.total_aulas} aulas · {freq.total_faltas} faltas</p>
+                    {weeksLeft !== null && <p className="text-on-surface-variant">{weeksLeft ? `${weeksLeft} ${weeksLeft === 1 ? 'semana' : 'semanas'} até o fim` : 'última semana'}</p>}
+                  </div>
+                </div>
+              )}
               <StreakPill icon="local_fire_department" value={s.current} label={s.current === 1 ? 'dia seguido sem faltar' : 'dias seguidos sem faltar'} hot={s.current >= 5} />
               <StreakPill icon="workspace_premium" value={s.best} label="melhor sequência" />
             </div>
-            <PresenceCalendar days={days} from={start ? isoDay(start) : null} to={parseDay(cal?.data_fim) ?? undefined} />
-          </>
+          </div>
         )}
       </Card>
     </>

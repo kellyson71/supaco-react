@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityCalendar, type Activity } from 'react-activity-calendar';
 import 'react-activity-calendar/tooltips.css';
 import type { DayPresence } from '../lib/semester';
@@ -39,16 +39,33 @@ export function PresenceCalendar({ days, from, to }: { days: DayPresence[]; from
 
   const byDate = useMemo(() => new Map(days.map((d) => [d.date, d])), [days]);
 
+  // Quadradinhos do tamanho que preenche a largura disponível (entre 12 e 34 px)
+  const ref = useRef<HTMLDivElement>(null);
+  const [width, setWidth] = useState(0);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const ro = new ResizeObserver(([e]) => setWidth(e.contentRect.width));
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+  const first = parseDay(data[0]?.date);
+  const last = parseDay(data[data.length - 1]?.date);
+  const weeks = first && last ? Math.ceil((last.getTime() - first.getTime()) / (7 * 86_400_000)) + 2 : 20;
+  const margin = 4;
+  const block = width ? Math.max(12, Math.min(34, Math.floor((width - 36) / weeks) - margin)) : 17;
+
   return (
-    <div className="presence-calendar -mx-1 overflow-x-auto px-1">
+    <div ref={ref} className="presence-calendar w-full overflow-x-auto">
       <ActivityCalendar
         data={data}
         theme={{ light: colors, dark: colors }}
         colorScheme={dark ? 'dark' : 'light'}
-        blockSize={17}
-        blockMargin={4}
-        blockRadius={4}
+        blockSize={block}
+        blockMargin={margin}
+        blockRadius={Math.round(block / 4)}
         fontSize={12}
+        showColorLegend={false}
         weekStart={1}
         showTotalCount={false}
         showWeekdayLabels={['mon', 'wed', 'fri']}
@@ -65,6 +82,11 @@ export function PresenceCalendar({ days, from, to }: { days: DayPresence[]; from
           colorLegend: { text: (level) => LEGEND[level] },
         }}
       />
+      <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1.5 text-xs text-on-surface-variant">
+        {[4, 3, 2, 1, 0].map((l) => (
+          <span key={l} className="flex items-center gap-1.5"><span className="size-3 rounded-[3px]" style={{ background: colors[l] }} />{LEGEND[l]}</span>
+        ))}
+      </div>
     </div>
   );
 }
