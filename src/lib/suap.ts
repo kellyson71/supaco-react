@@ -138,6 +138,10 @@ const num = (v: unknown): number | null => {
 
 export const photoUrl = (foto?: string) => (!foto ? '' : foto.startsWith('http') ? foto : `${SUAP}${foto}`);
 
+/** Uma aula do endpoint minhas-aulas pertence à matéria quando a sigla ou o nome batem. */
+export const aulaMatchesSubject = (a: Aula, s: Pick<Subject, 'sigla' | 'name'>) =>
+  (s.sigla && a.disciplina.includes(s.sigla)) || cleanName(a.disciplina).toLowerCase() === s.name.toLowerCase();
+
 // ---------- Endpoints ----------
 
 export const api = {
