@@ -20,12 +20,19 @@ const storageKey = () => `supaco:att:${session.user}`;
 const subs = new Set<() => void>();
 const emit = () => subs.forEach((fn) => fn());
 
+// useSyncExternalStore exige que getSnapshot devolva a mesma referência enquanto
+// os dados não mudam; por isso o cache é invalidado só em saveAll, nunca recriado a cada leitura.
+let snapshot: AttendanceCheck[] | null = null;
+
 function loadAll(): AttendanceCheck[] {
-  try { return JSON.parse(localStorage.getItem(storageKey()) || '[]'); } catch { return []; }
+  if (snapshot) return snapshot;
+  try { snapshot = JSON.parse(localStorage.getItem(storageKey()) || '[]'); } catch { snapshot = []; }
+  return snapshot!;
 }
 
 function saveAll(list: AttendanceCheck[]) {
   try { localStorage.setItem(storageKey(), JSON.stringify(list.slice(-80))); } catch { /* quota */ }
+  snapshot = null;
   emit();
 }
 
