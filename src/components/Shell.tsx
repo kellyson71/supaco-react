@@ -2,7 +2,8 @@ import type { ReactNode } from 'react';
 import { AnimatePresence, m } from 'motion/react';
 import { usePath } from '../lib/router';
 import { refreshAll, useIsRefreshing } from '../lib/store';
-import { useMensagens } from '../lib/data';
+import { forceRecheck, recheckPending } from '../lib/attendance';
+import { useCurrentSubjects, useMensagens } from '../lib/data';
 import { useOnline } from '../lib/hooks';
 import { toggleDark, useThemeState } from '../lib/theme';
 import { cx, EMPHASIZED, Icon, IconButton, spring } from './ui';
@@ -36,10 +37,16 @@ export function ThemeButton({ variant = 'standard' }: { variant?: 'standard' | '
 export function SyncButton() {
   const refreshing = useIsRefreshing();
   const online = useOnline();
+  const { data: subjects } = useCurrentSubjects();
   if (!online) return <span className="flex h-8 items-center gap-1 rounded-lg bg-warning-container px-3 text-sm font-medium text-on-warning-container"><Icon name="cloud_off" size={18} />Offline</span>;
+  const sync = () => {
+    refreshAll();
+    forceRecheck();
+    if (subjects) recheckPending(subjects);
+  };
   return (
     <span className={cx('inline-flex', refreshing && '[&_.msr]:animate-spin')}>
-      <IconButton icon="sync" label="Atualizar dados do SUAP" onClick={() => refreshAll()} />
+      <IconButton icon="sync" label="Atualizar dados do SUAP" onClick={sync} />
     </span>
   );
 }

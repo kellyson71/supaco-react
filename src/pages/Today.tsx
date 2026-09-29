@@ -1,10 +1,11 @@
-import { useMemo, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { AnimatePresence, m } from 'motion/react';
 import { useAvaliacoes, useCalendario, useCurrentSubjects, useEu, useFrequencia, useHolidays, usePeriod, useTasks } from '../lib/data';
 import { classroom } from '../lib/classroom';
 import { classesOn, formatDuration, nowMin, toMin, WEEKDAYS, WEEKDAYS_SHORT, type ClassItem } from '../lib/schedule';
 import { absenceLevel, outlook, overallAverage, PASS } from '../lib/grades';
 import { canSkip, currentStage, nextHoliday, type SkipVerdict } from '../lib/insights';
+import { attendanceFor, markEnded, recheckPending, useAttendance, type AttendanceCheck } from '../lib/attendance';
 import { buildDeadlines, type Deadline } from '../lib/agenda';
 import { daysBetween, isoDay, longDate, relativeDay, time } from '../lib/dates';
 import { useNow } from '../lib/hooks';
@@ -23,6 +24,7 @@ export function Today() {
   const { data: holidays } = useHolidays();
   const holiday = holidays?.find((h) => h.date === isoDay(now));
   const first = eu ? eu.primeiro_nome || eu.nome_usual.split(' ')[0] : '';
+  useAttendanceWatch(subjects, now);
 
   return (
     <>
@@ -52,6 +54,21 @@ export function Today() {
       </Stagger>
     </>
   );
+}
+
+// ---------- Confere falta depois que a aula termina ----------
+
+/** Assim que uma aula termina, marca "aguardando" e reconfere no SUAP até saber se virou falta. */
+function useAttendanceWatch(subjects: Subject[] | undefined, now: Date) {
+  useEffect(() => {
+    if (!subjects) return;
+    const date = isoDay(now);
+    const mm = nowMin(now);
+    classesOn(subjects, now.getDay())
+      .filter((c) => toMin(c.end) <= mm)
+      .forEach((c) => markEnded(c.code, c.subject, date));
+    recheckPending(subjects);
+  }, [subjects, now]);
 }
 
 // ---------- Agora / próxima aula ----------
@@ -293,10 +310,19 @@ function StatTile({ icon, label, hint, children }: { icon: string; label: string
 
 // ---------- Aulas de hoje ----------
 
+const ATTENDANCE_BADGE: Record<AttendanceCheck['status'], { icon: string; textClass: string; label: string; fill?: boolean; pulse?: boolean }> = {
+  pending: { icon: 'hourglass_empty', textClass: 'text-on-surface-variant', label: 'aguardando SUAP', pulse: true },
+  present: { icon: 'check_circle', textClass: 'text-success', label: 'presença confirmada', fill: true },
+  absent: { icon: 'cancel', textClass: 'text-error', label: 'falta registrada', fill: true },
+  unregistered: { icon: 'help', textClass: 'text-warning', label: 'SUAP não lançou' },
+};
+
 function DayList({ subjects, now }: { subjects: Subject[]; now: Date }) {
   const today = classesOn(subjects, now.getDay());
   const mm = nowMin(now);
   const byCode = new Map(subjects.map((s) => [s.code, s]));
+  const checks = useAttendance();
+  const date = isoDay(now);
 
   return (
     <section className="h-full">
@@ -310,8 +336,10 @@ function DayList({ subjects, now }: { subjects: Subject[]; now: Date }) {
             const t = TONES[s ? subjectTone(s) : toneFor(c.code)];
             const past = toMin(c.end) <= mm;
             const live = toMin(c.start) <= mm && mm < toMin(c.end);
+            const check = past ? attendanceFor(c.code, date, checks) : undefined;
+            const badge = check ? ATTENDANCE_BADGE[check.status] : undefined;
             return (
-              <Tap key={c.code + c.start} to={`/disciplinas/${c.code}`} className={cx('flex items-center gap-3 rounded-sm px-4 py-3', live ? cx(t.container, t.onContainer) : 'bg-surface-container', past && 'opacity-60')}>
+              <Tap key={c.code + c.start} to={`/disciplinas/${c.code}`} className={cx('flex items-center gap-3 rounded-sm px-4 py-3', live ? cx(t.container, t.onContainer) : 'bg-surface-container', past && !badge && 'opacity-60')}>
                 <div className="w-12 shrink-0 text-sm leading-tight tabular">
                   <p className="font-semibold">{c.start}</p>
                   <p className="text-xs opacity-70">{c.end}</p>
@@ -321,7 +349,13 @@ function DayList({ subjects, now }: { subjects: Subject[]; now: Date }) {
                   <p className="truncate font-medium">{c.subject}</p>
                   <p className="truncate text-xs opacity-75">{c.room || 'Sala não informada'}</p>
                 </div>
-                {past ? <Icon name="check_circle" size={20} className="text-success" fill /> : live ? <Badge tone="primary">agora</Badge> : null}
+                {live && <Badge tone="primary">agora</Badge>}
+                {badge && (
+                  <span className={cx('flex items-center gap-1 text-xs font-medium', badge.textClass)} title={badge.label}>
+                    <Icon name={badge.icon} size={18} fill={badge.fill} className={badge.pulse ? 'animate-pulse' : undefined} />
+                    <span className="hidden sm:inline">{badge.label}</span>
+                  </span>
+                )}
               </Tap>
             );
           })}
