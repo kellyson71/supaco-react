@@ -15,6 +15,8 @@ const Agenda = lazy(() => import('./pages/Agenda').then((m) => ({ default: m.Age
 const Me = lazy(() => import('./pages/Me').then((m) => ({ default: m.Me })));
 const Messages = lazy(() => import('./pages/Messages').then((m) => ({ default: m.Messages })));
 const Diagnostics = lazy(() => import('./pages/Diagnostics').then((m) => ({ default: m.Diagnostics })));
+const Campus = lazy(() => import('./pages/Campus').then((m) => ({ default: m.Campus })));
+const Retrospective = lazy(() => import('./pages/Retrospective').then((m) => ({ default: m.Retrospective })));
 
 const useLoggedIn = () => useSyncExternalStore(onSessionChange, () => session.isLoggedIn);
 
@@ -40,6 +42,8 @@ export default function App() {
     path === '/voce' ? <Me /> :
     path === '/mensagens' ? <Messages /> :
     path === '/diagnostico' ? <Diagnostics /> :
+    path === '/campus' ? <Campus /> :
+    path === '/retrospectiva' ? <Retrospective /> :
     <Today />;
 
   return (

@@ -4,6 +4,7 @@ import { get, getAll, SUAP } from './api';
 export { SUAP as SUAP_URL };
 import { parseHorarios, shortRoom, type Slot } from './schedule';
 import { TONE_ORDER, toneFor, type Tone } from './tones';
+import { isoDay, parseDay } from './dates';
 
 // ---------- Tipos crus da API (subset do openapi) ----------
 
@@ -96,6 +97,32 @@ export type Aula = { id: number; etapa: string; conteudo: string; data: string; 
 
 export type Frequencia = { total_aulas: number; total_faltas: number; total_abonos: number; percentual_frequencia: number };
 
+type PessoaRaw = { nome: string; matricula: string; foto?: string; email?: string };
+type TurmaRaw = {
+  professores?: PessoaRaw[];
+  participantes?: PessoaRaw[];
+  materiais_de_aula?: { url: string; descricao: string; data_vinculacao?: string }[];
+};
+
+export type Evento = {
+  id: number; nome: string; resumo: string; imagem: string | null; local: string | null;
+  inicio: string; fim: string; horaInicio: string | null; horaFim: string | null; periodo: string;
+  link: string; site: string | null; inscricoes: { tipo: string; ate: string }[];
+};
+export type Projeto = { id: string; tipo: 'pesquisa' | 'extensao'; titulo: string; resumo: string; inicio: string | null; fim: string | null; coordenador: string };
+export type CampusInfo = { campus: string; eventos: Evento[]; projetos: Projeto[] };
+
+export type CampusStat = { campus_sigla: string; campus_nome: string; alunos_ativos: number; servidores_ativos: number };
+export type Estatisticas = {
+  alunos_ativos: number; servidores_ativos: number;
+  projetos_extensao_em_execucao: number; projetos_pesquisa_em_execucao: number;
+  estatisticas_por_campus: CampusStat[];
+};
+
+export type Pessoa = { nome: string; matricula: string; foto: string; email?: string };
+export type Material = { descricao: string; url: string; data?: string };
+export type Turma = { professores: Pessoa[]; colegas: Pessoa[]; materiais: Material[] };
+
 type CH = { ch_esperada: number; ch_cumprida: number; ch_pendente: number };
 export type Requisitos = { percentual_cumprida: number; totais: CH } & Record<string, CH | number>;
 
@@ -167,7 +194,15 @@ export const api = {
   },
 
   /** Aulas registradas no mês (conteúdo e faltas por dia). */
-  aulas: (ano: number, mes: number) => getAll<Aula>(`/api/ensino/minhas-aulas/${ano}/${mes}/`),
+  aulas: async (ano: number, mes: number) => {
+    const list = await getAll<Aula>(`/api/ensino/minhas-aulas/${ano}/${mes}/`);
+    // O SUAP manda "dd/mm/aaaa"; em ISO dá para ordenar e comparar como texto
+    return list.map((a) => { const d = parseDay(a.data); return d ? { ...a, data: isoDay(d) } : a; });
+  },
+
+  /** Eventos e projetos do campus, já filtrados pela função /api/campus. */
+  campus: (sigla: string) => get<CampusInfo>(`${window.location.origin}/api/campus?campus=${encodeURIComponent(sigla)}&v=2`),
+  estatisticas: async () => (await get<{ results: Estatisticas }>('/api/institucional/estatisticas/')).results,
 
   avaliacoes: () => getAll<Avaliacao>('/api/ensino/minhas-proximas-avaliacoes/'),
   frequencia: (p: Periodo) => get<Frequencia>(`/api/ensino/frequencia-periodo-letivo/${p.ano}/${p.periodo}/`),
@@ -178,7 +213,36 @@ export const api = {
     return res.results ?? [];
   },
   marcarLida: (id: number) => get<void>(`/api/ensino/mensagens/registro-leitura/${id}/`, { method: 'POST' }),
+
+  /** Professores, colegas e materiais de um diário numa chamada só. */
+  async turma(code: string): Promise<Turma> {
+    const t = await get<TurmaRaw>(`/api/ensino/minha-turma-virtual/${code}/`);
+    const pessoa = (p: PessoaRaw, withEmail: boolean): Pessoa => ({
+      nome: p.nome, matricula: p.matricula, foto: photoUrl(p.foto), ...(withEmail && p.email ? { email: p.email } : {}),
+    });
+    return {
+      professores: (t.professores ?? []).map((p) => pessoa(p, true)),
+      // E-mail de colega não é exibido, então nem vai para o cache local
+      colegas: (t.participantes ?? []).map((p) => pessoa(p, false)).sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR')),
+      materiais: (t.materiais_de_aula ?? []).filter((x) => x.url).map((x) => ({ descricao: x.descricao, url: photoUrl(x.url), data: x.data_vinculacao })),
+    };
+  },
 };
+
+const PARTICLES = new Set(['de', 'da', 'do', 'das', 'dos', 'e']);
+
+/** "ADRYAN ERYK DE OLIVEIRA" → "Adryan Eryk de Oliveira" */
+export const titleCase = (name: string) =>
+  name.toLowerCase().split(/\s+/).filter(Boolean)
+    .map((w, i) => (i > 0 && PARTICLES.has(w) ? w : w[0].toUpperCase() + w.slice(1))).join(' ');
+
+/** Primeiro e último nome, já normalizados. */
+export const shortName = (name: string) => {
+  const parts = titleCase(name).split(' ').filter((w) => !PARTICLES.has(w));
+  return parts.length > 1 ? `${parts[0]} ${parts[parts.length - 1]}` : parts[0] ?? '';
+};
+
+export const initials = (name: string) => shortName(name).split(' ').map((w) => w[0]).join('');
 
 function mergeSubjects(boletim: BoletimRaw[], turmas: TurmaVirtualRaw[]): Subject[] {
   const bySigla = new Map(turmas.map((t) => [t.sigla, t]));

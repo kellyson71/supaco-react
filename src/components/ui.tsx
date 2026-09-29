@@ -234,7 +234,7 @@ export function Item({ children, className }: { children: ReactNode; className?:
 export function CountUp({ value, decimals = 0, suffix = '', className }: { value: number | null | undefined; decimals?: number; suffix?: string; className?: string }) {
   const ref = useRef<HTMLSpanElement>(null);
   const reduce = useReducedMotion();
-  const fmt = (v: number) => v.toFixed(decimals).replace('.', ',') + suffix;
+  const fmt = (v: number) => v.toLocaleString('pt-BR', { minimumFractionDigits: decimals, maximumFractionDigits: decimals }) + suffix;
   useEffect(() => {
     const el = ref.current;
     if (!el || value === null || value === undefined) return;
@@ -339,7 +339,7 @@ function shapePath(lobes: number, depth: number, size = 100) {
   }
   return `M${pts.join('L')}Z`;
 }
-const SHAPES = { cookie: shapePath(9, 0.12), flower: shapePath(8, 0.22), clover: shapePath(4, 0.28), sunny: shapePath(12, 0.08), soft: shapePath(6, 0.1) };
+export const SHAPES = { cookie: shapePath(9, 0.12), flower: shapePath(8, 0.22), clover: shapePath(4, 0.28), sunny: shapePath(12, 0.08), soft: shapePath(6, 0.1) };
 export type ShapeName = keyof typeof SHAPES;
 
 export function Shape({ shape = 'cookie', size = 48, className, children, spin }: { shape?: ShapeName; size?: number; className?: string; children?: ReactNode; spin?: boolean }) {

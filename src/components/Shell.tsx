@@ -22,7 +22,7 @@ const NAV = [
 ];
 
 const isActive = (path: string, to: string) =>
-  to === '/' ? path === '/' : path.startsWith(to) || (to === '/voce' && (path === '/mensagens' || path === '/diagnostico'));
+  to === '/' ? path === '/' : path.startsWith(to) || (to === '/voce' && ['/mensagens', '/diagnostico', '/campus', '/retrospectiva'].includes(path));
 
 /** Botão de tema com o ícone girando entre sol e lua. */
 export function ThemeButton({ variant = 'standard' }: { variant?: 'standard' | 'tonal' }) {

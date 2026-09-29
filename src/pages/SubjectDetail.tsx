@@ -6,6 +6,7 @@ import { back } from '../lib/router';
 import { aulaMatchesSubject, subjectTone, type Aula, type Subject } from '../lib/suap';
 import { TONES } from '../lib/tones';
 import { parseDay } from '../lib/dates';
+import { Turma } from '../components/Turma';
 import { AbsenceMeter, Badge, Button, Card, CountUp, cx, Empty, Icon, IconButton, Item, levelColor, Ring, SectionHeader, Shape, Skeleton, Stagger } from '../components/ui';
 
 export function SubjectDetail({ code }: { code: string }) {
@@ -74,6 +75,7 @@ function Detail({ s }: { s: Subject }) {
 
       <Item className="xl:col-span-7"><Grades s={s} /></Item>
       <Item className="xl:col-span-5"><Absences s={s} /></Item>
+      <Item className="xl:col-span-12"><Turma code={s.code} /></Item>
       <Item className="xl:col-span-12"><History s={s} /></Item>
     </Stagger>
   );

@@ -17,12 +17,27 @@ export const useDisciplinas = (p: Periodo | undefined) =>
   useResource(p ? `disciplinas:${p.label}` : null, () => api.disciplinas(p!), 30);
 export const useFrequencia = (p: Periodo | undefined) =>
   useResource(p ? `frequencia:${p.label}` : null, () => api.frequencia(p!), 60);
+export const useTurma = (code: string | undefined) =>
+  useResource(code ? `turma:${code}` : null, () => api.turma(code!), 12 * 60);
+export const useCampus = (sigla: string | undefined) =>
+  useResource(sigla ? `campus:v3:${sigla}` : null, () => api.campus(sigla!), 6 * 60);
+export const useEstatisticas = () => useResource('estatisticas', api.estatisticas, 24 * 60);
+
+/** Nomes dos professores das matérias atuais (para destacar projetos que eles coordenam). */
+export function useMyTeachers(codes: string[] | undefined) {
+  const key = codes?.length ? `professores:${[...codes].sort().join(',')}` : null;
+  return useResource(key, async () => {
+    const turmas = await Promise.all(codes!.map((c) => api.turma(c).catch(() => null)));
+    return [...new Set(turmas.flatMap((t) => t?.professores.map((p) => p.nome) ?? []))];
+  }, 24 * 60);
+}
 export const useCalendario = (p: Periodo | undefined) =>
   useResource(p ? `calendario:${p.label}` : null, () => api.calendario(p!).catch(() => null), 24 * 60);
 
 /** Aulas registradas no período (do início do semestre até hoje, no máx. 6 meses). */
 export function useAulas(p: Periodo | undefined, inicio?: string | null) {
-  return useResource(p ? `aulas:${p.label}` : null, async () => {
+  // v2: datas passaram a vir em ISO; o cache antigo (dd/mm/aaaa) é ignorado
+  return useResource(p ? `aulas:v2:${p.label}` : null, async () => {
     const now = new Date();
     const start = parseDay(inicio) ?? new Date(p!.ano, p!.periodo === 1 ? 1 : 6, 1);
     const months: [number, number][] = [];

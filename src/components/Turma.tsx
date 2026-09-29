@@ -1,0 +1,193 @@
+import { useId, useMemo, useState } from 'react';
+import { AnimatePresence, m } from 'motion/react';
+import { session } from '../lib/api';
+import { useTurma } from '../lib/data';
+import { initials, shortName, titleCase, type Material, type Pessoa } from '../lib/suap';
+import { TONES, toneFor } from '../lib/tones';
+import { parseDay } from '../lib/dates';
+import { Button, Card, cx, EMPHASIZED, Icon, SectionHeader, SHAPES, Skeleton, Tap, type ShapeName } from './ui';
+
+const STACK = 6;
+const STACK_MOBILE = 3;
+
+const More = ({ n, className }: { n: number; className?: string }) => (
+  <span className={cx('flex size-10 items-center justify-center rounded-full bg-primary text-xs font-semibold text-on-primary ring-[3px] ring-[var(--md-surface-container-low)] tabular', className)}>
+    +{n}
+  </span>
+);
+
+/** Professores, colegas e materiais da turma; some sem alarde se o SUAP não responder. */
+export function Turma({ code }: { code: string }) {
+  const { data, loading } = useTurma(code);
+
+  if (loading) return <Skeleton className="h-48 rounded-2xl" />;
+  if (!data || (!data.professores.length && !data.colegas.length)) return null;
+
+  return (
+    <Card variant="filled" className="rounded-2xl p-5">
+      <SectionHeader title="Turma" icon="groups" action={data.colegas.length > 0 && <span className="text-sm text-on-surface-variant tabular">{data.colegas.length} alunos</span>} />
+      <div className="grid grid-cols-1 gap-3 lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)]">
+        {data.professores.length > 0 && (
+          <div className="flex flex-col gap-3">
+            {data.professores.map((p) => <Teacher key={p.matricula} p={p} />)}
+          </div>
+        )}
+        {data.colegas.length > 0 && <Classmates list={data.colegas} />}
+      </div>
+      {data.materiais.length > 0 && <Materials list={data.materiais} />}
+    </Card>
+  );
+}
+
+function Teacher({ p }: { p: Pessoa }) {
+  return (
+    <div className="relative flex items-center gap-4 overflow-hidden rounded-xl bg-secondary-container p-4 text-on-secondary-container">
+      <ShapedPhoto src={p.foto.replace('75x100', '150x200')} name={p.nome} shape="flower" size={76} />
+      <div className="min-w-0 flex-1">
+        <p className="text-xs font-medium tracking-wide uppercase opacity-75">Docente</p>
+        <p className="mt-0.5 text-lg leading-6 font-medium">{titleCase(p.nome)}</p>
+        {p.email && (
+          <Button variant="text" size="sm" icon="mail" href={`mailto:${p.email}`} className="-ml-3 !text-current">Enviar e-mail</Button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function Classmates({ list }: { list: Pessoa[] }) {
+  const [open, setOpen] = useState(false);
+  const [q, setQ] = useState('');
+  const me = session.user;
+  const others = list.filter((p) => p.matricula !== me);
+  const inClass = others.length !== list.length;
+
+  const filtered = useMemo(() => {
+    const term = q.trim().toLowerCase().normalize('NFD').replace(/\p{M}/gu, '');
+    if (!term) return list;
+    return list.filter((p) => p.nome.toLowerCase().normalize('NFD').replace(/\p{M}/gu, '').includes(term));
+  }, [list, q]);
+
+  return (
+    <div className="rounded-xl bg-surface-container-low p-4">
+      <button onClick={() => setOpen(!open)} aria-expanded={open} className="flex w-full items-center gap-4 text-left">
+        <div className="flex shrink-0 -space-x-3" aria-hidden>
+          {others.slice(0, STACK).map((p, i) => (
+            <m.span key={p.matricula} initial={{ opacity: 0, x: -8 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: i * 0.04, duration: 0.3, ease: EMPHASIZED }}
+              className={cx(i >= STACK_MOBILE && 'max-sm:hidden')}>
+              <Face p={p} size={40} eager className="ring-[3px] ring-[var(--md-surface-container-low)]" />
+            </m.span>
+          ))}
+          {others.length > STACK_MOBILE && <More n={others.length - STACK_MOBILE} className="sm:hidden" />}
+          {others.length > STACK && <More n={others.length - STACK} className="max-sm:hidden" />}
+        </div>
+        <div className="min-w-0 flex-1">
+          <p className="font-medium">{inClass ? `Você e mais ${others.length} ${others.length === 1 ? 'colega' : 'colegas'}` : `${list.length} alunos`}</p>
+          <p className="text-sm text-on-surface-variant">{open ? 'Toque para recolher' : 'Ver a turma inteira'}</p>
+        </div>
+        <m.span animate={{ rotate: open ? 180 : 0 }} transition={{ duration: 0.3, ease: EMPHASIZED }} className="text-on-surface-variant">
+          <Icon name="expand_more" />
+        </m.span>
+      </button>
+
+      <AnimatePresence initial={false}>
+        {open && (
+          <m.div key="grid" initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.35, ease: EMPHASIZED }} className="overflow-hidden">
+            {list.length > 12 && (
+              <label className="mt-4 flex items-center gap-2 rounded-full bg-surface-container-highest px-4 py-2">
+                <Icon name="search" size={20} className="text-on-surface-variant" />
+                <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar colega" aria-label="Buscar colega"
+                  className="min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-on-surface-variant" />
+                {q && <button onClick={() => setQ('')} aria-label="Limpar busca" className="text-on-surface-variant"><Icon name="close" size={18} /></button>}
+              </label>
+            )}
+            <ul className="mt-4 grid grid-cols-[repeat(auto-fill,minmax(84px,1fr))] gap-x-2 gap-y-4">
+              {filtered.map((p) => {
+                const isMe = p.matricula === me;
+                return (
+                  <li key={p.matricula} className="flex flex-col items-center gap-1.5 text-center" title={titleCase(p.nome)}>
+                    <Face p={p} size={56} className={isMe ? 'ring-[3px] ring-primary ring-offset-2 ring-offset-[var(--md-surface-container-low)]' : undefined} />
+                    <span className={cx('line-clamp-2 text-xs leading-4', isMe && 'font-semibold text-primary')}>{isMe ? 'Você' : shortName(p.nome)}</span>
+                  </li>
+                );
+              })}
+            </ul>
+            {filtered.length === 0 && <p className="py-6 text-center text-sm text-on-surface-variant">Ninguém com esse nome na turma.</p>}
+          </m.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+
+const FILE_ICONS: [RegExp, string][] = [
+  [/\.pdf(\?|$)/i, 'picture_as_pdf'],
+  [/\.(pptx?|odp|key)(\?|$)/i, 'slideshow'],
+  [/\.(docx?|odt|txt|md)(\?|$)/i, 'description'],
+  [/\.(xlsx?|ods|csv)(\?|$)/i, 'table_chart'],
+  [/\.(zip|rar|7z|tar|gz)(\?|$)/i, 'folder_zip'],
+  [/\.(png|jpe?g|gif|webp|svg)(\?|$)/i, 'image'],
+  [/youtu\.?be/i, 'smart_display'],
+];
+
+function Materials({ list }: { list: Material[] }) {
+  return (
+    <div className="mt-4">
+      <p className="mb-2 flex items-center gap-2 px-1 text-sm font-medium"><Icon name="folder_open" size={20} className="text-primary" fill /> Materiais de aula</p>
+      <ul className="grid grid-cols-1 gap-1.5 md:grid-cols-2">
+        {list.map((mat) => {
+          const icon = FILE_ICONS.find(([re]) => re.test(mat.url))?.[1] ?? 'link';
+          const d = parseDay(mat.data);
+          return (
+            <li key={mat.url}>
+              <Tap href={mat.url} label={mat.descricao} className="flex items-center gap-3 rounded-lg bg-surface-container-low px-3 py-2.5">
+                <span className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-tertiary-container text-on-tertiary-container"><Icon name={icon} size={22} /></span>
+                <span className="min-w-0 flex-1">
+                  <span className="line-clamp-2 block text-sm">{mat.descricao || 'Material sem título'}</span>
+                  {d && <span className="block text-xs text-on-surface-variant">{d.toLocaleDateString('pt-BR', { day: 'numeric', month: 'short' })}</span>}
+                </span>
+                <Icon name="open_in_new" size={18} className="text-on-surface-variant" />
+              </Tap>
+            </li>
+          );
+        })}
+      </ul>
+    </div>
+  );
+}
+
+/** Foto redonda com carregamento preguiçoso; cai para as iniciais se a imagem falhar. */
+function Face({ p, size, className, eager }: { p: Pessoa; size: number; className?: string; eager?: boolean }) {
+  const [failed, setFailed] = useState(!p.foto);
+  const t = TONES[toneFor(p.matricula)];
+  if (failed) {
+    return (
+      <span className={cx('flex shrink-0 items-center justify-center rounded-full font-semibold', t.container, t.onContainer, className)}
+        style={{ width: size, height: size, fontSize: size * 0.36 }}>
+        {initials(p.nome)}
+      </span>
+    );
+  }
+  return (
+    <img src={p.foto} alt="" width={size} height={size} loading={eager ? 'eager' : 'lazy'} decoding="async" onError={() => setFailed(true)}
+      className={cx('shrink-0 rounded-full bg-surface-container-highest object-cover object-top', className)} style={{ width: size, height: size }} />
+  );
+}
+
+/** Foto recortada numa forma expressiva do M3. */
+function ShapedPhoto({ src, name, shape, size }: { src: string; name: string; shape: ShapeName; size: number }) {
+  const id = useId();
+  const [failed, setFailed] = useState(!src);
+  return (
+    <m.svg viewBox="0 0 100 100" width={size} height={size} className="shrink-0" aria-hidden
+      initial={{ rotate: -20, scale: 0.8, opacity: 0 }} animate={{ rotate: 0, scale: 1, opacity: 1 }} transition={{ type: 'spring', stiffness: 260, damping: 18 }}>
+      <defs><clipPath id={id}><path d={SHAPES[shape]} /></clipPath></defs>
+      <path d={SHAPES[shape]} className="fill-[var(--md-tertiary-container)]" />
+      {failed ? (
+        <text x="50" y="50" dy="0.35em" textAnchor="middle" className="fill-[var(--md-on-tertiary-container)] text-[34px] font-semibold">{initials(name)}</text>
+      ) : (
+        <image href={src} width="100" height="100" preserveAspectRatio="xMidYMin slice" clipPath={`url(#${id})`} onError={() => setFailed(true)} />
+      )}
+    </m.svg>
+  );
+}

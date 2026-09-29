@@ -1,18 +1,20 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { AnimatePresence, m } from 'motion/react';
-import { useAvaliacoes, useCalendario, useCurrentSubjects, useEu, useFrequencia, useHolidays, usePeriod, useTasks } from '../lib/data';
+import { useAulas, useAvaliacoes, useCalendario, useCampus, useCurrentSubjects, useEu, useFrequencia, useHolidays, useMensagens, usePeriod, useTasks, useTurma } from '../lib/data';
+import { diffNews, loadSnapshot, saveSnapshot, type NewsItem } from '../lib/news';
 import { classroom } from '../lib/classroom';
 import { classesOn, formatDuration, nowMin, toMin, WEEKDAYS, WEEKDAYS_SHORT, type ClassItem } from '../lib/schedule';
 import { absenceLevel, outlook, overallAverage, PASS } from '../lib/grades';
 import { canSkip, currentStage, nextHoliday, type SkipVerdict } from '../lib/insights';
 import { attendanceFor, markEnded, recheckPending, useAttendance, type AttendanceCheck } from '../lib/attendance';
 import { buildDeadlines, type Deadline } from '../lib/agenda';
-import { daysBetween, isoDay, longDate, relativeDay, time } from '../lib/dates';
+import { daysBetween, isoDay, longDate, relativeDay, time, timeAgo } from '../lib/dates';
 import { useNow } from '../lib/hooks';
-import { subjectTone, type Subject } from '../lib/suap';
+import { aulaMatchesSubject, shortName, subjectTone, type Aula, type Subject } from '../lib/suap';
 import { TONES, toneFor, type Tone } from '../lib/tones';
 import { AbsenceMeter, Badge, Button, Card, Chip, CountUp, cx, EMPHASIZED, Empty, ErrorNote, Icon, Item, Ring, SectionHeader, Shape, Skeleton, Stagger, Tap } from '../components/ui';
 import { Avatar } from '../components/Avatar';
+import { Highlights } from '../components/Highlights';
 
 const greeting = (h: number) => (h < 5 ? 'Boa noite' : h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite');
 
@@ -25,6 +27,11 @@ export function Today() {
   const holiday = holidays?.find((h) => h.date === isoDay(now));
   const first = eu ? eu.primeiro_nome || eu.nome_usual.split(' ')[0] : '';
   useAttendanceWatch(subjects, now);
+
+  // Atalho do app "Posso faltar?" abre em /#posso-faltar
+  useEffect(() => {
+    if (subjects && window.location.hash === '#posso-faltar') document.getElementById('posso-faltar')?.scrollIntoView({ behavior: 'smooth' });
+  }, [subjects]);
 
   return (
     <>
@@ -40,12 +47,15 @@ export function Today() {
 
       {res.error && !subjects && <div className="mb-4"><ErrorNote error={res.error} onRetry={res.refresh} /></div>}
 
+      {subjects && <News subjects={subjects} />}
+      {subjects && <Highlights subjects={subjects} />}
+
       <Stagger className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-12">
         <Item className="md:col-span-2 xl:col-span-7 xl:row-span-2">
           {subjects ? <NowCard subjects={subjects} now={now} holiday={holiday?.name} /> : <Skeleton className="h-80" />}
         </Item>
         <Item className="md:col-span-1 xl:col-span-5">
-          {subjects ? <SkipCard subjects={subjects} now={now} /> : <Skeleton className="h-72" />}
+          <div id="posso-faltar" className="h-full scroll-mt-20">{subjects ? <SkipCard subjects={subjects} now={now} /> : <Skeleton className="h-72" />}</div>
         </Item>
         <Item className="md:col-span-1 xl:col-span-5"><Stats subjects={subjects} now={now} /></Item>
         <Item className="xl:col-span-4">{subjects && <DayList subjects={subjects} now={now} />}</Item>
@@ -119,7 +129,8 @@ function NowCard({ subjects, now, holiday }: { subjects: Subject[]; now: Date; h
     <Card variant="tertiary" className="relative flex h-full min-h-72 flex-col overflow-hidden rounded-2xl p-6">
       <Shape shape="sunny" size={260} spin className="absolute -top-16 -right-16 text-on-tertiary-container/10" />
       <Shape shape="flower" size={64} className="relative text-tertiary"><Icon name={holiday ? 'celebration' : 'weekend'} size={30} className="text-on-tertiary" fill /></Shape>
-      <p className="relative mt-auto pt-10 text-sm font-medium opacity-80">{holiday ? 'Feriado' : today.length ? 'Por hoje é só' : 'Dia livre'}</p>
+      <Recap subjects={subjects} now={now} />
+      <p className="relative mt-auto pt-6 text-sm font-medium opacity-80">{holiday ? 'Feriado' : today.length ? 'Por hoje é só' : 'Dia livre'}</p>
       <p className="relative text-[36px] leading-[44px] font-semibold tracking-tight">{holiday ?? (today.length ? 'Aulas encerradas' : 'Sem aulas hoje')}</p>
       {upcoming && (
         <p className="relative mt-3 flex items-center gap-2 text-base">
@@ -129,6 +140,87 @@ function NowCard({ subjects, now, holiday }: { subjects: Subject[]; now: Date; h
       )}
     </Card>
   );
+}
+
+/** Aulas registradas de uma matéria num dia (o SUAP às vezes lança em mais de uma linha). */
+function lessonOn(aulas: Aula[] | undefined, s: Subject, date: string) {
+  const list = (aulas ?? []).filter((a) => a.data === date && aulaMatchesSubject(a, s));
+  if (!list.length) return null;
+  return {
+    conteudo: [...new Set(list.map((a) => a.conteudo?.trim()).filter(Boolean))].join(' · '),
+    qtd: list.reduce((n, a) => n + a.qtd_aulas, 0),
+    faltas: list.reduce((n, a) => n + a.faltas, 0),
+  };
+}
+
+function useSemesterAulas() {
+  const { current } = usePeriod();
+  const { data: cal } = useCalendario(current);
+  return useAulas(current, cal?.data_inicio).data;
+}
+
+/** Resumo do que foi dado: as aulas que já acabaram hoje, ou as do último dia com aula lançada. */
+function Recap({ subjects, now }: { subjects: Subject[]; now: Date }) {
+  const aulas = useSemesterAulas();
+  const checks = useAttendance();
+  const date = isoDay(now);
+  const mm = nowMin(now);
+  const byCode = new Map(subjects.map((s) => [s.code, s]));
+
+  const endedToday = classesOn(subjects, now.getDay()).filter((c) => toMin(c.end) <= mm);
+  const seen = new Set<string>();
+  let rows = endedToday.filter((c) => !seen.has(c.code) && seen.add(c.code)).map((c) => {
+    const s = byCode.get(c.code)!;
+    return { s, lesson: s ? lessonOn(aulas, s, date) : null, pending: attendanceFor(c.code, date, checks)?.status };
+  }).filter((r) => r.s);
+  let title = 'O que rolou hoje';
+
+  if (!rows.length) {
+    // Último dia letivo pelo horário (inclui aulas que o professor ainda não lançou)
+    for (let i = 1; i <= 7 && !rows.length; i++) {
+      const d = new Date(now); d.setDate(d.getDate() - i);
+      const day = isoDay(d);
+      const codes = [...new Set(classesOn(subjects, d.getDay()).map((c) => c.code))];
+      rows = codes.map((code) => {
+        const s = byCode.get(code)!;
+        return { s, lesson: lessonOn(aulas, s, day), pending: attendanceFor(code, day, checks)?.status };
+      }).filter((r) => r.s);
+      // Dia sem nada lançado e sem conferência (ex.: feriado) não conta como "última aula"
+      if (rows.length && !rows.some((r) => r.lesson || r.pending)) rows = [];
+      if (rows.length) title = `Última aula · ${relativeDay(d, now)}`;
+    }
+  }
+  if (!rows.length) return null;
+
+  return (
+    <div className="relative mt-5">
+      <p className="mb-2 flex items-center gap-1.5 text-sm font-medium opacity-80"><Icon name="history_edu" size={18} />{title}</p>
+      <ul className="flex flex-col gap-1.5">
+        {rows.slice(0, 4).map(({ s, lesson, pending }, i) => (
+          <m.li key={s.code} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.06, duration: 0.3, ease: EMPHASIZED }}>
+            <Tap to={`/disciplinas/${s.code}`} className="flex items-start gap-3 rounded-xl bg-white/40 px-3.5 py-3 dark:bg-black/20">
+              <span className={cx('mt-1.5 size-2.5 shrink-0 rounded-full', TONES[subjectTone(s)].color)} />
+              <div className="min-w-0 flex-1">
+                <p className="truncate font-medium">{s.name}</p>
+                <p className="line-clamp-2 text-sm opacity-85">{lesson ? lesson.conteudo || 'Conteúdo não informado' : 'O professor ainda não lançou a aula no SUAP.'}</p>
+              </div>
+              <LessonBadge lesson={lesson} pending={pending} />
+            </Tap>
+          </m.li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+function LessonBadge({ lesson, pending }: { lesson: ReturnType<typeof lessonOn>; pending?: AttendanceCheck['status'] }) {
+  if (lesson) {
+    return lesson.faltas > 0
+      ? <Badge tone="error"><Icon name="cancel" size={14} fill />{lesson.faltas}<span className="hidden sm:inline"> {lesson.faltas === 1 ? 'falta' : 'faltas'}</span></Badge>
+      : <Badge tone="success"><Icon name="check_circle" size={14} fill /><span className="hidden sm:inline">presente</span></Badge>;
+  }
+  if (pending === 'unregistered') return <Badge tone="warning"><Icon name="help" size={14} /><span className="hidden sm:inline">não lançada</span></Badge>;
+  return <Badge><Icon name="hourglass_empty" size={14} className="animate-pulse" /><span className="hidden sm:inline">aguardando</span></Badge>;
 }
 
 function NextUp({ item }: { item: ClassItem }) {
@@ -158,8 +250,23 @@ function ClassHero({ item, tone, label, live, children }: { item: ClassItem; ton
         <span className="flex items-center gap-1"><Icon name="schedule" size={18} />{item.start} – {item.end}</span>
         {item.room && <span className="flex items-center gap-1"><Icon name="location_on" size={18} />{item.room}</span>}
       </div>
+      <Teacher code={item.code} />
       <div className="relative flex flex-1 flex-col gap-4">{children}</div>
     </Tap>
+  );
+}
+
+/** Foto e nome do professor da aula (vem do cache da turma; some se não houver). */
+function Teacher({ code }: { code: string }) {
+  const { data } = useTurma(code);
+  const p = data?.professores[0];
+  if (!p) return null;
+  return (
+    <m.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3, ease: EMPHASIZED }}
+      className="relative mt-3 flex w-fit items-center gap-2 rounded-full bg-white/40 py-1 pr-3.5 pl-1 text-sm dark:bg-black/20">
+      {p.foto ? <img src={p.foto} alt="" width={28} height={28} className="size-7 rounded-full object-cover object-top" /> : <Icon name="person" size={20} />}
+      <span>com <b className="font-semibold">{shortName(p.nome)}</b>{data!.professores.length > 1 && ` +${data!.professores.length - 1}`}</span>
+    </m.div>
   );
 }
 
@@ -322,6 +429,7 @@ function DayList({ subjects, now }: { subjects: Subject[]; now: Date }) {
   const mm = nowMin(now);
   const byCode = new Map(subjects.map((s) => [s.code, s]));
   const checks = useAttendance();
+  const aulas = useSemesterAulas();
   const date = isoDay(now);
 
   return (
@@ -336,8 +444,10 @@ function DayList({ subjects, now }: { subjects: Subject[]; now: Date }) {
             const t = TONES[s ? subjectTone(s) : toneFor(c.code)];
             const past = toMin(c.end) <= mm;
             const live = toMin(c.start) <= mm && mm < toMin(c.end);
+            const lesson = past && s ? lessonOn(aulas, s, date) : null;
             const check = past ? attendanceFor(c.code, date, checks) : undefined;
-            const badge = check ? ATTENDANCE_BADGE[check.status] : undefined;
+            const status = lesson ? (lesson.faltas > 0 ? 'absent' : 'present') : check?.status;
+            const badge = status ? ATTENDANCE_BADGE[status] : undefined;
             return (
               <Tap key={c.code + c.start} to={`/disciplinas/${c.code}`} className={cx('flex items-center gap-3 rounded-sm px-4 py-3', live ? cx(t.container, t.onContainer) : 'bg-surface-container', past && !badge && 'opacity-60')}>
                 <div className="w-12 shrink-0 text-sm leading-tight tabular">
@@ -347,7 +457,7 @@ function DayList({ subjects, now }: { subjects: Subject[]; now: Date }) {
                 <span className={cx('h-10 w-1 shrink-0 rounded-full', t.color)} />
                 <div className="min-w-0 flex-1">
                   <p className="truncate font-medium">{c.subject}</p>
-                  <p className="truncate text-xs opacity-75">{c.room || 'Sala não informada'}</p>
+                  <p className={cx('text-xs opacity-75', lesson?.conteudo ? 'line-clamp-2' : 'truncate')}>{lesson?.conteudo || c.room || 'Sala não informada'}</p>
                 </div>
                 {live && <Badge tone="primary">agora</Badge>}
                 {badge && (
@@ -400,14 +510,84 @@ function Attention({ subjects }: { subjects: Subject[] }) {
   );
 }
 
+// ---------- Desde a última visita ----------
+
+const NEWS_ICON: Record<NewsItem['kind'], { icon: string; cls: string }> = {
+  grade: { icon: 'grade', cls: 'bg-primary text-on-primary' },
+  final: { icon: 'flag', cls: 'bg-warning text-on-warning' },
+  absence: { icon: 'event_busy', cls: 'bg-error text-on-error' },
+  status: { icon: 'verified', cls: 'bg-success text-on-success' },
+  message: { icon: 'mail', cls: 'bg-tertiary text-on-tertiary' },
+};
+
+function newsText(n: NewsItem) {
+  switch (n.kind) {
+    case 'grade': return <>Saiu a <b className="font-semibold">N{n.stage}</b> de {n.subject}: <b className="font-semibold tabular">{n.value}</b></>;
+    case 'final': return <>Nota da prova final de {n.subject}: <b className="font-semibold tabular">{n.value}</b></>;
+    case 'absence': return <>+{n.delta} {n.delta === 1 ? 'falta' : 'faltas'} em {n.subject}</>;
+    case 'status': return <>{n.subject}: <b className="font-semibold">{n.status}</b></>;
+    case 'message': return <>{n.count} {n.count === 1 ? 'mensagem nova' : 'mensagens novas'}{n.from && <> de {shortName(n.from)}</>}</>;
+  }
+}
+
+let celebrated = false;
+
+function News({ subjects }: { subjects: Subject[] }) {
+  const { data: msgs } = useMensagens();
+  const [prev, setPrev] = useState(loadSnapshot);
+  const items = useMemo(() => (prev ? diffNews(prev, subjects, msgs) : []), [prev, subjects, msgs]);
+
+  // Primeira visita: guarda o retrato atual em silêncio, sem inventar novidades
+  useEffect(() => {
+    if (!prev && msgs) { saveSnapshot(subjects, msgs); setPrev(loadSnapshot()); }
+  }, [prev, subjects, msgs]);
+
+  useEffect(() => {
+    if (celebrated || !items.some((n) => (n.kind === 'grade' && n.value >= 90) || (n.kind === 'status' && /aprovad/i.test(n.status)))) return;
+    celebrated = true;
+    import('canvas-confetti').then(({ default: confetti }) => confetti({ particleCount: 90, spread: 70, origin: { y: 0.2 }, disableForReducedMotion: true }));
+  }, [items]);
+
+  const dismiss = () => { saveSnapshot(subjects, msgs); setPrev(loadSnapshot()); };
+
+  return (
+    <AnimatePresence initial={false}>
+      {items.length > 0 && (
+        <m.section key="news" initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} transition={{ duration: 0.35, ease: EMPHASIZED }} className="overflow-hidden">
+          <Card variant="secondary" className="mb-4 rounded-2xl p-4 md:p-5">
+            <div className="mb-3 flex items-center gap-2">
+              <Icon name="auto_awesome" fill />
+              <h2 className="flex-1 text-lg font-medium">Desde sua última visita{prev && <span className="text-sm font-normal opacity-75"> · {timeAgo(prev.at)}</span>}</h2>
+              <Button variant="text" size="sm" icon="check" onClick={dismiss} className="!text-current">Entendi</Button>
+            </div>
+            <ul className="grid grid-cols-1 gap-1.5 md:grid-cols-2">
+              {items.map((n, i) => (
+                <m.li key={i} initial={{ opacity: 0, x: -8 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: i * 0.05, duration: 0.3, ease: EMPHASIZED }}>
+                  <Tap to={n.kind === 'message' ? '/mensagens' : `/disciplinas/${n.code}`} className="flex items-center gap-3 rounded-lg bg-white/35 px-3 py-2.5 text-sm dark:bg-black/15">
+                    <span className={cx('flex size-8 shrink-0 items-center justify-center rounded-full', NEWS_ICON[n.kind].cls)}><Icon name={NEWS_ICON[n.kind].icon} size={18} fill /></span>
+                    <span className="min-w-0 flex-1">{newsText(n)}</span>
+                    <Icon name="chevron_right" size={20} className="opacity-60" />
+                  </Tap>
+                </m.li>
+              ))}
+            </ul>
+          </Card>
+        </m.section>
+      )}
+    </AnimatePresence>
+  );
+}
+
 // ---------- Prazos ----------
 
 function Deadlines() {
   const linked = classroom.linked;
   const { data: avaliacoes, loading } = useAvaliacoes();
   const { data: tasks } = useTasks(linked && classroom.tokenValid);
+  const { data: eu } = useEu();
+  const { data: campus } = useCampus(eu?.campus);
   const now = new Date();
-  const list = buildDeadlines(avaliacoes, tasks)
+  const list = buildDeadlines(avaliacoes, tasks, campus?.eventos)
     .filter((d) => d.date && daysBetween(now, d.date) >= (d.late ? -3 : 0) && daysBetween(now, d.date) <= 14)
     .slice(0, 5);
 
@@ -443,6 +623,7 @@ export function DeadlineRow({ d }: { d: Deadline }) {
         <p className="truncate font-medium">{d.title}</p>
         <p className="truncate text-xs text-on-surface-variant">
           {d.source === 'classroom' && <Icon name="assignment" size={12} className="mr-1 align-[-1px]" />}
+          {d.source === 'campus' && <Icon name="apartment" size={12} className="mr-1 align-[-1px]" />}
           {d.subject}
         </p>
       </div>

@@ -1,13 +1,16 @@
-import { useState, type ReactNode } from 'react';
+import { useMemo, useState, type ReactNode } from 'react';
 import { m } from 'motion/react';
-import { useAluno, useEu, useMensagens, useRequisitos } from '../lib/data';
+import { useAluno, useAulas, useCalendario, useEu, useMensagens, usePeriod, usePeriodos, useRequisitos } from '../lib/data';
+import { graduationForecast, presenceByDay, streaks, type Forecast } from '../lib/semester';
+import { isoDay, parseDay } from '../lib/dates';
+import { PresenceCalendar } from '../components/PresenceCalendar';
 import { SUAP_URL } from '../lib/suap';
 import { classroom, connectClassroom } from '../lib/classroom';
 import { session } from '../lib/api';
 import { clearCache, refreshAll } from '../lib/store';
 import { SEEDS, setMode, setSeed, useThemeState, type Mode } from '../lib/theme';
 import { shareSite, SITE_URL, useInstall } from '../lib/hooks';
-import { Badge, Card, CountUp, cx, Icon, Item, Ring, SectionHeader, Segmented, Skeleton, spring, Stagger, Switch, Tap, WavyProgress } from '../components/ui';
+import { Badge, Button, Card, CountUp, cx, Icon, Item, Ring, SectionHeader, Segmented, Shape, Skeleton, spring, Stagger, Switch, Tap, WavyProgress } from '../components/ui';
 import { Avatar } from '../components/Avatar';
 
 const REQ_LABELS: Record<string, string> = {
@@ -31,8 +34,12 @@ const REQ_LABELS: Record<string, string> = {
 export function Me() {
   const { data: eu } = useEu();
   const { data: aluno } = useAluno();
+  const { data: periodos } = usePeriodos();
   const { data: msgs } = useMensagens();
   const unread = msgs?.filter((x) => !x.registro_leitura).length ?? 0;
+  // O SUAP costuma errar periodo_referencia (fica travado desde o ingresso), então
+  // preferimos contar quantos períodos letivos o aluno já teve diário/matrícula.
+  const periodoAtual = periodos?.length || aluno?.periodo_referencia;
   const ira = aluno ? Number(String(aluno.ira).replace(',', '.')) : null;
   const { canInstall, install } = useInstall();
   const [shareMsg, setShareMsg] = useState('');
@@ -61,7 +68,7 @@ export function Me() {
               <div className="mt-3 flex flex-wrap gap-2">
                 <Badge className="bg-white/50 !text-current dark:bg-black/25">{aluno.situacao}</Badge>
                 <Badge className="bg-white/50 !text-current dark:bg-black/25">Ingresso {aluno.ingresso}</Badge>
-                <Badge className="bg-white/50 !text-current dark:bg-black/25">{aluno.periodo_referencia}º período{aluno.qtd_periodos ? ` de ${aluno.qtd_periodos}` : ''}</Badge>
+                <Badge className="bg-white/50 !text-current dark:bg-black/25">{periodoAtual}º período{aluno.qtd_periodos ? ` de ${aluno.qtd_periodos}` : ''}</Badge>
               </div>
             )}
           </div>
@@ -76,14 +83,17 @@ export function Me() {
         </Card>
       </Item>
 
-      <Item className="lg:col-span-6"><Appearance /></Item>
+      <Item className="lg:col-span-12"><Presence /></Item>
       <Item className="lg:col-span-6"><Completion /></Item>
+      <Item className="lg:col-span-6"><Appearance /></Item>
 
       <Item className="lg:col-span-6">
         <SectionHeader title="Atalhos" icon="bolt" />
         <List>
           <Row to="/mensagens" icon="mail" label="Mensagens do SUAP" sub={unread ? `${unread} não ${unread === 1 ? 'lida' : 'lidas'}` : 'Caixa de entrada'}
             right={unread > 0 ? <Badge tone="error">{unread}</Badge> : <Icon name="chevron_right" />} />
+          <Row to="/retrospectiva" icon="auto_awesome" label="Retrospectiva do semestre" sub="Seus números, pronta para compartilhar" right={<Icon name="chevron_right" />} />
+          <Row to="/campus" icon="apartment" label="Campus" sub="Eventos, projetos e o IFRN em números" right={<Icon name="chevron_right" />} />
           <Row href={SUAP_URL} icon="open_in_new" label="Abrir o SUAP" sub="suap.ifrn.edu.br" right={<Icon name="chevron_right" />} />
           {canInstall && <Row onClick={install} icon="install_mobile" label="Instalar o Supaco" sub="Abre como app, direto da tela inicial" right={<Icon name="download" />} />}
           <Row onClick={share} icon="share" label="Compartilhar com a turma" sub={shareMsg || SITE_URL.replace('https://', '')} right={<Icon name="chevron_right" />} />
@@ -153,6 +163,9 @@ function Appearance() {
 
 function Completion() {
   const { data } = useRequisitos();
+  const { data: periodos } = usePeriodos();
+  const { data: aluno } = useAluno();
+  const f = data && periodos ? graduationForecast(data, periodos, aluno) : null;
   const pct = data ? Math.round(Number(data.percentual_cumprida) || 0) : 0;
   const pending = data ? Object.entries(data)
     .filter(([k, v]) => REQ_LABELS[k] && typeof v === 'object' && v && (v as { ch_pendente: number }).ch_pendente > 0)
@@ -169,6 +182,7 @@ function Completion() {
               <p className="mb-1 text-right text-sm text-on-surface-variant">{data.totais.ch_cumprida} de {data.totais.ch_esperada} h</p>
             </div>
             <WavyProgress value={pct / 100} className="mt-4" />
+            {f && <ForecastBox f={f} />}
             {pending.length > 0 && (
               <ul className="mt-4 flex flex-col gap-1.5">
                 {pending.map((p) => (
@@ -183,6 +197,68 @@ function Completion() {
         )}
       </Card>
     </>
+  );
+}
+
+function ForecastBox({ f }: { f: Forecast }) {
+  const onTime = f.lateBy === 0;
+  return (
+    <div className={cx('mt-4 flex items-center gap-4 rounded-xl p-4', onTime ? 'bg-success-container text-on-success-container' : 'bg-tertiary-container text-on-tertiary-container')}>
+      <Shape shape={onTime ? 'flower' : 'clover'} size={56} className={onTime ? 'text-success' : 'text-tertiary'}>
+        <Icon name="workspace_premium" className={onTime ? 'text-on-success' : 'text-on-tertiary'} fill />
+      </Shape>
+      <div className="min-w-0 flex-1">
+        <p className="text-sm opacity-85">Formatura prevista</p>
+        <p className="text-[28px] leading-8 font-semibold tracking-tight tabular">{f.remaining === 0 ? 'Carga completa!' : f.forecast}</p>
+        <p className="mt-1 text-sm opacity-85">
+          {f.remaining === 0 ? 'Todas as horas do curso já foram cumpridas.'
+            : onTime ? `No seu ritmo (${f.pace} h por semestre) você fecha no prazo${f.nominal ? ` da matriz (${f.nominal})` : ''}.`
+            : `No seu ritmo (${f.pace} h por semestre). ${f.nominal ? `Para terminar em ${f.nominal}, seriam ~${f.paceForNominal} h por semestre.` : ''}`}
+        </p>
+      </div>
+    </div>
+  );
+}
+
+function Presence() {
+  const { current } = usePeriod();
+  const { data: cal } = useCalendario(current);
+  const { data: aulas, loading } = useAulas(current, cal?.data_inicio);
+  const days = useMemo(() => (aulas ? presenceByDay(aulas) : []), [aulas]);
+  const s = streaks(days);
+  const start = parseDay(cal?.data_inicio);
+
+  return (
+    <>
+      <SectionHeader title="Presença no semestre" icon="calendar_month"
+        action={<Button variant="text" size="sm" icon="auto_awesome" to="/retrospectiva">Retrospectiva</Button>} />
+      <Card variant="filled" className="rounded-2xl p-5">
+        {loading ? <Skeleton className="h-40" /> : days.length === 0 ? (
+          <p className="text-sm text-on-surface-variant">Nenhuma aula lançada ainda neste semestre.</p>
+        ) : (
+          <>
+            <div className="mb-4 flex flex-wrap gap-3">
+              <StreakPill icon="local_fire_department" value={s.current} label={s.current === 1 ? 'dia seguido sem faltar' : 'dias seguidos sem faltar'} hot={s.current >= 5} />
+              <StreakPill icon="workspace_premium" value={s.best} label="melhor sequência" />
+            </div>
+            <PresenceCalendar days={days} from={start ? isoDay(start) : null} to={parseDay(cal?.data_fim) ?? undefined} />
+          </>
+        )}
+      </Card>
+    </>
+  );
+}
+
+function StreakPill({ icon, value, label, hot }: { icon: string; value: number; label: string; hot?: boolean }) {
+  return (
+    <div className={cx('flex items-center gap-2 rounded-full py-1.5 pr-4 pl-1.5', hot ? 'bg-tertiary-container text-on-tertiary-container' : 'bg-surface-container-highest')}>
+      <m.span animate={hot ? { scale: [1, 1.15, 1] } : undefined} transition={{ repeat: Infinity, duration: 1.6 }}
+        className={cx('flex size-8 items-center justify-center rounded-full', hot ? 'bg-tertiary text-on-tertiary' : 'bg-secondary-container text-on-secondary-container')}>
+        <Icon name={icon} size={18} fill />
+      </m.span>
+      <span className="text-lg font-semibold tabular">{value}</span>
+      <span className="text-sm opacity-80">{label}</span>
+    </div>
   );
 }
 

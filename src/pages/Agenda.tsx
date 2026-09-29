@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { m } from 'motion/react';
-import { useAvaliacoes, useTasks } from '../lib/data';
+import { useAvaliacoes, useCampus, useEu, useTasks } from '../lib/data';
 import { classroom, connectClassroom } from '../lib/classroom';
 import { buildDeadlines, type Deadline } from '../lib/agenda';
 import { daysBetween } from '../lib/dates';
@@ -14,7 +14,9 @@ export function Agenda() {
   const tokenOk = classroom.tokenValid;
   const suap = useAvaliacoes();
   const gc = useTasks(linked && tokenOk);
-  const list = buildDeadlines(suap.data, gc.data);
+  const { data: eu } = useEu();
+  const { data: campus } = useCampus(eu?.campus);
+  const list = buildDeadlines(suap.data, gc.data, campus?.eventos);
 
   const now = new Date();
   const groups: [string, string, Deadline[]][] = [
@@ -26,7 +28,7 @@ export function Agenda() {
 
   return (
     <>
-      <TopTitle title="Agenda" sub={list.length ? `${list.length} ${list.length === 1 ? 'prazo' : 'prazos'} pela frente` : 'Provas do SUAP e tarefas do Classroom'} />
+      <TopTitle title="Agenda" sub={list.length ? `${list.length} ${list.length === 1 ? 'prazo' : 'prazos'} pela frente` : 'Provas do SUAP, tarefas do Classroom e eventos do campus'} />
 
       <ClassroomBanner linked={linked} tokenOk={tokenOk} authError={/Reconecte/.test(gc.error?.message ?? '')} onChange={() => force((x) => x + 1)} />
 

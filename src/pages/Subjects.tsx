@@ -1,7 +1,8 @@
 import { useMemo, useState } from 'react';
-import { useDisciplinas, usePeriod } from '../lib/data';
+import { useAulas, useCalendario, useDisciplinas, usePeriod } from '../lib/data';
 import { absenceLevel, currentAverage, gradeTone, outlook, type GradeOutlook } from '../lib/grades';
-import { subjectTone, type Subject } from '../lib/suap';
+import { aulaMatchesSubject, subjectTone, type Aula, type Subject } from '../lib/suap';
+import { parseDay, relativeDay } from '../lib/dates';
 import { TONES } from '../lib/tones';
 import { AbsenceMeter, Card, Chip, cx, Empty, ErrorNote, Icon, Item, Ring, Segmented, Skeleton, Stagger, Tap, TopTitle } from '../components/ui';
 import { PeriodSelect } from '../components/PeriodSelect';
@@ -14,6 +15,8 @@ const isRisk = (s: Subject) => { const l = absenceLevel(s); return l === 'critic
 export function Subjects() {
   const { period } = usePeriod();
   const { data, error, loading, refresh } = useDisciplinas(period);
+  const { data: cal } = useCalendario(period);
+  const { data: aulas } = useAulas(period, cal?.data_inicio);
   const [sort, setSort] = useState<Sort>('nome');
   const [filter, setFilter] = useState<Filter>('todas');
 
@@ -57,7 +60,7 @@ export function Subjects() {
 
       {list.length > 0 && (
         <Stagger key={sort + filter + (period?.label ?? '')} className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
-          {list.map((s) => <Item key={s.code}><SubjectCard s={s} /></Item>)}
+          {list.map((s) => <Item key={s.code}><SubjectCard s={s} last={aulas?.find((a) => aulaMatchesSubject(a, s))} /></Item>)}
         </Stagger>
       )}
     </>
@@ -77,7 +80,8 @@ export function outlookLabel(o: GradeOutlook): { text: string; tone: string; ico
   }
 }
 
-function SubjectCard({ s }: { s: Subject }) {
+function SubjectCard({ s, last }: { s: Subject; last?: Aula }) {
+  const lastDay = parseDay(last?.data);
   const t = TONES[subjectTone(s)];
   const lvl = absenceLevel(s);
   const o = outlook(s);
@@ -99,6 +103,15 @@ function SubjectCard({ s }: { s: Subject }) {
           <span className={cx('text-base font-semibold tabular', gradeTone(avg))}>{avg !== null ? Math.round(avg) : '–'}</span>
         </Ring>
       </div>
+      {last && (
+        <div className="flex items-start gap-2 rounded-lg bg-surface-container-low px-3 py-2 text-sm">
+          <Icon name="history_edu" size={18} className={cx('mt-px shrink-0', last.faltas > 0 ? 'text-error' : 'text-on-surface-variant')} />
+          <p className="min-w-0 flex-1">
+            <span className="text-on-surface-variant">{lastDay ? relativeDay(lastDay) : ''}{last.faltas > 0 && <span className="text-error"> · {last.faltas} {last.faltas === 1 ? 'falta' : 'faltas'}</span>}: </span>
+            <span className="line-clamp-2 inline">{last.conteudo || 'conteúdo não informado'}</span>
+          </p>
+        </div>
+      )}
       <div className="flex gap-1.5">
         {s.grades.map((g, i) => (
           <div key={i} className={cx('flex-1 rounded-md py-1.5 text-center', g === null ? 'border border-dashed border-outline-variant' : 'bg-surface-container-highest')}>
