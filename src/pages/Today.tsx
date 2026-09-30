@@ -6,7 +6,8 @@ import { classroom } from '../lib/classroom';
 import { classesOn, formatDuration, nowMin, toMin, WEEKDAYS, WEEKDAYS_SHORT, type ClassItem } from '../lib/schedule';
 import { absenceLevel, outlook, overallAverage, PASS } from '../lib/grades';
 import { canSkip, currentStage, nextHoliday, type SkipVerdict } from '../lib/insights';
-import { attendanceFor, markEnded, recheckPending, useAttendance, type AttendanceCheck } from '../lib/attendance';
+import { attendanceFor, markEnded, pollLive, recheckPending, useAttendance, type AttendanceCheck } from '../lib/attendance';
+import { noRecordReason } from '../lib/noclass';
 import { buildDeadlines, type Deadline } from '../lib/agenda';
 import { daysBetween, isoDay, longDate, relativeDay, time, timeAgo } from '../lib/dates';
 import { useNow } from '../lib/hooks';
@@ -71,15 +72,18 @@ export function Today() {
 
 /** Assim que uma aula termina, marca "aguardando" e reconfere no SUAP até saber se virou falta. */
 function useAttendanceWatch(subjects: Subject[] | undefined, now: Date) {
+  const aulas = useSemesterAulas();
   useEffect(() => {
     if (!subjects) return;
     const date = isoDay(now);
     const mm = nowMin(now);
-    classesOn(subjects, now.getDay())
-      .filter((c) => toMin(c.end) <= mm)
-      .forEach((c) => markEnded(c.code, c.subject, date));
-    recheckPending(subjects);
-  }, [subjects, now]);
+    const today = classesOn(subjects, now.getDay());
+    today.filter((c) => toMin(c.end) <= mm).forEach((c) => markEnded(c.code, c.subject, date));
+    // Aula em andamento: vigia o registro da chamada e as faltas; se mudou, atualiza o histórico de aulas
+    const live = today.filter((c) => toMin(c.start) <= mm && mm < toMin(c.end));
+    if (live.length) pollLive(subjects, live, date).then((changed) => changed && aulas.refresh());
+    recheckPending(subjects).then((changed) => changed && aulas.refresh());
+  }, [subjects, now]); // eslint-disable-line react-hooks/exhaustive-deps
 }
 
 // ---------- Agora / próxima aula ----------
@@ -107,6 +111,8 @@ function NowCard({ subjects, now, holiday }: { subjects: Subject[]; now: Date; h
     return (
       <ClassHero item={current} tone={toneOf(current)} label="Aula agora" live>
         <Dial progress={p} center={formatDuration(toMin(current.end) - mm)} caption="para acabar" />
+        <LiveStatus item={current} subject={byCode.get(current.code)} now={now} />
+        <History subjects={subjects} now={now} />
         {next && <NextUp item={next} />}
       </ClassHero>
     );
@@ -120,6 +126,7 @@ function NowCard({ subjects, now, holiday }: { subjects: Subject[]; now: Date; h
           <span className="text-[64px] leading-none font-semibold tracking-tight tabular">{wait <= 120 ? formatDuration(wait) : next.start}</span>
           <span className="mb-2 text-sm font-medium opacity-80">{wait <= 120 ? 'até começar' : 'é a próxima'}</span>
         </div>
+        <History subjects={subjects} now={now} />
         {after && <NextUp item={after} />}
       </ClassHero>
     );
@@ -159,25 +166,138 @@ function lessonOn(aulas: Aula[] | undefined, s: Subject, date: string) {
 
 function useSemesterAulas() {
   const { current } = usePeriod();
-  return useAulas(current).data;
+  return useAulas(current);
+}
+
+type LessonState = 'present' | 'absent' | 'none';
+
+/** Junta o que o SUAP lançou no mês com a conferência feita pelo app (mais fresca durante a aula). */
+function lessonState(lesson: ReturnType<typeof lessonOn>, check?: AttendanceCheck): { state: LessonState; faltas: number } {
+  const faltas = Math.max(lesson?.faltas ?? 0, check?.faltas ?? 0);
+  if (faltas > 0 || check?.status === 'absent') return { state: 'absent', faltas: Math.max(faltas, 1) };
+  if (lesson || check?.status === 'present') return { state: 'present', faltas: 0 };
+  return { state: 'none', faltas: 0 };
+}
+
+/** Motivo provável de uma aula não ter registro no SUAP, com os dados que o app já tem. */
+function useReasonFor(subjects: Subject[]) {
+  const { current } = usePeriod();
+  const aulas = useSemesterAulas().data;
+  const { data: holidays } = useHolidays();
+  const { data: cal } = useCalendario(current);
+  const { data: eu } = useEu();
+  const { data: campus } = useCampus(eu?.campus);
+  return (subject: Subject, date: string) => noRecordReason({ subject, date, subjects, aulas, holidays, cal, eventos: campus?.eventos });
+}
+
+const hhmm = (ts?: number) => (ts ? time(new Date(ts)) : '');
+
+/** Acompanha a aula em andamento: em andamento → registrada (todos com presença) → falta lançada. */
+function LiveStatus({ item, subject, now }: { item: ClassItem; subject?: Subject; now: Date }) {
+  const checks = useAttendance();
+  const aulas = useSemesterAulas().data;
+  const { data: turma } = useTurma(item.code);
+  const date = isoDay(now);
+  const check = attendanceFor(item.code, date, checks);
+  const { state, faltas } = lessonState(subject ? lessonOn(aulas, subject, date) : null, check);
+  const prof = turma?.professores[0] ? shortName(turma.professores[0].nome).split(' ')[0] : 'o professor';
+
+  const head = state === 'absent'
+    ? { icon: 'cancel', title: 'Você recebeu falta', text: `${faltas} ${faltas === 1 ? 'falta lançada' : 'faltas lançadas'} nesta aula no SUAP.` }
+    : state === 'present'
+      ? { icon: 'check_circle', title: 'Você recebeu presença', text: 'Aula registrada sem falta. Fica assim até aparecer uma falta no SUAP.' }
+      : { icon: 'hourglass_empty', title: 'Aguardando o registro', text: `Quando ${prof} registrar a chamada no SUAP, você já começa com presença.` };
+
+  const steps: { label: string; hint: string; done: boolean; tone?: 'error' | 'success' }[] = [
+    { label: 'Aula rolando', hint: `desde ${item.start}`, done: true },
+    { label: 'Aula registrada', hint: state === 'none' ? 'aguardando' : `visto às ${hhmm(check?.registeredAt) || '—'}`, done: state !== 'none', tone: state !== 'none' ? 'success' : undefined },
+    state === 'absent'
+      ? { label: 'Falta lançada', hint: `visto às ${hhmm(check?.absentAt) || '—'}`, done: true, tone: 'error' }
+      : { label: 'Sem falta', hint: state === 'present' ? 'até agora' : 'após o registro', done: false },
+  ];
+
+  return (
+    <div className="relative rounded-2xl bg-black/10 p-3.5 dark:bg-white/10">
+      <ol className="flex items-start">
+        {steps.map((st, i) => (
+          <li key={st.label} className="relative flex flex-1 flex-col items-center gap-1 text-center">
+            {i > 0 && <span className={cx('absolute top-3.5 right-1/2 h-0.5 w-full bg-current', steps[i - 1].done && st.done ? 'opacity-70' : 'opacity-20')} />}
+            <span className={cx('relative z-10 flex size-7 items-center justify-center rounded-full',
+              st.tone === 'error' ? 'bg-error text-on-error' : st.tone === 'success' ? 'bg-success text-on-success' : st.done ? 'bg-white/60 dark:bg-black/30' : 'border border-current/40')}>
+              <Icon name={st.tone === 'error' ? 'close' : st.done ? 'check' : 'more_horiz'} size={16} weight={600} />
+            </span>
+            <span className="text-xs leading-tight font-medium">{st.label}</span>
+            <span className="text-[11px] leading-tight opacity-75">{st.hint}</span>
+          </li>
+        ))}
+      </ol>
+      <m.div key={state} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3, ease: EMPHASIZED }} className="mt-3 flex items-start gap-2.5 border-t border-current/15 pt-3">
+        <Icon name={head.icon} size={22} fill className={state === 'none' ? 'animate-pulse' : undefined} />
+        <div className="min-w-0">
+          <p className="leading-tight font-semibold">{head.title}</p>
+          <p className="mt-0.5 text-sm opacity-85">{head.text}</p>
+          {check?.checkedAt ? <p className="mt-1 text-[11px] opacity-65">Conferido no SUAP às {hhmm(check.checkedAt)} · atualiza sozinho</p> : null}
+        </div>
+      </m.div>
+    </div>
+  );
+}
+
+/** Aulas de hoje que já acabaram, com o resultado de cada uma (presença, falta ou sem registro e o porquê). */
+function History({ subjects, now }: { subjects: Subject[]; now: Date }) {
+  const checks = useAttendance();
+  const aulas = useSemesterAulas().data;
+  const reasonFor = useReasonFor(subjects);
+  const date = isoDay(now);
+  const mm = nowMin(now);
+  const byCode = new Map(subjects.map((s) => [s.code, s]));
+  const ended = classesOn(subjects, now.getDay()).filter((c) => toMin(c.end) <= mm);
+  if (!ended.length) return null;
+
+  return (
+    <div className="relative rounded-2xl bg-black/10 p-3.5 dark:bg-white/10">
+      <p className="mb-2 flex items-center gap-1.5 text-xs font-medium tracking-wide uppercase opacity-80"><Icon name="history" size={16} />{ended.length === 1 ? 'Aula anterior' : 'Hoje até agora'}</p>
+      <ul className="flex flex-col gap-2">
+        {ended.map((c) => {
+          const s = byCode.get(c.code);
+          const { state, faltas } = lessonState(s ? lessonOn(aulas, s, date) : null, attendanceFor(c.code, date, checks));
+          const verdict = state === 'absent'
+            ? { icon: 'cancel', text: faltas === 1 ? 'Você levou falta' : `Você levou ${faltas} faltas` }
+            : state === 'present' ? { icon: 'check_circle', text: 'Você recebeu presença' }
+            : { icon: 'help', text: 'Aula sem registro no SUAP' };
+          return (
+            <li key={c.code + c.start} className="flex items-start gap-2.5 text-sm">
+              <Icon name={verdict.icon} size={20} fill className="mt-0.5 shrink-0" />
+              <div className="min-w-0 flex-1">
+                <p className="truncate"><b className="font-semibold">{c.subject}</b> <span className="opacity-70 tabular">· {c.start}–{c.end}</span></p>
+                <p className="font-medium">{verdict.text}</p>
+                {state === 'none' && s && <p className="mt-0.5 text-xs opacity-80">{reasonFor(s, date)}</p>}
+              </div>
+            </li>
+          );
+        })}
+      </ul>
+    </div>
+  );
 }
 
 /** Resumo do que foi dado: as aulas que já acabaram hoje, ou as do último dia com aula lançada. */
 function Recap({ subjects, now }: { subjects: Subject[]; now: Date }) {
-  const aulas = useSemesterAulas();
+  const aulas = useSemesterAulas().data;
   const checks = useAttendance();
+  const reasonFor = useReasonFor(subjects);
   const date = isoDay(now);
   const mm = nowMin(now);
   const byCode = new Map(subjects.map((s) => [s.code, s]));
 
-  type Row = { s: Subject; lesson: ReturnType<typeof lessonOn>; pending?: AttendanceCheck['status'] };
+  type Row = { s: Subject; day: string; lesson: ReturnType<typeof lessonOn>; check?: AttendanceCheck };
   /** Matérias do dia: as do horário mais as que o SUAP lançou nesse dia (reposição, evento, etc.). */
   const rowsFor = (day: string, scheduled: string[]): Row[] => {
     const lançadas = subjects.filter((s) => aulas?.some((a) => a.data === day && aulaMatchesSubject(a, s))).map((s) => s.code);
     return [...new Set([...scheduled, ...lançadas])]
       .map((code) => byCode.get(code))
       .filter((s): s is Subject => !!s)
-      .map((s) => ({ s, lesson: lessonOn(aulas, s, day), pending: attendanceFor(s.code, day, checks)?.status }));
+      .map((s) => ({ s, day, lesson: lessonOn(aulas, s, day), check: attendanceFor(s.code, day, checks) }));
   };
 
   const endedToday = classesOn(subjects, now.getDay()).filter((c) => toMin(c.end) <= mm).map((c) => c.code);
@@ -190,7 +310,7 @@ function Recap({ subjects, now }: { subjects: Subject[]; now: Date }) {
       const d = new Date(now); d.setDate(d.getDate() - i);
       rows = rowsFor(isoDay(d), classesOn(subjects, d.getDay()).map((c) => c.code));
       // Dia sem nada lançado e sem conferência (ex.: feriado) não conta como "última aula"
-      if (rows.length && !rows.some((r) => r.lesson || r.pending)) rows = [];
+      if (rows.length && !rows.some((r) => r.lesson || r.check)) rows = [];
       if (rows.length) title = `Última aula · ${relativeDay(d, now)}`;
     }
   }
@@ -200,31 +320,30 @@ function Recap({ subjects, now }: { subjects: Subject[]; now: Date }) {
     <div className="mt-5 border-t border-outline-variant pt-4">
       <p className="mb-2 flex items-center gap-1.5 text-sm font-medium text-on-surface-variant"><Icon name="history_edu" size={18} className="text-primary" />{title}</p>
       <ul className="flex flex-col gap-1.5">
-        {rows.map(({ s, lesson, pending }, i) => (
+        {rows.map(({ s, day, lesson, check }, i) => {
+          const { state, faltas } = lessonState(lesson, check);
+          return (
           <m.li key={s.code} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.06, duration: 0.3, ease: EMPHASIZED }}>
             <Tap to={`/disciplinas/${s.code}`} className="flex items-start gap-3 rounded-xl bg-surface-container-high px-3.5 py-3">
               <span className={cx('mt-1.5 size-2.5 shrink-0 rounded-full', TONES[subjectTone(s)].color)} />
               <div className="min-w-0 flex-1">
                 <p className="truncate font-medium">{s.name}</p>
-                <p className="mt-0.5 line-clamp-2 text-sm text-on-surface-variant">{lesson ? lesson.conteudo || 'Conteúdo não informado' : 'O professor ainda não lançou a aula no SUAP.'}</p>
+                <p className="mt-0.5 line-clamp-3 text-sm text-on-surface-variant">{state !== 'none' ? lesson?.conteudo || 'Conteúdo não informado' : reasonFor(s, day)}</p>
               </div>
-              <LessonBadge lesson={lesson} pending={pending} />
+              <LessonBadge state={state} faltas={faltas} />
             </Tap>
           </m.li>
-        ))}
+          );
+        })}
       </ul>
     </div>
   );
 }
 
-function LessonBadge({ lesson, pending }: { lesson: ReturnType<typeof lessonOn>; pending?: AttendanceCheck['status'] }) {
-  if (lesson) {
-    return lesson.faltas > 0
-      ? <Badge tone="error"><Icon name="cancel" size={14} fill />{lesson.faltas}<span className="hidden sm:inline"> {lesson.faltas === 1 ? 'falta' : 'faltas'}</span></Badge>
-      : <Badge tone="success"><Icon name="check_circle" size={14} fill /><span className="hidden sm:inline">presente</span></Badge>;
-  }
-  if (pending === 'unregistered') return <Badge tone="warning"><Icon name="help" size={14} /><span className="hidden sm:inline">não lançada</span></Badge>;
-  return <Badge><Icon name="hourglass_empty" size={14} className="animate-pulse" /><span className="hidden sm:inline">aguardando</span></Badge>;
+function LessonBadge({ state, faltas }: { state: LessonState; faltas: number }) {
+  if (state === 'absent') return <Badge tone="error"><Icon name="cancel" size={14} fill />{faltas}<span className="hidden sm:inline"> {faltas === 1 ? 'falta' : 'faltas'}</span></Badge>;
+  if (state === 'present') return <Badge tone="success"><Icon name="check_circle" size={14} fill /><span className="hidden sm:inline">presente</span></Badge>;
+  return <Badge tone="warning"><Icon name="help" size={14} /><span className="hidden sm:inline">sem registro</span></Badge>;
 }
 
 function NextUp({ item }: { item: ClassItem }) {
@@ -422,7 +541,7 @@ function StatTile({ icon, label, hint, children }: { icon: string; label: string
 // ---------- Aulas de hoje ----------
 
 const ATTENDANCE_BADGE: Record<AttendanceCheck['status'], { icon: string; textClass: string; label: string; fill?: boolean; pulse?: boolean }> = {
-  pending: { icon: 'hourglass_empty', textClass: 'text-on-surface-variant', label: 'aguardando SUAP', pulse: true },
+  pending: { icon: 'help', textClass: 'text-warning', label: 'sem registro' },
   present: { icon: 'check_circle', textClass: 'text-success', label: 'presença confirmada', fill: true },
   absent: { icon: 'cancel', textClass: 'text-error', label: 'falta registrada', fill: true },
   unregistered: { icon: 'help', textClass: 'text-warning', label: 'SUAP não lançou' },
@@ -433,7 +552,8 @@ function DayList({ subjects, now }: { subjects: Subject[]; now: Date }) {
   const mm = nowMin(now);
   const byCode = new Map(subjects.map((s) => [s.code, s]));
   const checks = useAttendance();
-  const aulas = useSemesterAulas();
+  const aulas = useSemesterAulas().data;
+  const reasonFor = useReasonFor(subjects);
   const date = isoDay(now);
 
   return (
@@ -448,9 +568,11 @@ function DayList({ subjects, now }: { subjects: Subject[]; now: Date }) {
             const t = TONES[s ? subjectTone(s) : toneFor(c.code)];
             const past = toMin(c.end) <= mm;
             const live = toMin(c.start) <= mm && mm < toMin(c.end);
-            const lesson = past && s ? lessonOn(aulas, s, date) : null;
-            const check = past ? attendanceFor(c.code, date, checks) : undefined;
-            const status = lesson ? (lesson.faltas > 0 ? 'absent' : 'present') : check?.status;
+            const lesson = (past || live) && s ? lessonOn(aulas, s, date) : null;
+            const check = past || live ? attendanceFor(c.code, date, checks) : undefined;
+            const { state } = lessonState(lesson, check);
+            // Aula em andamento só ganha selo quando já foi registrada; depois de acabar, sem registro também aparece
+            const status: AttendanceCheck['status'] | undefined = state !== 'none' ? (state === 'absent' ? 'absent' : 'present') : past ? (check?.status === 'unregistered' ? 'unregistered' : 'pending') : undefined;
             const badge = status ? ATTENDANCE_BADGE[status] : undefined;
             return (
               <Tap key={c.code + c.start} to={`/disciplinas/${c.code}`} className={cx('flex items-center gap-3 rounded-sm px-4 py-3', live ? cx(t.container, t.onContainer) : 'bg-surface-container', past && !badge && 'opacity-60')}>
@@ -461,7 +583,7 @@ function DayList({ subjects, now }: { subjects: Subject[]; now: Date }) {
                 <span className={cx('h-10 w-1 shrink-0 rounded-full', t.color)} />
                 <div className="min-w-0 flex-1">
                   <p className="truncate font-medium">{c.subject}</p>
-                  <p className={cx('text-xs opacity-75', lesson?.conteudo ? 'line-clamp-2' : 'truncate')}>{lesson?.conteudo || c.room || 'Sala não informada'}</p>
+                  <p className={cx('text-xs opacity-75', lesson?.conteudo || (past && state === 'none') ? 'line-clamp-2' : 'truncate')}>{lesson?.conteudo || (past && state === 'none' && s ? reasonFor(s, date) : c.room || 'Sala não informada')}</p>
                 </div>
                 {live && <Badge tone="primary">agora</Badge>}
                 {badge && (

@@ -14,6 +14,10 @@ export type AttendanceCheck = {
   faltas: number;
   checkedAt: number;
   attempts: number;
+  /** Quando o app viu a aula registrada no SUAP (todo mundo começa com presença). */
+  registeredAt?: number;
+  /** Quando o app viu a falta aparecer. */
+  absentAt?: number;
 };
 
 const storageKey = () => `supaco:att:${session.user}`;
@@ -57,6 +61,8 @@ function nextDelay(attempts: number) {
 function needsCheck(code: string, date: string, list: AttendanceCheck[]) {
   const c = list.find((x) => x.code === code && x.date === date);
   if (!c) return true;
+  // Presença do próprio dia ainda pode virar falta: o professor pode lançar depois
+  if (c.status === 'present' && date === isoDay()) return Date.now() - c.checkedAt >= 10 * 60_000;
   if (c.status !== 'pending') return false;
   return Date.now() - c.checkedAt >= nextDelay(c.attempts);
 }
@@ -75,12 +81,34 @@ function fetchMonth(year: number, month: number): Promise<Aula[]> {
   return monthCache.get(key)!;
 }
 
-/** Reconfere todas as aulas "pendentes" (de hoje ou de dias anteriores) que já podem ter sido lançadas. */
-export async function recheckPending(subjects: Subject[]) {
+/** Aplica o que o SUAP devolveu a uma conferência: registrada (presença/falta), sem registro ou ainda pendente. */
+function resolve(c: AttendanceCheck, records: Aula[] | null, s: Subject | undefined): AttendanceCheck {
+  const now = Date.now();
+  const attempts = c.attempts + 1;
+  const match = records && s ? records.find((a) => a.data.slice(0, 10) === c.date && aulaMatchesSubject(a, s)) : undefined;
+
+  if (match) {
+    return {
+      ...c, status: match.faltas > 0 ? 'absent' : 'present', faltas: match.faltas, checkedAt: now, attempts,
+      registeredAt: c.registeredAt ?? now,
+      absentAt: match.faltas > 0 ? c.absentAt ?? now : c.absentAt,
+    };
+  }
+  // Passaram pelo menos 2 dias e o SUAP ainda não tem registro: desiste de esperar
+  if (records && daysBetween(parseDay(c.date) ?? new Date(), new Date()) >= 2 && c.date !== isoDay()) {
+    return { ...c, status: 'unregistered', checkedAt: now, attempts };
+  }
+  return { ...c, checkedAt: now, attempts };
+}
+
+const sameOutcome = (a: AttendanceCheck, b: AttendanceCheck) => a.status === b.status && a.faltas === b.faltas;
+
+/** Reconfere as aulas "pendentes" (e as presenças de hoje) que já podem ter sido lançadas. Devolve true se algo mudou. */
+export async function recheckPending(subjects: Subject[]): Promise<boolean> {
   const list = loadAll();
   const today = isoDay();
-  const due = list.filter((c) => c.status === 'pending' && needsCheck(c.code, c.date, list));
-  if (!due.length) return;
+  const due = list.filter((c) => (c.status === 'pending' || (c.status === 'present' && c.date === today)) && needsCheck(c.code, c.date, list));
+  if (!due.length) return false;
 
   const byMonth = new Map<string, { year: number; month: number; items: AttendanceCheck[] }>();
   due.forEach((c) => {
@@ -90,25 +118,43 @@ export async function recheckPending(subjects: Subject[]) {
     byMonth.get(key)!.items.push(c);
   });
 
+  let changed = false;
   for (const { year, month, items } of byMonth.values()) {
     let records: Aula[] | null = null;
     try { records = await fetchMonth(year, month); } catch { /* offline: tenta de novo mais tarde */ }
 
     items.forEach((c) => {
-      const s = subjects.find((x) => x.code === c.code);
-      const attempts = c.attempts + 1;
-      const match = records && s ? records.find((a) => a.data.slice(0, 10) === c.date && aulaMatchesSubject(a, s)) : undefined;
-
-      if (match) {
-        upsert({ ...c, status: match.faltas > 0 ? 'absent' : 'present', faltas: match.faltas, checkedAt: Date.now(), attempts });
-      } else if (records && daysBetween(parseDay(c.date) ?? new Date(), new Date()) >= 2 && c.date !== today) {
-        // Passaram pelo menos 2 dias e o SUAP ainda não tem registro: desiste de esperar
-        upsert({ ...c, status: 'unregistered', checkedAt: Date.now(), attempts });
-      } else {
-        upsert({ ...c, checkedAt: Date.now(), attempts });
-      }
+      const next = resolve(c, records, subjects.find((x) => x.code === c.code));
+      if (!sameOutcome(c, next)) changed = true;
+      upsert(next);
     });
   }
+  return changed;
+}
+
+const lastPoll = new Map<string, number>();
+
+/**
+ * Durante a aula, confere o SUAP a cada ~1 min para ver quando o professor registra a chamada
+ * (aí todo mundo fica com presença) e quando uma falta aparece. Devolve true se algo mudou.
+ */
+export async function pollLive(subjects: Subject[], live: { code: string; subject: string }[], date: string): Promise<boolean> {
+  const due = live.filter((c) => Date.now() - (lastPoll.get(c.code + date) ?? 0) >= 55_000);
+  if (!due.length) return false;
+  due.forEach((c) => lastPoll.set(c.code + date, Date.now()));
+
+  const [y, m] = date.split('-').map(Number);
+  let records: Aula[];
+  try { records = await fetchMonth(y, m); } catch { return false; }
+
+  let changed = false;
+  due.forEach((c) => {
+    const prev = attendanceFor(c.code, date, loadAll()) ?? { code: c.code, subject: c.subject, date, status: 'pending' as const, faltas: 0, checkedAt: 0, attempts: 0 };
+    const next = resolve(prev, records, subjects.find((x) => x.code === c.code));
+    if (!sameOutcome(prev, next)) changed = true;
+    upsert(next);
+  });
+  return changed;
 }
 
 /** Força uma nova tentativa imediata em tudo que está pendente (usado pelo botão de atualizar). */
