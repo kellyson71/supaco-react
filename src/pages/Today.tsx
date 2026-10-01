@@ -16,8 +16,11 @@ import { TONES, toneFor, type Tone } from '../lib/tones';
 import { AbsenceMeter, Badge, Button, Card, Chip, CountUp, cx, EMPHASIZED, Empty, ErrorNote, Icon, Item, Ring, SectionHeader, Shape, Skeleton, Stagger, Tap } from '../components/ui';
 import { Avatar } from '../components/Avatar';
 import { Highlights } from '../components/Highlights';
+import { MemeCard, VibePrompt } from '../components/Memes';
+import { useVibe } from '../lib/vibe';
 
 const greeting = (h: number) => (h < 5 ? 'Boa noite' : h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite');
+const greetingZueira = (h: number) => (h < 5 ? 'Vai dormir' : h < 12 ? 'Acorda' : h < 18 ? 'Fala' : 'E aí');
 
 export function Today() {
   const now = useNow();
@@ -28,6 +31,7 @@ export function Today() {
   const holiday = holidays?.find((h) => h.date === isoDay(now));
   const first = eu ? eu.primeiro_nome || eu.nome_usual.split(' ')[0] : '';
   useAttendanceWatch(subjects, now);
+  const zueira = useVibe().tone === 'zueira';
 
   // Atalho do app "Posso faltar?" abre em /#posso-faltar
   useEffect(() => {
@@ -40,7 +44,7 @@ export function Today() {
         <div className="min-w-0 flex-1">
           <p className="text-sm font-medium text-on-surface-variant first-letter:uppercase">{longDate(now)}</p>
           <h1 className="mt-1 text-[32px] leading-10 font-semibold tracking-tight md:text-[45px] md:leading-[52px]">
-            {greeting(now.getHours())}{first && <>, <span className="text-primary">{first}</span></>}
+            {(zueira ? greetingZueira : greeting)(now.getHours())}{first && <>, <span className="text-primary">{first}</span></>}
           </h1>
         </div>
         <span className="hidden md:block"><Avatar size={48} /></span>
@@ -48,7 +52,9 @@ export function Today() {
 
       {res.error && !subjects && <div className="mb-4"><ErrorNote error={res.error} onRetry={res.refresh} /></div>}
 
+      <VibePrompt />
       {subjects && <News subjects={subjects} />}
+      {subjects && <MemeCard subjects={subjects} now={now} holiday={!!holiday} />}
 
       <Stagger className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-12">
         <Item className="md:col-span-2 xl:col-span-7 xl:row-span-2">
@@ -427,6 +433,8 @@ const VERDICT: Record<SkipVerdict, { title: string; icon: string; shape: 'flower
   no: { title: 'Melhor não faltar', icon: 'close', shape: 'cookie', bg: 'text-error', fg: 'text-on-error' },
   noclass: { title: 'Não tem aula', icon: 'beach_access', shape: 'sunny', bg: 'text-tertiary', fg: 'text-on-tertiary' },
 };
+/** Os mesmos veredictos no modo zueira. */
+const VERDICT_ZUEIRA: Record<SkipVerdict, string> = { yes: 'Falte, meu filho', tight: 'Reflita', no: 'Nem pense nisso', noclass: 'Baixo em disposição' };
 
 function SkipCard({ subjects, now }: { subjects: Subject[]; now: Date }) {
   const options = useMemo(() => {
@@ -443,6 +451,7 @@ function SkipCard({ subjects, now }: { subjects: Subject[]; now: Date }) {
   const opt = options.find((o) => o.key === sel) ?? options[0];
   const { verdict, items } = canSkip(subjects, opt.day);
   const v = VERDICT[verdict];
+  const zueira = useVibe().tone === 'zueira';
   const worst = items[0];
 
   return (
@@ -462,7 +471,7 @@ function SkipCard({ subjects, now }: { subjects: Subject[]; now: Date }) {
               <Shape shape={v.shape} size={64} className={v.bg}><Icon name={v.icon} size={32} weight={600} className={v.fg} /></Shape>
             </m.span>
             <div className="min-w-0">
-              <p className="text-2xl leading-8 font-semibold tracking-tight">{v.title}</p>
+              <p className="text-2xl leading-8 font-semibold tracking-tight">{zueira ? VERDICT_ZUEIRA[verdict] : v.title}</p>
               <p className="text-sm text-on-surface-variant">
                 {verdict === 'noclass' ? `${opt.label === 'Hoje' || opt.label === 'Amanhã' ? opt.label : WEEKDAYS[opt.day]} está livre.`
                   : verdict === 'no' ? `${worst.s.name} passaria do limite.`

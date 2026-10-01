@@ -138,3 +138,8 @@ input:focus-visible, select:focus-visible { outline: none; }
 
 @keyframes wave-move { from { transform: translateX(-24px); } to { transform: translateX(0); } }
 .wave-move { animation: wave-move 1.1s linear infinite; }
+
+/* Fileira de memes do convite ao modo zueira */
+@keyframes marquee { from { transform: translateX(0); } to { transform: translateX(-50%); } }
+.marquee { animation: marquee 38s linear infinite; }
+.marquee-reverse { animation-direction: reverse; }

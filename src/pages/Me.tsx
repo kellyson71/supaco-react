@@ -1,5 +1,5 @@
 import { useMemo, useState, type ReactNode } from 'react';
-import { m } from 'motion/react';
+import { AnimatePresence, m } from 'motion/react';
 import { useAluno, useAulas, useCalendario, useEu, useFrequencia, useMensagens, usePeriod, usePeriodos, useRequisitos } from '../lib/data';
 import { graduationForecast, presenceByDay, streaks, type Forecast } from '../lib/semester';
 import { daysBetween, isoDay, parseDay } from '../lib/dates';
@@ -9,8 +9,9 @@ import { classroom, connectClassroom } from '../lib/classroom';
 import { session } from '../lib/api';
 import { clearCache, refreshAll } from '../lib/store';
 import { DEFAULT_PREFS, resetTheme, SEEDS, seedHex, setMode, setPref, setSeed, STYLES, swatch, useThemeState, type Mode, type Prefs } from '../lib/theme';
+import { setVibe, useVibe } from '../lib/vibe';
 import { shareSite, SITE_URL, useInstall } from '../lib/hooks';
-import { Badge, Button, Card, CountUp, cx, Icon, Item, Ring, SectionHeader, Segmented, Shape, Skeleton, spring, Stagger, Switch, Tap, WavyProgress } from '../components/ui';
+import { Badge, Button, Card, CountUp, cx, EMPHASIZED, Icon, Item, Ring, SectionHeader, Segmented, Shape, Skeleton, spring, Stagger, Switch, Tap, WavyProgress } from '../components/ui';
 import { Avatar } from '../components/Avatar';
 
 const REQ_LABELS: Record<string, string> = {
@@ -155,18 +156,72 @@ function Setting({ label, hint, children }: { label: string; hint?: string; chil
   );
 }
 
+/** Botão de uma cor pronta do tema. */
+function SeedButton({ s, on }: { s: { id: string; label: string; colors: { primary: string; secondary: string; tertiary: string } }; on: boolean }) {
+  return (
+    <button onClick={() => setSeed(s.id)} aria-label={s.label} title={s.label} aria-pressed={on} className="flex flex-col items-center gap-1.5">
+      <m.span whileTap={{ scale: 0.9 }} transition={spring} className={cx('relative flex items-center justify-center rounded-full p-1 ring-2 transition-shadow', on ? 'ring-primary' : 'ring-transparent')}>
+        <Swatch colors={s.colors} size={48} />
+        {on && (
+          <m.span layoutId="seed-check" transition={spring} className="absolute flex size-6 items-center justify-center rounded-full bg-white text-black shadow">
+            <Icon name="check" size={16} weight={700} />
+          </m.span>
+        )}
+      </m.span>
+      <span className="text-xs text-on-surface-variant">{s.label}</span>
+    </button>
+  );
+}
+
+/** Quantas cores aparecem antes de abrir o avançado. */
+const MAIN_SEEDS = 6;
+
 function Appearance() {
   const { mode, seed, dark, prefs } = useThemeState();
+  const vibe = useVibe();
+  const [advanced, setAdvanced] = useState(false);
   const custom = seed.startsWith('#');
   const seeds = useMemo(() => SEEDS.map((s) => ({ ...s, colors: swatch(s.id, dark, prefs.style) })), [dark, prefs.style]);
   const styles = useMemo(() => STYLES.map((st) => ({ ...st, colors: swatch(seed, dark, st.id) })), [seed, dark]);
   const changed = seed !== SEEDS[0].id || (Object.keys(DEFAULT_PREFS) as (keyof Prefs)[]).some((k) => prefs[k] !== DEFAULT_PREFS[k]);
+  // As cores principais, mais a escolhida se ela estiver só no avançado
+  const main = seeds.filter((s, i) => i < MAIN_SEEDS || s.id === seed);
 
   return (
     <>
-      <SectionHeader title="Aparência" icon="palette"
-        action={changed && <Button variant="text" size="sm" icon="refresh" onClick={resetTheme}>Restaurar padrão</Button>} />
+      <SectionHeader title="Aparência" icon="palette" />
       <Card variant="filled" className="rounded-2xl p-5">
+        <p className="mb-2 text-sm font-medium text-on-surface-variant">Modo</p>
+        <Segmented<Mode> value={mode} onChange={setMode} className="w-full"
+          options={[{ value: 'dark', label: 'Escuro', icon: 'dark_mode' }, { value: 'light', label: 'Claro', icon: 'light_mode' }, { value: 'system', label: 'Sistema', icon: 'brightness_auto' }]} />
+
+        <p className="mt-5 mb-3 text-sm font-medium text-on-surface-variant">Cor do tema</p>
+        <div className="grid grid-cols-[repeat(auto-fill,minmax(64px,1fr))] gap-x-2 gap-y-3">
+          {main.map((s) => <SeedButton key={s.id} s={s} on={seed === s.id} />)}
+        </div>
+
+        <p className="mt-5 mb-2 text-sm font-medium text-on-surface-variant">Clima do app</p>
+        <Segmented<'serio' | 'zueira'> value={vibe.tone} onChange={(tone) => setVibe({ tone, asked: true, ...(tone === 'zueira' && !vibe.asked ? { memes: true } : {}) })} className="w-full"
+          options={[{ value: 'serio', label: 'Sério', icon: 'school' }, { value: 'zueira', label: 'Zueira', icon: 'celebration' }]} />
+        <div className={cx('transition-opacity', vibe.tone === 'serio' && 'pointer-events-none opacity-45')}>
+          <Setting label="Memes" hint={vibe.tone === 'serio' ? 'Disponível no modo zueira' : 'Um meme na tela Hoje conforme a sua situação'}>
+            <Switch on={vibe.tone === 'zueira' && vibe.memes} onChange={(memes) => setVibe({ memes })} label="Mostrar memes" />
+          </Setting>
+        </div>
+
+        <button onClick={() => setAdvanced(!advanced)} aria-expanded={advanced} className="state mt-2 flex w-full items-center gap-3 rounded-xl px-1 py-3 text-left">
+          <Icon name="tune" className="text-primary" />
+          <span className="min-w-0 flex-1">
+            <span className="block font-medium">Avançado</span>
+            <span className="block text-sm text-on-surface-variant">Mais cores, estilo da paleta, contraste, cantos e texto</span>
+          </span>
+          <m.span animate={{ rotate: advanced ? 180 : 0 }} transition={spring} className="inline-flex"><Icon name="expand_more" /></m.span>
+        </button>
+
+        <AnimatePresence initial={false}>
+          {advanced && (
+            <m.div key="adv" initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.35, ease: EMPHASIZED }} className="overflow-hidden">
+              <div className="pt-3">
         {/* Prévia: uma amostra do app com o tema atual */}
         <div className="mb-5 grid grid-cols-[1.3fr_1fr] gap-2 overflow-hidden rounded-2xl bg-surface p-3">
           <div className="flex flex-col justify-between gap-3 rounded-xl bg-primary-container p-3 text-on-primary-container">
@@ -186,25 +241,9 @@ function Appearance() {
           </div>
         </div>
 
-        <p className="mb-2 text-sm font-medium text-on-surface-variant">Modo</p>
-        <Segmented<Mode> value={mode} onChange={setMode} className="w-full"
-          options={[{ value: 'light', label: 'Claro', icon: 'light_mode' }, { value: 'dark', label: 'Escuro', icon: 'dark_mode' }, { value: 'system', label: 'Sistema', icon: 'brightness_auto' }]} />
-
-        <p className="mt-5 mb-3 text-sm font-medium text-on-surface-variant">Cor do tema</p>
+        <p className="mb-3 text-sm font-medium text-on-surface-variant">Todas as cores</p>
         <div className="grid grid-cols-[repeat(auto-fill,minmax(64px,1fr))] gap-x-2 gap-y-3">
-          {seeds.map((s) => (
-            <button key={s.id} onClick={() => setSeed(s.id)} aria-label={s.label} title={s.label} aria-pressed={seed === s.id} className="flex flex-col items-center gap-1.5">
-              <m.span whileTap={{ scale: 0.9 }} transition={spring} className={cx('relative flex items-center justify-center rounded-full p-1 ring-2 transition-shadow', seed === s.id ? 'ring-primary' : 'ring-transparent')}>
-                <Swatch colors={s.colors} size={48} />
-                {seed === s.id && (
-                  <m.span layoutId="seed-check" transition={spring} className="absolute flex size-6 items-center justify-center rounded-full bg-white text-black shadow">
-                    <Icon name="check" size={16} weight={700} />
-                  </m.span>
-                )}
-              </m.span>
-              <span className="text-xs text-on-surface-variant">{s.label}</span>
-            </button>
-          ))}
+          {seeds.map((s) => <SeedButton key={s.id} s={s} on={seed === s.id} />)}
           {/* Qualquer cor: o seletor nativo fica invisível por cima da amostra */}
           <label className="relative flex cursor-pointer flex-col items-center gap-1.5" title="Escolher outra cor">
             <span className={cx('relative flex items-center justify-center rounded-full p-1 ring-2', custom ? 'ring-primary' : 'ring-transparent')}>
@@ -259,6 +298,11 @@ function Appearance() {
             <Switch on={prefs.reduceMotion} onChange={(v) => setPref('reduceMotion', v)} label="Reduzir animações" />
           </Setting>
         </div>
+                {changed && <div className="mt-2 flex justify-end"><Button variant="text" size="sm" icon="refresh" onClick={resetTheme}>Restaurar padrão</Button></div>}
+              </div>
+            </m.div>
+          )}
+        </AnimatePresence>
       </Card>
     </>
   );

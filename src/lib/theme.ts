@@ -130,9 +130,10 @@ let state: State = read();
 const subs = new Set<() => void>();
 
 function read(): State {
-  let mode: Mode = 'system', seed: string = SEEDS[0].id, prefs = DEFAULT_PREFS;
+  let mode: Mode = 'dark', seed: string = SEEDS[0].id, prefs = DEFAULT_PREFS;
   try {
-    mode = (localStorage.getItem(K.mode) as Mode) || 'system';
+    // Sem escolha salva, o app abre no escuro
+    mode = (localStorage.getItem(K.mode) as Mode) || 'dark';
     seed = localStorage.getItem(K.seed) || SEEDS[0].id;
     prefs = { ...DEFAULT_PREFS, ...JSON.parse(localStorage.getItem(K.prefs) || '{}') };
   } catch { /* storage bloqueado */ }
