@@ -10,6 +10,7 @@ import { cx, EMPHASIZED, Icon, IconButton, spring } from './ui';
 import { Link } from './Link';
 import { Logo } from './Logo';
 import { Avatar } from './Avatar';
+import { GlobalSearch, openSearch, SearchBar } from './Search';
 
 export { Link };
 
@@ -92,12 +93,18 @@ export function Shell({ children }: { children: ReactNode }) {
             <span className="text-[22px] font-semibold tracking-tight">Supaco</span>
           </Link>
           <span className="flex-1" />
+          <IconButton icon="search" label="Buscar" onClick={openSearch} />
           <SyncButton />
           <ThemeButton />
           <Avatar size={32} />
         </header>
 
-        <main className="mx-auto w-full max-w-[1440px] px-4 pb-28 md:px-8 md:pt-6 md:pb-12">
+        {/* Busca global (telas médias e grandes) */}
+        <div className="sticky top-0 z-20 hidden bg-surface/90 px-8 py-3 backdrop-blur-md md:block">
+          <div className="mx-auto flex w-full max-w-[1440px] justify-center"><SearchBar /></div>
+        </div>
+
+        <main className="mx-auto w-full max-w-[1440px] px-4 pb-28 md:px-8 md:pt-3 md:pb-12">
           <AnimatePresence mode="wait" initial={false}>
             <m.div key={pageKey}
               initial={{ opacity: 0, scale: 0.985, y: 8 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.99 }}
@@ -112,6 +119,8 @@ export function Shell({ children }: { children: ReactNode }) {
       <nav className="fixed inset-x-0 bottom-0 z-30 flex bg-surface-container pb-[env(safe-area-inset-bottom)] md:hidden">
         {NAV.map((n) => <NavItem key={n.to} {...n} active={isActive(path, n.to)} unread={n.to === '/voce' && unread} />)}
       </nav>
+
+      <GlobalSearch />
     </div>
   );
 }
