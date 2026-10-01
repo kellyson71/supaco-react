@@ -17,6 +17,7 @@ import { AbsenceMeter, Badge, Button, Card, Chip, CountUp, cx, EMPHASIZED, Empty
 import { Avatar } from '../components/Avatar';
 import { Highlights } from '../components/Highlights';
 import { SkipHero, VibePrompt } from '../components/Memes';
+import { ShiftNotice } from '../components/ShiftNotice';
 import { useVibe } from '../lib/vibe';
 
 const greeting = (h: number) => (h < 5 ? 'Boa noite' : h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite');
@@ -53,6 +54,7 @@ export function Today() {
       {res.error && !subjects && <div className="mb-4"><ErrorNote error={res.error} onRetry={res.refresh} /></div>}
 
       <VibePrompt />
+      <ShiftNotice />
       {subjects && <SkipHero subjects={subjects} now={now} holiday={!!holiday} />}
       {subjects && <News subjects={subjects} />}
 

@@ -156,6 +156,8 @@ export type Subject = {
   tone?: Tone;
   /** Por etapa: a nota é a média das avaliações já lançadas (a etapa ainda não fechou). */
   partial?: boolean[];
+  /** Dias do horário que o SUAP traz errados e o app corrigiu (ver lib/shifts.ts). */
+  moved?: { from: number; to: number }[];
 };
 
 export const subjectTone = (s: Pick<Subject, 'code' | 'tone'>) => s.tone ?? toneFor(s.code);

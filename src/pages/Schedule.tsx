@@ -9,6 +9,7 @@ import { downloadIcs } from '../lib/ics';
 import { parseDay } from '../lib/dates';
 import { Badge, Button, Card, cx, EMPHASIZED, Empty, ErrorNote, Icon, Segmented, Skeleton, spring, Tap, TopTitle } from '../components/ui';
 import { PeriodSelect } from '../components/PeriodSelect';
+import { ShiftNotice } from '../components/ShiftNotice';
 
 const PX_PER_MIN = 1.3;
 
@@ -41,6 +42,7 @@ export function Schedule() {
           <PeriodSelect />
           {data && !empty && <Button variant="tonal" icon="calendar_add_on" onClick={exportIcs}>Exportar para agenda</Button>}
         </>} />
+      {isCurrent && <ShiftNotice all />}
       {error && !data && <ErrorNote error={error} onRetry={refresh} />}
       {loading && <Skeleton className="h-96" />}
       {empty && <Card className="rounded-2xl"><Empty icon="calendar_view_week" title="Sem horários cadastrados">O SUAP não informou horários de aula para este período.</Empty></Card>}

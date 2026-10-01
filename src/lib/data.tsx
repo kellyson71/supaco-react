@@ -6,6 +6,7 @@ import { isoDay, parseDay } from './dates';
 import { fetchPendingTasks } from './classroom';
 import type { Holiday } from './insights';
 import { withPartials } from './grades';
+import { applyShifts, detectShifts, useShiftDecisions, type Applied, type Shift } from './shifts';
 
 export const useEu = () => useResource('eu', api.eu, 24 * 60);
 export const useAluno = () => useResource('aluno', api.aluno, 24 * 60);
@@ -18,11 +19,36 @@ const useDisciplinasRaw = (p: Periodo | undefined) =>
   useResource(p ? `disciplinas:${p.label}` : null, () => api.disciplinas(p!), 30);
 
 /** Matérias do período, com a etapa aberta contada pela média parcial (marcada em `partial`). */
-export function useDisciplinas(p: Periodo | undefined) {
+function useSubjectsBase(p: Periodo | undefined) {
   const raw = useDisciplinasRaw(p);
   const { data: parciais } = useParciais(p);
   const data = useMemo(() => (raw.data && parciais ? withPartials(raw.data, parciais) : raw.data), [raw.data, parciais]);
   return { ...raw, data };
+}
+
+/**
+ * Trocas de horário detectadas pelas aulas lançadas (um dia previsto que nunca acontece e outro, fora do horário, que sempre acontece).
+ * `subjects` já vem com o horário corrigido; `applied` e `ignored` são para o aviso e para desfazer.
+ */
+export function useShifts(p: Periodo | undefined) {
+  const base = useSubjectsBase(p);
+  const aulas = useAulas(p);
+  const { data: cal } = useCalendario(p);
+  const { data: holidays } = useHolidays();
+  const saved = useShiftDecisions();
+  const today = isoDay();
+  return useMemo(() => {
+    if (!base.data || !aulas.data) return { subjects: base.data, applied: [] as Applied[], ignored: [] as Shift[] };
+    const detected = detectShifts(base.data, aulas.data, new Date(), new Set(holidays?.map((h) => h.date)), parseDay(cal?.data_inicio));
+    return applyShifts(base.data, detected, saved);
+  }, [base.data, aulas.data, holidays, cal, saved, today]);
+}
+
+/** Matérias do período: com notas parciais e com o horário corrigido onde o SUAP está desatualizado. */
+export function useDisciplinas(p: Periodo | undefined) {
+  const raw = useDisciplinasRaw(p);
+  const { subjects } = useShifts(p);
+  return { ...raw, data: subjects };
 }
 export const useFrequencia = (p: Periodo | undefined) =>
   useResource(p ? `frequencia:${p.label}` : null, () => api.frequencia(p!), 60);
@@ -73,7 +99,7 @@ function semesterRange(p: Periodo, cal: Calendario | null) {
  */
 export function useAulas(p: Periodo | undefined) {
   const cal = useCalendario(p);
-  const subjects = useDisciplinas(p);
+  const subjects = useSubjectsBase(p);
   const calReady = cal.data !== undefined || !!cal.error;
   const range = p && calReady ? semesterRange(p, cal.data ?? null) : null;
 
