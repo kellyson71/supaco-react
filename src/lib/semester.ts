@@ -81,7 +81,7 @@ export function retrospective(aulas: Aula[], subjects: Subject[], official?: Fre
   });
   const words = [...counts.values()].filter((w) => w.count > 1).sort((a, b) => b.count - a.count).slice(0, 8);
 
-  const graded = subjects.flatMap((s) => s.grades.filter((g): g is number => g !== null).map((g) => ({ s, grade: g })));
+  const graded = subjects.flatMap((s) => s.grades.map((g, i) => (s.partial?.[i] ? null : g)).filter((g): g is number => g !== null).map((g) => ({ s, grade: g })));
   const topGrade = graded.sort((a, b) => b.grade - a.grade)[0] ?? null;
 
   return {

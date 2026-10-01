@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useAulas, useDisciplinas, useParciais, usePeriod } from '../lib/data';
-import { absenceLevel, currentAverage, FINAL_MIN, gradeTone, neededFinal, outlook, PASS, weightsFor, type GradeOutlook } from '../lib/grades';
+import { absenceLevel, currentAverage, FINAL_MIN, gradeTone, hasPartial, neededFinal, outlook, PASS, weightsFor, type GradeOutlook } from '../lib/grades';
 import { WEEKDAYS } from '../lib/schedule';
 import { back } from '../lib/router';
 import { aulaMatchesSubject, subjectTone, type Aula, type Subject } from '../lib/suap';
@@ -67,8 +67,8 @@ function Detail({ s }: { s: Subject }) {
             </div>
             <Ring value={(avg ?? 0) / 100} size={132} stroke={12} color="currentColor" track="rgb(0 0 0 / .1)" className="self-start md:self-center">
               <div className="text-center leading-none">
-                <CountUp value={avg !== null ? Math.round(avg) : null} className="text-[44px] font-semibold" />
-                <p className="mt-1 text-xs font-medium opacity-80">{official ? 'média' : 'média parcial'}</p>
+                <span className="flex items-baseline justify-center">{hasPartial(s) && avg !== null && <span className="text-2xl opacity-70">~</span>}<CountUp value={avg !== null ? Math.round(avg) : null} className="text-[44px] font-semibold" /></span>
+                <p className="mt-1 text-xs font-medium opacity-80">{official ? 'média' : hasPartial(s) ? 'média até agora' : 'média parcial'}</p>
               </div>
             </Ring>
           </div>
@@ -99,7 +99,8 @@ function Grades({ s }: { s: Subject }) {
         {s.grades.map((g, i) => (
           <div key={i} className={cx('flex-1 rounded-lg px-2 py-3 text-center', g === null ? 'border-2 border-dashed border-outline-variant' : 'bg-surface-container-highest')}>
             <p className="text-xs font-medium text-on-surface-variant">N{i + 1} · peso {w[i]}</p>
-            <p className={cx('mt-1 text-[28px] leading-9 font-semibold tabular', gradeTone(g))}>{g ?? '–'}</p>
+            <p className={cx('mt-1 text-[28px] leading-9 font-semibold tabular', gradeTone(g))}>{g === null ? '–' : s.partial?.[i] ? `~${g}` : g}</p>
+            {s.partial?.[i] && <p className="text-[10px] font-medium text-on-surface-variant">até agora</p>}
           </div>
         ))}
         {s.finalExam !== null && (

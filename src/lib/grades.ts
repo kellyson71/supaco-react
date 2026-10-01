@@ -137,3 +137,26 @@ export function stageProgress(list: { etapa: number; sigla: string; nota: number
     next: pending[0]?.sigla ?? null,
   };
 }
+
+/** A matéria tem alguma etapa contada pela média parcial. */
+export const hasPartial = (s: Pick<Subject, 'partial'>) => !!s.partial?.some(Boolean);
+
+/**
+ * Etapa ainda aberta entra como "nota até agora": a média das avaliações já lançadas nela.
+ * As contas (média, o que falta, situação) passam a usar essa nota; `partial` marca quais são estimadas.
+ */
+export function withPartials(subjects: Subject[], parciais: Record<string, { etapa: number; nota: number | null }[]>): Subject[] {
+  return subjects.map((s) => {
+    const list = parciais[s.code];
+    if (!list?.length || s.finalAverage !== null || /aprovad|reprovad/i.test(s.status)) return s;
+    const partial = s.grades.map(() => false);
+    const grades = s.grades.map((g, i) => {
+      if (g !== null) return g;
+      const done = list.filter((x) => x.etapa === i + 1 && x.nota !== null).map((x) => x.nota as number);
+      if (!done.length) return null;
+      partial[i] = true;
+      return Math.round(done.reduce((a, b) => a + b, 0) / done.length);
+    });
+    return partial.some(Boolean) ? { ...s, grades, partial } : s;
+  });
+}

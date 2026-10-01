@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { AnimatePresence, m } from 'motion/react';
 import { useAulas, useDisciplinas, useParciais, usePeriod } from '../lib/data';
 import { WEEKDAYS_SHORT } from '../lib/schedule';
-import { absenceLevel, currentAverage, gradeTone, outlook, stageProgress, type GradeOutlook } from '../lib/grades';
+import { absenceLevel, currentAverage, gradeTone, hasPartial, outlook, stageProgress, type GradeOutlook } from '../lib/grades';
 import { aulaMatchesSubject, subjectTone, type Aula, type Parcial, type Subject } from '../lib/suap';
 import { parseDay, relativeDay } from '../lib/dates';
 import { TONES } from '../lib/tones';
@@ -89,13 +89,11 @@ function SubjectCard({ s, last, parciais }: { s: Subject; last?: Aula; parciais?
   const lvl = absenceLevel(s);
   const o = outlook(s);
   const stage = stageProgress(parciais);
-  const official = (s.finalAverage ?? s.average) !== null;
-  const closed = currentAverage(s);
-  // Sem etapa fechada, a média das avaliações já lançadas dá a noção
-  const avg = closed ?? stage?.avg ?? null;
-  const partialOnly = closed === null && avg !== null;
-  const label = partialOnly
-    ? { text: stage?.needed != null ? `Parcial · precisa de ${stage.needed} na ${stage.next}` : 'Média parcial', tone: stage?.needed != null && stage.needed > 75 ? 'text-warning' : 'text-on-surface-variant', icon: 'target' }
+  // As etapas abertas já entram em `grades` como nota até agora (marcadas em `partial`)
+  const avg = currentAverage(s);
+  const estimated = hasPartial(s);
+  const label = estimated && stage?.needed != null
+    ? { text: `Parcial · precisa de ${stage.needed} na ${stage.next}`, tone: stage.needed > 75 ? 'text-warning' : 'text-on-surface-variant', icon: 'target' }
     : outlookLabel(o);
   const left = s.limit - s.absences;
   const stages = [...new Set((parciais ?? []).map((x) => x.etapa))].sort((a, b) => a - b);
@@ -115,8 +113,8 @@ function SubjectCard({ s, last, parciais }: { s: Subject; last?: Aula; parciais?
         {avg !== null ? (
           <Ring value={avg / 100} size={52} stroke={5} color={t.varColor} track={t.varContainer}>
             <span className="flex flex-col items-center leading-none">
-              <span className={cx('text-base font-semibold tabular', gradeTone(avg))}>{Math.round(avg)}</span>
-              {partialOnly && <span className="mt-0.5 text-[8px] font-medium tracking-wide text-on-surface-variant uppercase">parcial</span>}
+              <span className={cx('text-base font-semibold tabular', gradeTone(avg))}>{estimated && <span className="text-xs opacity-70">~</span>}{Math.round(avg)}</span>
+              {estimated && <span className="mt-0.5 text-[8px] font-medium tracking-wide text-on-surface-variant uppercase">até agora</span>}
             </span>
           </Ring>
         ) : (
@@ -140,12 +138,11 @@ function SubjectCard({ s, last, parciais }: { s: Subject; last?: Aula; parciais?
       )}
       <div className="flex gap-1.5">
         {s.grades.map((g, i) => {
-          // Etapa ainda aberta: mostra a média das avaliações já lançadas nela
-          const part = g === null && stage?.etapa === i + 1 ? stage.avg : null;
+          const part = !!s.partial?.[i];
           return (
             <div key={i} className={cx('flex-1 rounded-md py-1.5 text-center', g === null ? 'border border-dashed border-outline-variant' : 'bg-surface-container-highest')}>
-              <p className="text-[10px] font-medium text-on-surface-variant">N{i + 1}{part !== null && ` · ${stage!.done}/${stage!.total}`}</p>
-              <p className={cx('text-sm font-semibold tabular', gradeTone(g ?? part), part !== null && 'opacity-75')}>{g ?? (part !== null ? `~${Math.round(part)}` : '–')}</p>
+              <p className="text-[10px] font-medium text-on-surface-variant">N{i + 1}{part && stage?.etapa === i + 1 && ` · ${stage.done}/${stage.total}`}</p>
+              <p className={cx('text-sm font-semibold tabular', gradeTone(g))}>{g === null ? '–' : part ? `~${g}` : g}</p>
             </div>
           );
         })}
@@ -157,7 +154,6 @@ function SubjectCard({ s, last, parciais }: { s: Subject; last?: Aula; parciais?
         )}
       </div>
       <div className="mt-auto"><AbsenceMeter used={s.absences} limit={s.limit} level={lvl} /></div>
-      {!official && avg !== null && <span className="sr-only">Média parcial</span>}
     </Tap>
 
       {/* Detalhes sem sair da lista: notas de cada avaliação, horário e carga horária */}

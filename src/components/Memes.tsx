@@ -3,7 +3,7 @@ import { AnimatePresence, m } from 'motion/react';
 import { createPortal } from 'react-dom';
 import { useAulas, useAvaliacoes, useCalendario, useParciais, usePeriod, useTasks } from '../lib/data';
 import { classroom } from '../lib/classroom';
-import { dayGroups, decideDay, linesFor, loadPlans, MEMES, memeSrc, memesFor, planKey, REASONS, reply, SAMPLE, savePlans, say, verdictOf, type Choice, type DayDecision, type Facts, type Reason, type Verdict } from '../lib/memes';
+import { dayGroups, decideDay, linesFor, loadPlans, MEMES, memeSrc, memesFor, planKey, REASONS, reply, SAMPLE, savePlans, say, verdictOf, type Choice, type Seen, type DayDecision, type Facts, type Reason, type Verdict } from '../lib/memes';
 import { memesOn, setVibe, useVibe } from '../lib/vibe';
 import type { Subject } from '../lib/suap';
 import { Button, Card, Chip, cx, EMPHASIZED, Icon, spring } from './ui';
@@ -73,14 +73,33 @@ const short = (name: string) => name.split(' ').slice(0, 2).join(' ');
 /** Menu de escolha: o dia inteiro ou uma matéria só. */
 function ScopeMenu({ day, sel, onPick }: { day: DayDecision; sel: number; onPick: (i: number) => void }) {
   const [open, setOpen] = useState(false);
-  const root = useRef<HTMLDivElement>(null);
+  const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
+  const btn = useRef<HTMLButtonElement>(null);
+  const menu = useRef<HTMLUListElement>(null);
+
+  // O menu vai para fora da fileira (que rola na horizontal e cortaria o que passa da borda)
+  const place = () => {
+    const r = btn.current?.getBoundingClientRect();
+    if (r) setPos({ top: r.bottom + 6, left: Math.max(8, Math.min(r.left, window.innerWidth - 280)) });
+  };
   useEffect(() => {
     if (!open) return;
-    const down = (e: PointerEvent) => { if (!root.current?.contains(e.target as Node)) setOpen(false); };
+    place();
+    const down = (e: PointerEvent) => {
+      const t = e.target as Node;
+      if (!btn.current?.contains(t) && !menu.current?.contains(t)) setOpen(false);
+    };
     const key = (e: KeyboardEvent) => e.key === 'Escape' && setOpen(false);
     document.addEventListener('pointerdown', down);
     window.addEventListener('keydown', key);
-    return () => { document.removeEventListener('pointerdown', down); window.removeEventListener('keydown', key); };
+    window.addEventListener('resize', place);
+    window.addEventListener('scroll', place, true);
+    return () => {
+      document.removeEventListener('pointerdown', down);
+      window.removeEventListener('keydown', key);
+      window.removeEventListener('resize', place);
+      window.removeEventListener('scroll', place, true);
+    };
   }, [open]);
 
   const cur = sel >= 0 ? day.decisions[sel] : null;
@@ -88,30 +107,34 @@ function ScopeMenu({ day, sel, onPick }: { day: DayDecision; sel: number; onPick
   const current = options.find((o) => o.i === sel) ?? options[0];
 
   return (
-    <div ref={root} className="relative shrink-0">
-      <button onClick={() => setOpen(!open)} aria-haspopup="listbox" aria-expanded={open}
-        className={cx('state flex h-8 items-center gap-2 rounded-lg border px-3 text-sm font-medium', cur ? 'border-transparent bg-secondary-container text-on-secondary-container' : 'border-outline-variant text-on-surface-variant')}>
+    <>
+      <button ref={btn} onClick={() => setOpen(!open)} aria-haspopup="listbox" aria-expanded={open}
+        className={cx('state flex h-8 shrink-0 items-center gap-2 rounded-lg border px-3 text-sm font-medium', cur ? 'border-transparent bg-secondary-container text-on-secondary-container' : 'border-outline-variant text-on-surface-variant')}>
         <span className={cx('size-2 rounded-full', HERO[current.verdict].dot)} />
         {current.label}
         <m.span animate={{ rotate: open ? 180 : 0 }} className="inline-flex"><Icon name="expand_more" size={18} /></m.span>
       </button>
-      <AnimatePresence>
-        {open && (
-          <m.ul role="listbox" initial={{ opacity: 0, y: -6, scale: 0.97 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: -4 }} transition={{ duration: 0.16, ease: EMPHASIZED }}
-            className="absolute top-full left-0 z-30 mt-1.5 min-w-64 overflow-hidden rounded-xl bg-surface-container-high py-1 text-on-surface shadow-[0_8px_28px_rgb(0_0_0/0.25)] ring-1 ring-outline-variant/50">
-            {options.map((o) => (
-              <li key={o.i} role="option" aria-selected={o.i === sel}>
-                <button onClick={() => { onPick(o.i); setOpen(false); }} className={cx('state flex w-full items-center gap-2.5 px-3.5 py-2.5 text-left text-sm', o.i === sel && 'bg-secondary-container text-on-secondary-container')}>
-                  <span className={cx('size-2.5 shrink-0 rounded-full', HERO[o.verdict].dot)} />
-                  <span className="min-w-0 flex-1 truncate">{o.label}</span>
-                  <span className="shrink-0 text-xs font-medium opacity-80">{HERO[o.verdict].tag}</span>
-                </button>
-              </li>
-            ))}
-          </m.ul>
-        )}
-      </AnimatePresence>
-    </div>
+      {createPortal(
+        <AnimatePresence>
+          {open && pos && (
+            <m.ul ref={menu} role="listbox" initial={{ opacity: 0, y: -6, scale: 0.97 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: -4 }} transition={{ duration: 0.16, ease: EMPHASIZED }}
+              style={{ top: pos.top, left: pos.left }}
+              className="fixed z-[70] max-h-[60vh] w-72 max-w-[calc(100vw-16px)] overflow-y-auto rounded-xl bg-surface-container-high py-1 text-on-surface shadow-[0_8px_28px_rgb(0_0_0/0.3)] ring-1 ring-outline-variant/50">
+              {options.map((o) => (
+                <li key={o.i} role="option" aria-selected={o.i === sel}>
+                  <button onClick={() => { onPick(o.i); setOpen(false); }} className={cx('state flex w-full items-center gap-2.5 px-3.5 py-2.5 text-left text-sm', o.i === sel && 'bg-secondary-container text-on-secondary-container')}>
+                    <span className={cx('size-2.5 shrink-0 rounded-full', HERO[o.verdict].dot)} />
+                    <span className="min-w-0 flex-1 truncate">{o.label}</span>
+                    <span className="shrink-0 text-xs font-medium opacity-80">{HERO[o.verdict].tag}</span>
+                  </button>
+                </li>
+              ))}
+            </m.ul>
+          )}
+        </AnimatePresence>,
+        document.body,
+      )}
+    </>
   );
 }
 
@@ -132,6 +155,8 @@ export function SkipHero({ subjects, now, holiday }: { subjects: Subject[]; now:
   /** -1 = o dia todo; senão, o índice da aula. */
   const [sel, setSel] = useState(-1);
   const [roll, setRoll] = useState(0);
+  /** Memes e frases que já saíram: "outra" foge deles para não repetir. */
+  const [seen, setSeen] = useState<Seen>({ memes: [], lines: [] });
   /** 0 = a resposta de verdade; n = o n-ésimo motivo da lista (do mais ao menos pesado). */
   const [alt, setAlt] = useState(0);
   const [plans, setPlans] = useState(loadPlans);
@@ -155,8 +180,8 @@ export function SkipHero({ subjects, now, holiday }: { subjects: Subject[]; now:
   const view = forced ?? (altFactor ? { reason: altFactor.reason, line: roll } : null);
   const viewFacts = forced ? forced.facts ?? SAMPLE : decision.facts;
   const said = view
-    ? { line: linesFor(view.reason, viewFacts)[view.line % linesFor(view.reason, viewFacts).length], meme: memesFor(view.reason)[(view.line + roll) % memesFor(view.reason).length] }
-    : say(decision, now, roll);
+    ? say(decision, now, view.line + roll, seen, view.reason, viewFacts, forced ? verdictOf(view.reason) : verdictOf(view.reason))
+    : say(decision, now, roll, seen);
   const scope = single ? [single.target] : group.targets;
   const keys = scope.map(planKey);
   const plan = keys.every((k) => plans[k] === plans[keys[0]]) ? plans[keys[0]] : undefined;
@@ -172,12 +197,19 @@ export function SkipHero({ subjects, now, holiday }: { subjects: Subject[]; now:
       import('canvas-confetti').then(({ default: confetti }) => confetti({ particleCount: 60, spread: 60, origin: { y: 0.25 }, disableForReducedMotion: true }));
     }
   };
-  const reset = () => { setRoll(0); setForced(null); setAlt(0); };
+  const reset = () => { setRoll(0); setForced(null); setAlt(0); setSeen({ memes: [], lines: [] }); };
+  /** Troca a resposta por outra, lembrando o que acabou de aparecer. */
+  const another = () => {
+    setSeen((s) => ({ memes: [said.meme, ...s.memes].slice(0, 5), lines: [said.line, ...s.lines].slice(0, 4) }));
+    setForced(null);
+    setRoll((n) => n + 1);
+  };
   const pickScope = (i: number) => { setSel(i); reset(); };
   const pickDay = (i: number) => { setDayI(i); setSel(-1); reset(); };
   const explore = (e: MouseEvent) => {
     e.preventDefault();
     setForced(null);
+    setSeen({ memes: [], lines: [] });
     setAlt((n) => (n + 1) % (others.length + 1));
   };
 
@@ -194,7 +226,7 @@ export function SkipHero({ subjects, now, holiday }: { subjects: Subject[]; now:
 
       <div className={cx('flex flex-col overflow-hidden rounded-2xl sm:flex-row', h.box)} onContextMenu={explore}>
         {memes && (
-          <button onClick={() => { setForced(null); setRoll(roll + 1); }} aria-label="Outra resposta" className="relative shrink-0 bg-black sm:w-[42%] sm:max-w-80">
+          <button onClick={another} aria-label="Outra resposta" className="relative shrink-0 bg-black sm:w-[42%] sm:max-w-80">
             <AnimatePresence mode="popLayout" initial={false}>
               <m.img key={said.meme + sel + dayI} src={memeSrc(said.meme)} alt={MEMES[said.meme]} decoding="async"
                 initial={{ opacity: 0, scale: 1.1, rotate: 2 }} animate={{ opacity: 1, scale: 1, rotate: 0 }} exit={{ opacity: 0 }} transition={spring}
@@ -270,7 +302,7 @@ export function SkipHero({ subjects, now, holiday }: { subjects: Subject[]; now:
               <>
                 <Button size="sm" icon="weekend" onClick={() => choose('faltar')}>vou faltar</Button>
                 <Button size="sm" variant="tonal" icon="school" onClick={() => choose('aula')}>vou pra aula</Button>
-                <Button size="sm" variant="text" icon="refresh" onClick={() => { setForced(null); setRoll(roll + 1); }} className="!text-current">outra</Button>
+                <Button size="sm" variant="text" icon="refresh" onClick={another} className="!text-current">outra</Button>
               </>
             )}
             <span className="flex-1" />

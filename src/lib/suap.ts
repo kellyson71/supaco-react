@@ -154,6 +154,8 @@ export type Subject = {
   rooms: string[];
   slots: Slot[];
   tone?: Tone;
+  /** Por etapa: a nota é a média das avaliações já lançadas (a etapa ainda não fechou). */
+  partial?: boolean[];
 };
 
 export const subjectTone = (s: Pick<Subject, 'code' | 'tone'>) => s.tone ?? toneFor(s.code);

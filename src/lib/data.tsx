@@ -5,6 +5,7 @@ import { api, aulaMatchesSubject, type Calendario, type Parcial, type Periodo, t
 import { isoDay, parseDay } from './dates';
 import { fetchPendingTasks } from './classroom';
 import type { Holiday } from './insights';
+import { withPartials } from './grades';
 
 export const useEu = () => useResource('eu', api.eu, 24 * 60);
 export const useAluno = () => useResource('aluno', api.aluno, 24 * 60);
@@ -13,15 +14,23 @@ export const usePeriodos = () => useResource('periodos', api.periodos, 24 * 60);
 export const useAvaliacoes = () => useResource('avaliacoes', api.avaliacoes, 60);
 export const useMensagens = () => useResource('mensagens', api.mensagens, 30);
 
-export const useDisciplinas = (p: Periodo | undefined) =>
+const useDisciplinasRaw = (p: Periodo | undefined) =>
   useResource(p ? `disciplinas:${p.label}` : null, () => api.disciplinas(p!), 30);
+
+/** Matérias do período, com a etapa aberta contada pela média parcial (marcada em `partial`). */
+export function useDisciplinas(p: Periodo | undefined) {
+  const raw = useDisciplinasRaw(p);
+  const { data: parciais } = useParciais(p);
+  const data = useMemo(() => (raw.data && parciais ? withPartials(raw.data, parciais) : raw.data), [raw.data, parciais]);
+  return { ...raw, data };
+}
 export const useFrequencia = (p: Periodo | undefined) =>
   useResource(p ? `frequencia:${p.label}` : null, () => api.frequencia(p!), 60);
 export const useTurma = (code: string | undefined) =>
   useResource(code ? `turma:${code}` : null, () => api.turma(code!), 12 * 60);
 /** Notas parciais de cada matéria do período (vazio se o SUAP não liberar). */
 export function useParciais(p: Periodo | undefined) {
-  const { data: subjects } = useDisciplinas(p);
+  const { data: subjects } = useDisciplinasRaw(p);
   return useResource(p && subjects ? `parciais:${p.label}` : null, () => api.parciais(p!, subjects!).catch((): Record<string, Parcial[]> => ({})), 60);
 }
 /** Professor de cada aula do diário; some em silêncio se o SUAP não liberar. */

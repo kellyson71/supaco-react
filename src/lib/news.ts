@@ -23,7 +23,7 @@ export function saveSnapshot(subjects: Subject[], msgs: Mensagem[] | undefined) 
   const snap: Snapshot = {
     at: Date.now(),
     // Mantém matérias de outros períodos que já estavam salvas
-    subjects: { ...prev?.subjects, ...Object.fromEntries(subjects.map((s) => [s.code, { name: s.name, grades: s.grades, finalExam: s.finalExam, absences: s.absences, status: s.status }])) },
+    subjects: { ...prev?.subjects, ...Object.fromEntries(subjects.map((s) => [s.code, { name: s.name, grades: s.grades.map((g, i) => (s.partial?.[i] ? null : g)), finalExam: s.finalExam, absences: s.absences, status: s.status }])) },
     msgs: msgs ? msgs.map((m) => m.id) : prev?.msgs ?? [],
   };
   try { localStorage.setItem(key(), JSON.stringify(snap)); } catch { /* quota */ }
@@ -34,7 +34,7 @@ export function diffNews(prev: Snapshot, subjects: Subject[], msgs: Mensagem[] |
   subjects.forEach((s) => {
     const p = prev.subjects[s.code];
     if (!p) return;
-    s.grades.forEach((g, i) => { if (g !== null && p.grades[i] == null) out.push({ kind: 'grade', code: s.code, subject: s.name, stage: i + 1, value: g }); });
+    s.grades.forEach((g, i) => { if (g !== null && !s.partial?.[i] && p.grades[i] == null) out.push({ kind: 'grade', code: s.code, subject: s.name, stage: i + 1, value: g }); });
     if (s.finalExam !== null && p.finalExam === null) out.push({ kind: 'final', code: s.code, subject: s.name, value: s.finalExam });
     if (s.absences > p.absences) out.push({ kind: 'absence', code: s.code, subject: s.name, delta: s.absences - p.absences });
     if (s.status && p.status && s.status !== p.status && !/cursando/i.test(s.status)) out.push({ kind: 'status', code: s.code, subject: s.name, status: s.status });

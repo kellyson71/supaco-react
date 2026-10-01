@@ -5,7 +5,7 @@ import { useAulas, useAvaliacoes, useCampus, useCurrentSubjects, useEu, useHolid
 import { buildDeadlines } from '../lib/agenda';
 import { classroom } from '../lib/classroom';
 import { session } from '../lib/api';
-import { currentAverage } from '../lib/grades';
+import { currentAverage, hasPartial } from '../lib/grades';
 import { classesOn, nowMin, toMin, WEEKDAYS_SHORT } from '../lib/schedule';
 import { daysBetween, longDate, parseDay, relativeDay, shortDate } from '../lib/dates';
 import { navigate } from '../lib/router';
@@ -146,7 +146,7 @@ function useItems(): { items: SearchItem[]; now: SearchItem | null } {
       items.push({
         id: `s:${s.code}`, group: 'materias', title: s.name, sub: [s.sigla, profs].filter(Boolean).join(' · '), keywords: `${s.status} ${slots}`,
         icon: 'school', tone: subjectTone(s), to: `/disciplinas/${s.code}`,
-        meta: avg !== null ? `média ${Math.round(avg)}` : `${s.absences}/${s.limit} faltas`,
+        meta: avg !== null ? `média ${hasPartial(s) ? '~' : ''}${Math.round(avg)}` : `${s.absences}/${s.limit} faltas`,
         metaTone: left <= 0 ? 'error' : left <= 2 ? 'warning' : undefined,
         preview: {
           rows: [

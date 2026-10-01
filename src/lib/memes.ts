@@ -122,7 +122,7 @@ export function decide(target: Target, { subjects, now, aulas, cal, avaliacoes, 
   const partial = (parciais?.[s.code] ?? []).map((x) => x.nota).filter((x): x is number => x !== null);
   const hasGrades = closed || partial.length > 0;
   const avg = closed ? currentAverage(s) : partial.length ? partial.reduce((a, b) => a + b, 0) / partial.length : null;
-  const avgLabel = closed ? 'média' : 'parcial';
+  const avgLabel = closed && !(s.partial?.some(Boolean)) ? 'média' : 'parcial';
 
   const examIn = (avaliacoes ?? [])
     .filter((a) => a.data && ((s.sigla && a.diario?.includes(s.sigla)) || cleanName(a.diario || '').toLowerCase() === s.name.toLowerCase()))
@@ -405,13 +405,41 @@ const PRO: Reason[] = ['folga', 'sobra', 'reta-final', 'nota-boa', 'cansado', 'p
 /** Veredito que normalmente acompanha um motivo (para colorir a prévia). */
 export const verdictOf = (r: Reason): Verdict => (r === 'zerou' || r === 'estourou' ? r : PRO.includes(r) ? 'pode' : 'depende');
 
-/** Frase e meme da decisão. `roll` troca por outra opção (botão "outra"). */
-export function say(d: Decision, now: Date, roll = 0): { line: string; meme: string } {
+/** Memes que combinam com o clima do veredito, para variar quando o motivo tem poucos. */
+const MOOD: Record<Verdict, string[]> = {
+  pode: ['falte-aula-filho', 'falte-meu-filho', 'baixo-em-disposicao', 'to-cansado-pai', 'arrogante'],
+  depende: ['reflita', 'senhor-cinema', 'caralho'],
+  'melhor-nao': ['reflita', 'senhor-cinema', 'caralho', 'nao-sobrou-nada'],
+  zerou: ['nao-sobrou-nada', 'alem-do-infinito', 'caralho', 'senhor-cinema'],
+  estourou: ['alem-do-infinito', 'nao-sobrou-nada', 'caralho', 'senhor-cinema'],
+};
+
+/** Memes possíveis para um motivo: os dele primeiro, depois os do clima do veredito. */
+export function memePool(reason: Reason, verdict: Verdict, tomorrow = false): string[] {
+  const list = [...REASON_MEMES[reason], ...MOOD[verdict]];
+  if (tomorrow && verdict === 'pode') list.unshift('falte-amanha');
+  return [...new Set(list)];
+}
+
+/** Primeira opção a partir de `start` que não está em `avoid` (a lista de vistas vai da mais recente à mais antiga). */
+export function pickFresh<T>(list: T[], start: number, avoid: T[] = []): T {
+  for (let i = 0; i < list.length; i++) {
+    const c = list[(start + i) % list.length];
+    if (!avoid.includes(c)) return c;
+  }
+  // Todas já saíram: volta à que saiu há mais tempo (a mais recente fica de fora)
+  return [...list].sort((a, b) => avoid.indexOf(b) - avoid.indexOf(a))[0];
+}
+
+/** O que já apareceu: o que sair agora evita repetir. */
+export type Seen = { memes: string[]; lines: string[] };
+
+/** Frase e meme da decisão. `roll` troca por outra opção (botão "outra"), fugindo das já vistas. */
+export function say(d: Decision, now: Date, roll = 0, seen: Seen = { memes: [], lines: [] }, reason: Reason = d.main, facts: Facts = d.facts, verdict: Verdict = d.verdict): { line: string; meme: string } {
   const seed = Math.floor(now.getTime() / 86_400_000) + hash(d.target.subject.code) + roll;
-  const lines = LINES[d.main];
-  // "Falte amanhã" entra na roda só quando é liberado faltar e a aula é amanhã
-  const memes = d.verdict === 'pode' && d.target.daysAhead === 1 && (d.main === 'folga' || d.main === 'sobra') ? ['falte-amanha', ...REASON_MEMES[d.main]] : REASON_MEMES[d.main];
-  return { line: lines[seed % lines.length](d.facts), meme: memes[seed % memes.length] };
+  const lines = linesFor(reason, facts);
+  const pool = memePool(reason, verdict, d.target.daysAhead === 1 && (reason === 'folga' || reason === 'sobra'));
+  return { line: pickFresh(lines, seed % lines.length, seen.lines), meme: pickFresh(pool, seed % Math.min(pool.length, REASON_MEMES[reason].length || 1), seen.memes) };
 }
 
 // ---------- Resposta ao que a pessoa decidiu ----------

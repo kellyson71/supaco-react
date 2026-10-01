@@ -4,7 +4,7 @@ import { useAulas, useAvaliacoes, useCalendario, useCampus, useCurrentSubjects, 
 import { diffNews, loadSnapshot, saveSnapshot, type NewsItem } from '../lib/news';
 import { classroom } from '../lib/classroom';
 import { classesOn, formatDuration, nowMin, toMin, WEEKDAYS, WEEKDAYS_SHORT, type ClassItem } from '../lib/schedule';
-import { absenceLevel, outlook, overallAverage, PASS } from '../lib/grades';
+import { absenceLevel, hasPartial, outlook, overallAverage, PASS } from '../lib/grades';
 import { canSkip, currentStage, nextHoliday, type SkipVerdict } from '../lib/insights';
 import { attendanceFor, markEnded, pollLive, recheckPending, useAttendance, type AttendanceCheck } from '../lib/attendance';
 import { noRecordReason } from '../lib/noclass';
@@ -508,14 +508,15 @@ function Stats({ subjects, now }: { subjects?: Subject[]; now: Date }) {
   const { data: cal } = useCalendario(current);
   const { data: holidays } = useHolidays();
   const avg = subjects ? overallAverage(subjects) : null;
+  const estimated = !!subjects?.some(hasPartial);
   const stage = currentStage(cal, subjects, now);
   const hol = nextHoliday(holidays, now);
 
   return (
     <div className="grid h-full grid-cols-2 gap-3">
-      <StatTile icon="grade" label="Média geral" hint={avg !== null && avg < PASS ? 'abaixo de 60' : 'até agora'}>
+      <StatTile icon="grade" label="Média geral" hint={avg !== null && avg < PASS ? 'abaixo de 60' : estimated ? 'até agora, com parciais' : 'até agora'}>
         <Ring value={(avg ?? 0) / 100} size={56} stroke={6} color={avg !== null && avg < PASS ? 'var(--c-warning)' : 'var(--md-primary)'}>
-          <CountUp value={avg !== null ? Math.round(avg) : null} className="text-lg font-semibold" />
+          <span className="flex items-baseline text-lg font-semibold">{estimated && avg !== null && <span className="text-sm opacity-70">~</span>}<CountUp value={avg !== null ? Math.round(avg) : null} /></span>
         </Ring>
       </StatTile>
       <StatTile icon="how_to_reg" label="Frequência" hint={freq ? `${freq.total_faltas} faltas no período` : ' '}>
