@@ -20,6 +20,11 @@ const More = ({ n, className }: { n: number; className?: string }) => (
   </span>
 );
 
+/** Foto grande para o cartão da pessoa (sem animação compartilhada), usada também pela busca. */
+export const personPhoto = (p: Pessoa, role: Role) => role === 'teacher'
+  ? <ShapedPhoto src={big(p.foto)} name={p.nome} shape="flower" size={128} still />
+  : <span className="rounded-full ring-4 ring-[var(--md-surface-container-high)]"><Face p={{ ...p, foto: big(p.foto) }} size={120} eager /></span>;
+
 /** Professores, colegas e materiais da turma; some sem alarde se o SUAP não responder. */
 export function Turma({ code }: { code: string }) {
   const { data, loading } = useTurma(code);

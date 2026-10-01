@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, useSyncExternalStore, type KeyboardEvent, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type KeyboardEvent, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { AnimatePresence, m } from 'motion/react';
 import { useAulas, useAvaliacoes, useCampus, useCurrentSubjects, useEu, useHolidays, useMensagens, usePeriod, useTasks, useTurmas } from '../lib/data';
@@ -11,11 +11,13 @@ import { daysBetween, longDate, parseDay, relativeDay, shortDate } from '../lib/
 import { navigate } from '../lib/router';
 import { refreshAll } from '../lib/store';
 import { toggleDark } from '../lib/theme';
-import { aulaMatchesSubject, shortName, subjectTone, titleCase, type Aula, type Subject } from '../lib/suap';
+import { aulaMatchesSubject, shortName, subjectTone, titleCase, type Aula, type Pessoa, type Subject } from '../lib/suap';
 import { buildIndex, completion, GROUP_LABEL, loadRecent, matchRanges, pushRecent, search, type SearchGroup, type SearchItem } from '../lib/search';
 import { TONES } from '../lib/tones';
 import { cx, EMPHASIZED, Icon, spring } from './ui';
 import { LessonSheet } from './LessonSheet';
+import { PersonSheet, type Role } from './PersonSheet';
+import { personPhoto } from './Turma';
 
 // ---------- Abrir / fechar de qualquer lugar ----------
 
@@ -31,6 +33,10 @@ type OpenLesson = { aula: Aula; aulas: Aula[]; subjects: Subject[] };
 let lesson: OpenLesson | null = null;
 const lessonSubs = new Set<() => void>();
 const setLesson = (l: OpenLesson | null) => { lesson = l; lessonSubs.forEach((fn) => fn()); };
+
+let person: { p: Pessoa; role: Role } | null = null;
+const personSubs = new Set<() => void>();
+const setPerson = (v: typeof person) => { person = v; personSubs.forEach((fn) => fn()); };
 
 const wide = typeof window !== 'undefined' ? window.matchMedia('(min-width: 768px)') : null;
 /** Telas médias e grandes usam a barra do topo; no celular a busca entra na barra superior. */
@@ -75,13 +81,13 @@ export function SearchBar() {
   }, [shown]);
 
   return (
-    <div ref={root} className="relative h-12 w-full max-w-xl">
-      <m.div initial={false} animate={{ height: shown ? 'auto' : 48 }} transition={{ type: 'spring', stiffness: 420, damping: 38 }}
-        className={cx('absolute inset-x-0 top-0 overflow-hidden rounded-[24px] bg-surface-container-high transition-shadow duration-200', shown && 'shadow-[0_8px_28px_rgb(0_0_0/0.22)] ring-1 ring-outline-variant/50')}>
+    <div ref={root} className="relative h-14 w-full max-w-3xl">
+      <m.div initial={false} animate={{ height: shown ? 'auto' : 56 }} transition={{ type: 'spring', stiffness: 420, damping: 38 }}
+        className={cx('absolute inset-x-0 top-0 overflow-hidden rounded-[28px] bg-surface-container-high transition-shadow duration-200', shown && 'shadow-[0_8px_28px_rgb(0_0_0/0.22)] ring-1 ring-outline-variant/50')}>
         {shown ? <SearchPanel variant="dock" /> : (
-          <button onClick={openSearch} aria-label="Buscar" className="state flex h-12 w-full items-center gap-3 pr-3 pl-4 text-left text-on-surface-variant">
-            <Icon name="search" size={22} className="text-on-surface" />
-            <span className="flex min-w-0 flex-1 items-center gap-1.5 overflow-hidden text-[15px]">Buscar<RotatingHint /></span>
+          <button onClick={openSearch} aria-label="Buscar" className="state flex h-14 w-full items-center gap-3 pr-4 pl-5 text-left text-on-surface-variant">
+            <Icon name="search" size={24} className="text-on-surface" />
+            <span className="flex min-w-0 flex-1 items-center gap-1.5 overflow-hidden text-base">Buscar<RotatingHint /></span>
             <Kbd>{isMac ? '⌘' : 'Ctrl'} K</Kbd>
           </button>
         )}
@@ -218,7 +224,8 @@ function useItems(): { items: SearchItem[]; now: SearchItem | null } {
         items.push({
           id: `u:${matricula}`, group: 'pessoas', title: titleCase(p.nome), keywords: `${matricula} ${p.teacher ? 'professor docente' : 'colega aluno'}`,
           sub: `${p.teacher ? 'Docente' : 'Colega'} · ${p.in.length === 1 ? p.in[0].name : `${p.in.length} matérias com você`}`,
-          icon: p.teacher ? 'person' : 'groups', photo: p.foto || undefined, to: `/disciplinas/${p.in[0].code}`, boost: p.teacher ? 4 : 0,
+          icon: p.teacher ? 'person' : 'groups', photo: p.foto || undefined, boost: p.teacher ? 4 : 0,
+          run: () => setPerson({ p: { nome: p.nome, matricula, foto: p.foto, ...(p.email ? { email: p.email } : {}) }, role: p.teacher ? 'teacher' : 'student' }),
           preview: {
             rows: [
               { icon: 'badge', label: 'Matrícula', value: matricula },
@@ -412,11 +419,11 @@ export function SearchPanel({ variant }: { variant: 'dock' | 'mobile' }) {
   let n = -1;
 
   const field = (
-    <div className={cx('flex shrink-0 items-center gap-2', dock ? 'h-12 pr-2 pl-4' : 'h-full min-w-0 flex-1')}>
+    <div className={cx('flex shrink-0 items-center gap-2', dock ? 'h-14 pr-3 pl-5' : 'h-full min-w-0 flex-1')}>
       {dock
-        ? <Icon name="search" size={22} className="shrink-0 text-primary" />
+        ? <Icon name="search" size={24} className="shrink-0 text-primary" />
         : <button onClick={closeSearch} aria-label="Fechar busca" className="state flex size-10 shrink-0 items-center justify-center rounded-full"><Icon name="arrow_back" /></button>}
-      <div className={cx('relative h-full min-w-0 flex-1', dock ? 'ml-1 text-[15px]' : 'text-base')}>
+      <div className={cx('relative h-full min-w-0 flex-1', dock ? 'ml-1 text-base' : 'text-base')}>
         <div aria-hidden className="pointer-events-none absolute inset-0 flex items-center overflow-hidden whitespace-pre">
           <span className="invisible">{query}</span>
           <AnimatePresence mode="popLayout" initial={false}>
@@ -541,6 +548,8 @@ export function SearchPanel({ variant }: { variant: 'dock' | 'mobile' }) {
 /** Monta uma vez no app: atalhos de teclado da busca e o detalhe de aula aberto por ela. */
 export function GlobalSearch() {
   const open = useSyncExternalStore((cb) => { lessonSubs.add(cb); return () => { lessonSubs.delete(cb); }; }, () => lesson);
+  const who = useSyncExternalStore((cb) => { personSubs.add(cb); return () => { personSubs.delete(cb); }; }, () => person);
+  const closePerson = useCallback(() => setPerson(null), []);
 
   useEffect(() => {
     const onKey = (e: globalThis.KeyboardEvent) => {
@@ -553,8 +562,13 @@ export function GlobalSearch() {
   }, []);
 
   return (
-    <AnimatePresence>
+    <>
+      <AnimatePresence>
+        {who && <PersonSheet key={who.p.matricula} p={who.p} role={who.role} photo={personPhoto(who.p, who.role)} onClose={closePerson} />}
+      </AnimatePresence>
+      <AnimatePresence>
       {open && <LessonSheet key={open.aula.id} date={open.aula.data} only={open.aula} aulas={open.aulas} subjects={open.subjects} onClose={() => setLesson(null)} />}
-    </AnimatePresence>
+      </AnimatePresence>
+    </>
   );
 }
