@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useState } from 'react';
 import { AnimatePresence, m } from 'motion/react';
-import { useAulas, useCalendario, usePeriod } from '../lib/data';
-import { useAttendance } from '../lib/attendance';
-import { MEMES, memeSrc, nextSkip, reactions, type NextSkip } from '../lib/memes';
+import { useAulas, useAvaliacoes, useCalendario, usePeriod } from '../lib/data';
+import { decide, loadPlans, MEMES, memeSrc, planKey, reply, savePlans, say, upcoming, type Choice, type Decision } from '../lib/memes';
 import { memesOn, setVibe, useVibe } from '../lib/vibe';
 import type { Subject } from '../lib/suap';
-import { Button, Card, cx, EMPHASIZED, spring, Tap } from './ui';
+import { Button, Card, Chip, cx, EMPHASIZED, Icon, spring } from './ui';
+import { Link } from './Link';
 
 const REEL = Object.keys(MEMES);
 
@@ -58,62 +58,119 @@ export function VibePrompt() {
   );
 }
 
-const HERO: Record<NextSkip['verdict'], string> = {
-  pode: 'bg-success-container text-on-success-container',
-  reflita: 'bg-warning-container text-on-warning-container',
-  zerou: 'bg-error-container text-on-error-container',
-  estourou: 'bg-error-container text-on-error-container',
+const HERO: Record<Decision['verdict'], { box: string; tag: string }> = {
+  pode: { box: 'bg-success-container text-on-success-container', tag: 'pode' },
+  depende: { box: 'bg-warning-container text-on-warning-container', tag: 'depende' },
+  'melhor-nao': { box: 'bg-error-container text-on-error-container', tag: 'melhor não' },
+  zerou: { box: 'bg-error-container text-on-error-container', tag: 'não' },
+  estourou: { box: 'bg-error-container text-on-error-container', tag: 'já era' },
 };
 
 /**
- * Topo da Hoje no modo zueira: dá para faltar a próxima aula? A resposta vem numa frase,
- * com o meme do lado (quando os memes estão ligados) e os números de verdade embaixo.
+ * Topo da Hoje no modo zueira: dá para faltar a próxima aula? A decisão pesa faltas, notas,
+ * avaliação marcada e a altura do semestre; a resposta vem numa frase, com meme e os motivos.
  */
 export function SkipHero({ subjects, now, holiday }: { subjects: Subject[]; now: Date; holiday?: boolean }) {
   const vibe = useVibe();
   const { current } = usePeriod();
   const { data: aulas } = useAulas(current);
   const { data: cal } = useCalendario(current);
-  const checks = useAttendance();
-  const next = useMemo(() => nextSkip(subjects, now, holiday), [subjects, now, holiday]);
-  const extras = useMemo(() => reactions({ subjects, now, aulas, checks, cal, holiday }), [subjects, now, aulas, checks, cal, holiday]);
+  const { data: avaliacoes } = useAvaliacoes();
+  const [sel, setSel] = useState(0);
+  const [roll, setRoll] = useState(0);
+  const [plans, setPlans] = useState(loadPlans);
 
-  if (vibe.tone !== 'zueira' || (!next && !extras.length)) return null;
+  const targets = useMemo(() => upcoming(subjects, now, holiday), [subjects, now, holiday]);
+  const target = targets[Math.min(sel, targets.length - 1)];
+  const decision = useMemo(() => (target ? decide(target, { subjects, now, aulas, cal, avaliacoes }) : null), [target, subjects, now, aulas, cal, avaliacoes]);
+
+  if (vibe.tone !== 'zueira' || !decision) return null;
   const memes = memesOn(vibe);
-  const h = next && HERO[next.verdict];
+  const h = HERO[decision.verdict];
+  const { line, meme } = say(decision, now, roll);
+  const key = planKey(decision.target);
+  const plan = plans[key];
+  const { facts } = decision;
+
+  const choose = (choice: Choice | null) => {
+    const next = { ...plans };
+    if (choice) next[key] = choice; else delete next[key];
+    setPlans(next);
+    savePlans(next);
+    if (choice === 'faltar' && decision.verdict === 'pode') {
+      import('canvas-confetti').then(({ default: confetti }) => confetti({ particleCount: 60, spread: 60, origin: { y: 0.25 }, disableForReducedMotion: true }));
+    }
+  };
 
   return (
-    <div className="mb-4 flex flex-col gap-2">
-      {next && h && (
-        <Tap to={`/disciplinas/${next.subject.code}`} className={cx('flex flex-col overflow-hidden rounded-2xl sm:flex-row', h)}>
-          {memes && (
-            <m.img key={next.meme} src={memeSrc(next.meme)} alt={MEMES[next.meme]} decoding="async"
-              initial={{ opacity: 0, scale: 1.08 }} animate={{ opacity: 1, scale: 1 }} transition={spring}
-              className="max-h-64 w-full bg-black object-contain sm:max-h-72 sm:w-auto sm:max-w-[46%]" />
-          )}
-          <div className="flex min-w-0 flex-1 flex-col justify-center gap-2 p-5 md:p-6">
-            <p className="text-sm font-medium opacity-80">
-              dá pra faltar {next.subject.name}, {next.when} às {next.item.start}?
-            </p>
-            <p className="text-[26px] leading-8 font-semibold tracking-tight md:text-[32px] md:leading-10">{next.line}</p>
-            <p className="text-sm opacity-80 tabular">
-              {next.subject.absences} de {next.subject.limit} faltas usadas
-              {next.verdict !== 'estourou' && <> · faltando essa ({next.item.lessons} {next.item.lessons === 1 ? 'aula' : 'aulas'}) {next.leftAfter < 0 ? `estoura em ${-next.leftAfter}` : `sobram ${next.leftAfter}`}</>}
-            </p>
-          </div>
-        </Tap>
-      )}
-      {extras.length > 0 && (
-        <ul className="grid grid-cols-1 gap-2 md:grid-cols-2">
-          {extras.map((r, i) => (
-            <m.li key={r.id} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.08 + i * 0.06, duration: 0.3, ease: EMPHASIZED }}
-              className="flex items-center gap-3 overflow-hidden rounded-2xl bg-surface-container">
-              {memes && <img src={memeSrc(r.meme)} alt={MEMES[r.meme]} loading="lazy" decoding="async" className="size-20 shrink-0 object-cover" />}
-              <p className={cx('min-w-0 flex-1 py-3 pr-4 text-[15px] leading-5 font-medium', !memes && 'pl-4')}>{r.line}</p>
-            </m.li>
+    <div className="mb-4">
+      {/* Qual aula: a próxima vem marcada, dá para olhar as seguintes */}
+      {targets.length > 1 && (
+        <div className="no-scrollbar -mx-4 mb-2 flex gap-2 overflow-x-auto px-4 md:mx-0 md:px-0">
+          {targets.map((t, i) => (
+            <Chip key={planKey(t)} selected={i === sel} onClick={() => { setSel(i); setRoll(0); }}
+              label={`${i === 0 ? 'próxima' : t.when} · ${t.item.start} · ${t.subject.name.split(' ').slice(0, 2).join(' ')}`} />
           ))}
-        </ul>
+        </div>
       )}
+
+      <div className={cx('flex flex-col overflow-hidden rounded-2xl sm:flex-row', h.box)}>
+        {memes && (
+          <button onClick={() => setRoll(roll + 1)} aria-label="Outra resposta" className="relative shrink-0 bg-black sm:w-[42%] sm:max-w-80">
+            <AnimatePresence mode="popLayout" initial={false}>
+              <m.img key={meme + key} src={memeSrc(meme)} alt={MEMES[meme]} decoding="async"
+                initial={{ opacity: 0, scale: 1.1, rotate: 2 }} animate={{ opacity: 1, scale: 1, rotate: 0 }} exit={{ opacity: 0 }} transition={spring}
+                className="max-h-64 w-full object-contain sm:h-full sm:max-h-80" />
+            </AnimatePresence>
+          </button>
+        )}
+        <div className="flex min-w-0 flex-1 flex-col gap-3 p-5 md:p-6">
+          <div className="flex items-center gap-2 text-sm font-medium">
+            <span className="rounded-full bg-white/50 px-2.5 py-0.5 dark:bg-black/25">{h.tag}</span>
+            <span className="min-w-0 truncate opacity-80">faltar {decision.target.subject.name}, {decision.target.when} às {decision.target.item.start}?</span>
+          </div>
+
+          <AnimatePresence mode="wait" initial={false}>
+            <m.p key={line} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} transition={{ duration: 0.2, ease: EMPHASIZED }}
+              className="text-[24px] leading-8 font-semibold tracking-tight md:text-[30px] md:leading-9">
+              {plan ? reply(plan, decision.verdict, key) : line}
+            </m.p>
+          </AnimatePresence>
+
+          {/* Os motivos de verdade por trás da resposta */}
+          <ul className="flex flex-wrap gap-1.5">
+            {decision.factors.slice(0, 5).map((f) => (
+              <li key={f.reason} className="flex items-center gap-1 rounded-full bg-white/45 px-2.5 py-1 text-xs font-medium dark:bg-black/25">
+                <Icon name={f.weight > 0 ? 'check' : 'priority_high'} size={14} weight={600} />{f.label}
+              </li>
+            ))}
+          </ul>
+
+          <p className="text-sm opacity-80 tabular">
+            {facts.used} de {facts.limit} faltas usadas
+            {decision.verdict !== 'estourou' && <> · faltando essa ({facts.cost} {facts.cost === 1 ? 'aula' : 'aulas'}) {facts.after < 0 ? `estoura em ${-facts.after}` : `sobram ${facts.after}`}</>}
+          </p>
+
+          <div className="mt-auto flex flex-wrap items-center gap-2 pt-1">
+            {plan ? (
+              <>
+                <span className="flex items-center gap-1.5 rounded-full bg-white/45 px-3 py-1.5 text-sm font-medium dark:bg-black/25">
+                  <Icon name={plan === 'faltar' ? 'weekend' : 'school'} size={18} fill />{plan === 'faltar' ? 'você vai faltar' : 'você vai pra aula'}
+                </span>
+                <Button variant="text" size="sm" onClick={() => choose(null)} className="!text-current">mudei de ideia</Button>
+              </>
+            ) : (
+              <>
+                <Button size="sm" icon="weekend" onClick={() => choose('faltar')}>vou faltar</Button>
+                <Button size="sm" variant="tonal" icon="school" onClick={() => choose('aula')}>vou pra aula</Button>
+                <Button size="sm" variant="text" icon="refresh" onClick={() => setRoll(roll + 1)} className="!text-current">outra</Button>
+              </>
+            )}
+            <span className="flex-1" />
+            <Link to={`/disciplinas/${decision.target.subject.code}`} label={`Abrir ${decision.target.subject.name}`} className="state flex size-9 items-center justify-center rounded-full"><Icon name="arrow_outward" size={20} /></Link>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
