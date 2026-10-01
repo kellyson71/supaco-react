@@ -241,7 +241,7 @@ function Presence() {
           <p className="text-sm text-on-surface-variant">Nenhuma aula lançada ainda neste semestre.</p>
         ) : (
           <div className="flex flex-col gap-5 lg:flex-row lg:items-center">
-            <div className="min-w-0 flex-1"><PresenceCalendar days={days} from={start ? isoDay(start) : null} to={end ?? undefined} /></div>
+            <div className="min-w-0 flex-1"><PresenceCalendar aulas={aulas} days={days} from={start ? isoDay(start) : null} to={end ?? undefined} /></div>
             <div className="flex flex-col gap-3 lg:w-72 lg:shrink-0 lg:border-l lg:border-outline-variant lg:pl-5">
               {pct !== null && freq && (
                 <div className="flex items-center gap-4">

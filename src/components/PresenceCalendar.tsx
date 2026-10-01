@@ -1,9 +1,14 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityCalendar, type Activity } from 'react-activity-calendar';
+import { cloneElement } from 'react';
+import { AnimatePresence } from 'motion/react';
 import 'react-activity-calendar/tooltips.css';
 import type { DayPresence } from '../lib/semester';
 import { isoDay, parseDay } from '../lib/dates';
 import { useThemeState } from '../lib/theme';
+import { useCurrentSubjects } from '../lib/data';
+import type { Aula } from '../lib/suap';
+import { LessonSheet } from './LessonSheet';
 
 const MONTHS = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
 const LEGEND = ['Sem aula', 'Faltou tudo', 'Faltou a maior parte', 'Faltou um pouco', 'Presente'];
@@ -14,8 +19,10 @@ const levelOf = (d: DayPresence) => (d.absences === 0 ? 4 : d.absences >= d.less
 const cssVar = (name: string) => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
 
 /** Mapa de presença estilo GitHub, com as cores do tema Material 3 atual. */
-export function PresenceCalendar({ days, from, to }: { days: DayPresence[]; from?: string | null; to?: Date }) {
+export function PresenceCalendar({ days, from, to, aulas }: { days: DayPresence[]; from?: string | null; to?: Date; aulas?: Aula[] }) {
   const { dark, seed } = useThemeState();
+  const { data: subjects } = useCurrentSubjects();
+  const [picked, setPicked] = useState<string | null>(null);
 
   // As cores dependem do tema aplicado no <html>; recalcula quando ele muda
   const colors = useMemo(() => [
@@ -66,6 +73,13 @@ export function PresenceCalendar({ days, from, to }: { days: DayPresence[]; from
         blockRadius={Math.round(block / 4)}
         fontSize={12}
         showColorLegend={false}
+        renderBlock={aulas && subjects ? (block, activity) => cloneElement(block, {
+          onClick: () => setPicked(activity.date),
+          onKeyDown: (e: React.KeyboardEvent) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setPicked(activity.date); } },
+          tabIndex: 0,
+          role: 'button',
+          style: { ...block.props.style, cursor: 'pointer' },
+        }) : undefined}
         weekStart={1}
         showTotalCount={false}
         showWeekdayLabels={['mon', 'wed', 'fri']}
@@ -87,6 +101,9 @@ export function PresenceCalendar({ days, from, to }: { days: DayPresence[]; from
           <span key={l} className="flex items-center gap-1.5"><span className="size-3 rounded-[3px]" style={{ background: colors[l] }} />{LEGEND[l]}</span>
         ))}
       </div>
+      <AnimatePresence>
+        {picked && aulas && subjects && <LessonSheet key={picked} date={picked} aulas={aulas} subjects={subjects} onClose={() => setPicked(null)} />}
+      </AnimatePresence>
     </div>
   );
 }

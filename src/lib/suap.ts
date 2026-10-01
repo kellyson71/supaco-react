@@ -95,6 +95,9 @@ export type Calendario = {
 
 export type Aula = { id: number; etapa: string; conteudo: string; data: string; qtd_aulas: number; faltas: number; disciplina: string };
 
+/** Aula do diário (diarios/{id}/aulas): traz o professor que lançou, que o minhas-aulas não tem. */
+export type AulaDiario = { data: string; etapa?: number | string; quantidade?: number; professor?: string; conteudo?: string };
+
 export type Frequencia = { total_aulas: number; total_faltas: number; total_abonos: number; percentual_frequencia: number };
 
 type PessoaRaw = { nome: string; matricula: string; foto?: string; email?: string };
@@ -197,6 +200,12 @@ export const api = {
   aulas: async (ano: number, mes: number) => {
     const list = await getAll<Aula>(`/api/ensino/minhas-aulas/${ano}/${mes}/`);
     // O SUAP manda "dd/mm/aaaa"; em ISO dá para ordenar e comparar como texto
+    return list.map((a) => { const d = parseDay(a.data); return d ? { ...a, data: isoDay(d) } : a; });
+  },
+
+  /** Aulas do diário com o professor de cada uma (pode não estar liberado: quem chama trata o erro). */
+  aulasDiario: async (code: string) => {
+    const list = await getAll<AulaDiario>(`/api/ensino/diarios/${code}/aulas/`);
     return list.map((a) => { const d = parseDay(a.data); return d ? { ...a, data: isoDay(d) } : a; });
   },
 

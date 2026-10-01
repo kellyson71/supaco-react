@@ -61,7 +61,7 @@ export function Retrospective() {
 
           <Card variant="filled" className="rounded-3xl p-6 md:col-span-2 xl:col-span-3">
             <p className="mb-4 flex items-center gap-2 text-lg font-medium"><Icon name="calendar_month" className="text-primary" fill /> Cada dia do semestre</p>
-            <PresenceCalendar days={days} from={cal?.data_inicio ? isoOf(cal.data_inicio) : null} to={parseDay(cal?.data_fim) ?? undefined} />
+            <PresenceCalendar aulas={aulas} days={days} from={cal?.data_inicio ? isoOf(cal.data_inicio) : null} to={parseDay(cal?.data_fim) ?? undefined} />
           </Card>
 
           <div className="flex flex-wrap gap-4 md:col-span-2 xl:col-span-3 [&>*]:min-w-[260px] [&>*]:flex-1">

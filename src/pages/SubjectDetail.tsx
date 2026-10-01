@@ -7,6 +7,8 @@ import { aulaMatchesSubject, subjectTone, type Aula, type Subject } from '../lib
 import { TONES } from '../lib/tones';
 import { parseDay } from '../lib/dates';
 import { Turma } from '../components/Turma';
+import { LessonSheet } from '../components/LessonSheet';
+import { AnimatePresence } from 'motion/react';
 import { AbsenceMeter, Badge, Button, Card, CountUp, cx, Empty, Icon, IconButton, Item, levelColor, Ring, SectionHeader, Shape, Skeleton, Stagger } from '../components/ui';
 
 export function SubjectDetail({ code }: { code: string }) {
@@ -210,6 +212,7 @@ function History({ s }: { s: Subject }) {
   const { period } = usePeriod();
   const { data, loading, error } = useAulas(period);
   const [onlyAbsent, setOnlyAbsent] = useState(false);
+  const [open, setOpen] = useState<Aula | null>(null);
 
   const mine = useMemo(() => (data ?? []).filter((a: Aula) => aulaMatchesSubject(a, s)), [data, s]);
   const list = onlyAbsent ? mine.filter((a) => a.faltas > 0) : mine;
@@ -232,7 +235,8 @@ function History({ s }: { s: Subject }) {
           {list.slice(0, 40).map((a) => {
             const d = parseDay(a.data);
             return (
-              <li key={a.id} className={cx('flex gap-3 rounded-lg px-3 py-2.5', a.faltas > 0 ? 'bg-error-container text-on-error-container' : 'bg-surface-container-low')}>
+              <li key={a.id}>
+              <button onClick={() => setOpen(a)} className={cx('state flex w-full gap-3 rounded-lg px-3 py-2.5 text-left', a.faltas > 0 ? 'bg-error-container text-on-error-container' : 'bg-surface-container-low')}>
                 <div className="w-11 shrink-0 text-center leading-tight">
                   <p className="text-lg font-semibold tabular">{d?.getDate() ?? '–'}</p>
                   <p className="text-[10px] font-medium uppercase opacity-75">{d?.toLocaleDateString('pt-BR', { month: 'short' }).replace('.', '')}</p>
@@ -243,11 +247,16 @@ function History({ s }: { s: Subject }) {
                     {a.qtd_aulas} {a.qtd_aulas === 1 ? 'aula' : 'aulas'}{a.faltas > 0 ? ` · ${a.faltas} ${a.faltas === 1 ? 'falta' : 'faltas'}` : ' · presente'}
                   </p>
                 </div>
+                <Icon name="chevron_right" size={20} className="self-center opacity-50" />
+              </button>
               </li>
             );
           })}
         </ol>
       )}
+      <AnimatePresence>
+        {open && data && <LessonSheet key={open.id} date={open.data} only={open} aulas={data} subjects={[s]} onClose={() => setOpen(null)} />}
+      </AnimatePresence>
     </Card>
   );
 }

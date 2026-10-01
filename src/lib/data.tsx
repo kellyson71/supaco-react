@@ -19,6 +19,9 @@ export const useFrequencia = (p: Periodo | undefined) =>
   useResource(p ? `frequencia:${p.label}` : null, () => api.frequencia(p!), 60);
 export const useTurma = (code: string | undefined) =>
   useResource(code ? `turma:${code}` : null, () => api.turma(code!), 12 * 60);
+/** Professor de cada aula do diário; some em silêncio se o SUAP não liberar. */
+export const useAulasDiario = (code: string | undefined) =>
+  useResource(code ? `aulasdiario:${code}` : null, () => api.aulasDiario(code!).catch(() => []), 60);
 export const useCampus = (sigla: string | undefined) =>
   useResource(sigla ? `campus:v3:${sigla}` : null, () => api.campus(sigla!), 6 * 60);
 export const useEstatisticas = () => useResource('estatisticas', api.estatisticas, 24 * 60);
