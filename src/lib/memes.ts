@@ -14,6 +14,11 @@ export const MEMES: Record<string, string> = {
   caralho: 'caralho', 'senhor-cinema': 'puta que pariu, senhor cinema', 'fim-nao-esta-proximo': 'o fim não está próximo',
   'fim-esta-proximo': 'o fim está próximo', reflita: 'reflita', 'alem-do-infinito': 'você foi além do infinito, bro',
   arrogante: 'arrogante', 'nao-sobrou-nada': 'não sobrou nada', 'baixo-em-disposicao': 'baixo em disposição', 'to-cansado-pai': 'to cansado, pai',
+  'como-vamos-contar-pra-ele': 'como vamos contar pra ele', 'como-vou-me-adaptar': 'como vou me adaptar a essa merda',
+  'calma-meu-patrao': 'calma meu patrão', tragico: 'trágico', 'e-os-guri': 'é os guri, não adianta',
+  'probabilidade-fe': '1% de probabilidade, 99% de fé', 'bom-argumento': 'bom argumento, mas não muda', 'vai-se-atrever': 'vai se atrever?',
+  'homem-de-fe': 'homem de fé', 'evento-canonico': 'é o evento canônico, não tem jeito', 'chega-acabou-a-graca': 'chega, acabou a graça',
+  'quem-nao-arrisca': 'quem não arrisca não petisca', 'nao-ha-razoes-pra-sorrir': 'não há razões pra sorrir', 'eu-faria-esse-acordo': 'eu faria esse acordo',
 };
 
 const hash = (s: string) => { let h = 0; for (const c of s) h = (h * 31 + c.charCodeAt(0)) >>> 0; return h; };
@@ -362,30 +367,30 @@ const LINES: Record<Reason, Line[]> = {
 };
 
 const REASON_MEMES: Record<Reason, string[]> = {
-  folga: ['falte-aula-filho', 'falte-meu-filho'],
-  sobra: ['falte-meu-filho', 'baixo-em-disposicao', 'falte-aula-filho'],
-  'reta-final': ['fim-esta-proximo', 'falte-aula-filho'],
-  'nota-boa': ['arrogante'],
-  cansado: ['to-cansado-pai', 'baixo-em-disposicao'],
-  comeco: ['fim-nao-esta-proximo', 'reflita'],
-  'sem-nota': ['reflita', 'fim-nao-esta-proximo'],
-  'nota-baixa': ['senhor-cinema', 'caralho'],
-  prova: ['reflita', 'senhor-cinema'],
-  limite: ['reflita'],
-  'gastando-rapido': ['caralho', 'senhor-cinema'],
-  'duas-seguidas': ['reflita'],
-  cara: ['reflita'],
-  precisa: ['senhor-cinema', 'reflita'],
-  'precisa-pouco': ['arrogante', 'falte-meu-filho'],
-  tarefa: ['reflita'],
-  'aula-unica': ['baixo-em-disposicao', 'falte-aula-filho'],
-  cedo: ['to-cansado-pai', 'baixo-em-disposicao'],
-  sextou: ['falte-meu-filho', 'baixo-em-disposicao'],
-  vicio: ['reflita', 'caralho'],
-  'prof-relaxado': ['falte-aula-filho', 'falte-meu-filho'],
-  sequencia: ['reflita', 'arrogante'],
-  zerou: ['nao-sobrou-nada'],
-  estourou: ['alem-do-infinito'],
+  folga: ['falte-aula-filho', 'falte-meu-filho', 'eu-faria-esse-acordo', 'quem-nao-arrisca'],
+  sobra: ['falte-meu-filho', 'baixo-em-disposicao', 'eu-faria-esse-acordo', 'falte-aula-filho'],
+  'reta-final': ['fim-esta-proximo', 'falte-aula-filho', 'eu-faria-esse-acordo'],
+  'nota-boa': ['arrogante', 'eu-faria-esse-acordo'],
+  cansado: ['to-cansado-pai', 'baixo-em-disposicao', 'como-vou-me-adaptar'],
+  'precisa-pouco': ['arrogante', 'falte-meu-filho', 'eu-faria-esse-acordo'],
+  'aula-unica': ['baixo-em-disposicao', 'falte-aula-filho', 'eu-faria-esse-acordo'],
+  cedo: ['to-cansado-pai', 'como-vou-me-adaptar', 'nao-ha-razoes-pra-sorrir', 'baixo-em-disposicao'],
+  sextou: ['falte-meu-filho', 'baixo-em-disposicao', 'quem-nao-arrisca'],
+  'prof-relaxado': ['falte-aula-filho', 'falte-meu-filho', 'quem-nao-arrisca'],
+  comeco: ['fim-nao-esta-proximo', 'calma-meu-patrao', 'como-vou-me-adaptar', 'reflita'],
+  'sem-nota': ['calma-meu-patrao', 'quem-nao-arrisca', 'fim-nao-esta-proximo'],
+  'nota-baixa': ['tragico', 'e-os-guri', 'senhor-cinema', 'nao-ha-razoes-pra-sorrir', 'caralho'],
+  prova: ['vai-se-atrever', 'bom-argumento', 'evento-canonico', 'homem-de-fe', 'senhor-cinema'],
+  limite: ['probabilidade-fe', 'vai-se-atrever', 'homem-de-fe', 'reflita', 'quem-nao-arrisca'],
+  'gastando-rapido': ['calma-meu-patrao', 'como-vamos-contar-pra-ele', 'caralho', 'chega-acabou-a-graca'],
+  'duas-seguidas': ['calma-meu-patrao', 'vai-se-atrever', 'chega-acabou-a-graca', 'reflita'],
+  cara: ['vai-se-atrever', 'reflita', 'senhor-cinema'],
+  precisa: ['e-os-guri', 'probabilidade-fe', 'homem-de-fe', 'senhor-cinema', 'reflita'],
+  tarefa: ['bom-argumento', 'evento-canonico', 'vai-se-atrever'],
+  vicio: ['calma-meu-patrao', 'tragico', 'caralho', 'reflita'],
+  sequencia: ['vai-se-atrever', 'arrogante', 'reflita'],
+  zerou: ['nao-sobrou-nada', 'bom-argumento', 'e-os-guri', 'evento-canonico', 'chega-acabou-a-graca', 'como-vamos-contar-pra-ele'],
+  estourou: ['alem-do-infinito', 'como-vamos-contar-pra-ele', 'tragico', 'e-os-guri', 'nao-ha-razoes-pra-sorrir', 'chega-acabou-a-graca'],
 };
 
 // ---------- Depuração: ver qualquer situação ----------
@@ -407,11 +412,11 @@ export const verdictOf = (r: Reason): Verdict => (r === 'zerou' || r === 'estour
 
 /** Memes que combinam com o clima do veredito, para variar quando o motivo tem poucos. */
 const MOOD: Record<Verdict, string[]> = {
-  pode: ['falte-aula-filho', 'falte-meu-filho', 'baixo-em-disposicao', 'to-cansado-pai', 'arrogante'],
-  depende: ['reflita', 'senhor-cinema', 'caralho'],
-  'melhor-nao': ['reflita', 'senhor-cinema', 'caralho', 'nao-sobrou-nada'],
-  zerou: ['nao-sobrou-nada', 'alem-do-infinito', 'caralho', 'senhor-cinema'],
-  estourou: ['alem-do-infinito', 'nao-sobrou-nada', 'caralho', 'senhor-cinema'],
+  pode: ['falte-aula-filho', 'falte-meu-filho', 'baixo-em-disposicao', 'to-cansado-pai', 'arrogante', 'eu-faria-esse-acordo', 'quem-nao-arrisca'],
+  depende: ['reflita', 'senhor-cinema', 'caralho', 'calma-meu-patrao', 'vai-se-atrever', 'probabilidade-fe', 'homem-de-fe', 'quem-nao-arrisca'],
+  'melhor-nao': ['reflita', 'senhor-cinema', 'caralho', 'nao-sobrou-nada', 'e-os-guri', 'bom-argumento', 'tragico', 'evento-canonico', 'chega-acabou-a-graca'],
+  zerou: ['nao-sobrou-nada', 'alem-do-infinito', 'caralho', 'senhor-cinema', 'bom-argumento', 'e-os-guri', 'como-vamos-contar-pra-ele', 'evento-canonico', 'chega-acabou-a-graca'],
+  estourou: ['alem-do-infinito', 'nao-sobrou-nada', 'caralho', 'senhor-cinema', 'como-vamos-contar-pra-ele', 'tragico', 'e-os-guri', 'nao-ha-razoes-pra-sorrir', 'chega-acabou-a-graca'],
 };
 
 /** Memes possíveis para um motivo: os dele primeiro, depois os do clima do veredito. */
@@ -434,12 +439,23 @@ export function pickFresh<T>(list: T[], start: number, avoid: T[] = []): T {
 /** O que já apareceu: o que sair agora evita repetir. */
 export type Seen = { memes: string[]; lines: string[] };
 
+/** Embaralha bem um número: sem isso, dias e códigos próximos caem sempre nas mesmas posições. */
+const mix = (n: number) => {
+  n = Math.imul(n ^ (n >>> 16), 0x45d9f3b);
+  n = Math.imul(n ^ (n >>> 16), 0x45d9f3b);
+  return (n ^ (n >>> 16)) >>> 0;
+};
+
 /** Frase e meme da decisão. `roll` troca por outra opção (botão "outra"), fugindo das já vistas. */
 export function say(d: Decision, now: Date, roll = 0, seen: Seen = { memes: [], lines: [] }, reason: Reason = d.main, facts: Facts = d.facts, verdict: Verdict = d.verdict): { line: string; meme: string } {
-  const seed = Math.floor(now.getTime() / 86_400_000) + hash(d.target.subject.code) + roll;
+  const day = Math.floor(now.getTime() / 86_400_000);
   const lines = linesFor(reason, facts);
-  const pool = memePool(reason, verdict, d.target.daysAhead === 1 && (reason === 'folga' || reason === 'sobra'));
-  return { line: pickFresh(lines, seed % lines.length, seen.lines), meme: pickFresh(pool, seed % Math.min(pool.length, REASON_MEMES[reason].length || 1), seen.memes) };
+  const tomorrow = d.target.daysAhead === 1 && (reason === 'folga' || reason === 'sobra');
+  const pool = memePool(reason, verdict, tomorrow);
+  // A primeira escolha fica entre os memes do próprio motivo; ao trocar, o resto do clima entra
+  const own = REASON_MEMES[reason].length + (tomorrow && verdict === 'pode' ? 1 : 0);
+  const h = mix(day * 7919 + hash(d.target.subject.code + reason) + roll * 104729);
+  return { line: pickFresh(lines, mix(h + 1) % lines.length, seen.lines), meme: pickFresh(pool, h % Math.max(1, own), seen.memes) };
 }
 
 // ---------- Resposta ao que a pessoa decidiu ----------
