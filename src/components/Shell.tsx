@@ -10,7 +10,7 @@ import { cx, EMPHASIZED, Icon, IconButton, spring } from './ui';
 import { Link } from './Link';
 import { Logo } from './Logo';
 import { Avatar } from './Avatar';
-import { GlobalSearch, openSearch, SearchBar } from './Search';
+import { GlobalSearch, openSearch, SearchBar, SearchPanel, useIsWide, useSearchOpen } from './Search';
 
 export { Link };
 
@@ -69,6 +69,10 @@ export function Shell({ children }: { children: ReactNode }) {
   const path = usePath();
   const { data: msgs } = useMensagens();
   const unread = (msgs?.filter((x) => !x.registro_leitura).length ?? 0) > 0;
+  // No celular a busca toma o lugar da barra superior; em telas maiores ela vive na barra do topo
+  const searchOpen = useSearchOpen();
+  const isWide = useIsWide();
+  const searching = searchOpen && !isWide;
   const pageKey = path.startsWith('/disciplinas/') ? 'detail' : path;
 
   return (
@@ -88,15 +92,19 @@ export function Shell({ children }: { children: ReactNode }) {
       <div className="md:pl-24">
         {/* Barra superior (celular) */}
         <header className="sticky top-0 z-20 flex h-16 items-center gap-1 bg-surface/90 px-2 pt-[env(safe-area-inset-top)] backdrop-blur-md md:hidden">
-          <Link to="/" label="Início" className="flex items-center gap-2 rounded-full px-2">
-            <Logo size={36} />
-            <span className="text-[22px] font-semibold tracking-tight">Supaco</span>
-          </Link>
-          <span className="flex-1" />
-          <IconButton icon="search" label="Buscar" onClick={openSearch} />
-          <SyncButton />
-          <ThemeButton />
-          <Avatar size={32} />
+          {searching ? <SearchPanel variant="mobile" /> : (
+            <>
+              <Link to="/" label="Início" className="flex items-center gap-2 rounded-full px-2">
+                <Logo size={36} />
+                <span className="text-[22px] font-semibold tracking-tight">Supaco</span>
+              </Link>
+              <span className="flex-1" />
+              <IconButton icon="search" label="Buscar" onClick={openSearch} />
+              <SyncButton />
+              <ThemeButton />
+              <Avatar size={32} />
+            </>
+          )}
         </header>
 
         {/* Busca global (telas médias e grandes) */}

@@ -23,34 +23,70 @@ let isOpen = false;
 const subs = new Set<() => void>();
 const setOpen = (v: boolean) => { if (isOpen !== v) { isOpen = v; subs.forEach((fn) => fn()); } };
 export const openSearch = () => setOpen(true);
-const useOpen = () => useSyncExternalStore((cb) => { subs.add(cb); return () => { subs.delete(cb); }; }, () => isOpen);
+const closeSearch = () => setOpen(false);
+export const useSearchOpen = () => useSyncExternalStore((cb) => { subs.add(cb); return () => { subs.delete(cb); }; }, () => isOpen);
+
+// Detalhe de aula aberto a partir de um resultado (fica fora da busca, que fecha ao escolher)
+type OpenLesson = { aula: Aula; aulas: Aula[]; subjects: Subject[] };
+let lesson: OpenLesson | null = null;
+const lessonSubs = new Set<() => void>();
+const setLesson = (l: OpenLesson | null) => { lesson = l; lessonSubs.forEach((fn) => fn()); };
+
+const wide = typeof window !== 'undefined' ? window.matchMedia('(min-width: 768px)') : null;
+/** Telas médias e grandes usam a barra do topo; no celular a busca entra na barra superior. */
+export const useIsWide = () => useSyncExternalStore((cb) => { wide?.addEventListener('change', cb); return () => wide?.removeEventListener('change', cb); }, () => !!wide?.matches);
 
 const isMac = typeof navigator !== 'undefined' && /mac|iphone|ipad/i.test(navigator.platform || navigator.userAgent);
 
 const HINTS = ['matérias', 'aulas e conteúdos', 'professores e colegas', 'provas e prazos', 'mensagens', 'materiais'];
 
-/** Barra de busca do topo (telas médias e grandes): abre a busca global. */
-export function SearchBar() {
+/** Dica que vai trocando dentro da barra fechada. */
+function RotatingHint() {
   const [i, setI] = useState(0);
   useEffect(() => {
     const id = setInterval(() => setI((n) => (n + 1) % HINTS.length), 2800);
     return () => clearInterval(id);
   }, []);
   return (
-    <m.button onClick={openSearch} whileHover={{ scale: 1.01 }} whileTap={{ scale: 0.98 }} transition={spring} aria-label="Buscar"
-      className="state group flex h-12 w-full max-w-xl items-center gap-3 rounded-full bg-surface-container-high pr-3 pl-4 text-left text-on-surface-variant">
-      <Icon name="search" size={22} className="text-on-surface" />
-      <span className="flex min-w-0 flex-1 items-center gap-1.5 overflow-hidden text-[15px]">
-        Buscar
-        <span className="relative h-6 flex-1 overflow-hidden">
-          <AnimatePresence initial={false}>
-            <m.span key={i} initial={{ y: 16, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: -16, opacity: 0 }} transition={{ duration: 0.4, ease: EMPHASIZED }}
-              className="absolute inset-0 truncate leading-6">{HINTS[i]}</m.span>
-          </AnimatePresence>
-        </span>
-      </span>
-      <Kbd>{isMac ? '⌘' : 'Ctrl'} K</Kbd>
-    </m.button>
+    <span className="relative h-6 flex-1 overflow-hidden">
+      <AnimatePresence initial={false}>
+        <m.span key={i} initial={{ y: 16, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: -16, opacity: 0 }} transition={{ duration: 0.4, ease: EMPHASIZED }}
+          className="absolute inset-0 truncate leading-6">{HINTS[i]}</m.span>
+      </AnimatePresence>
+    </span>
+  );
+}
+
+/**
+ * Barra de busca do topo (telas médias e grandes). Ao focar, a própria barra cresce para baixo
+ * com os resultados, sem cobrir a tela: clicar fora ou Esc recolhe.
+ */
+export function SearchBar() {
+  const open = useSearchOpen();
+  const isWide = useIsWide();
+  const root = useRef<HTMLDivElement>(null);
+  const shown = open && isWide;
+
+  useEffect(() => {
+    if (!shown) return;
+    const onDown = (e: PointerEvent) => { if (!root.current?.contains(e.target as Node)) closeSearch(); };
+    document.addEventListener('pointerdown', onDown);
+    return () => document.removeEventListener('pointerdown', onDown);
+  }, [shown]);
+
+  return (
+    <div ref={root} className="relative h-12 w-full max-w-xl">
+      <m.div initial={false} animate={{ height: shown ? 'auto' : 48 }} transition={{ type: 'spring', stiffness: 420, damping: 38 }}
+        className={cx('absolute inset-x-0 top-0 overflow-hidden rounded-[24px] bg-surface-container-high transition-shadow duration-200', shown && 'shadow-[0_8px_28px_rgb(0_0_0/0.22)] ring-1 ring-outline-variant/50')}>
+        {shown ? <SearchPanel variant="dock" /> : (
+          <button onClick={openSearch} aria-label="Buscar" className="state flex h-12 w-full items-center gap-3 pr-3 pl-4 text-left text-on-surface-variant">
+            <Icon name="search" size={22} className="text-on-surface" />
+            <span className="flex min-w-0 flex-1 items-center gap-1.5 overflow-hidden text-[15px]">Buscar<RotatingHint /></span>
+            <Kbd>{isMac ? '⌘' : 'Ctrl'} K</Kbd>
+          </button>
+        )}
+      </m.div>
+    </div>
   );
 }
 
@@ -60,12 +96,10 @@ const Kbd = ({ children }: { children: ReactNode }) => (
 
 // ---------- Índice: tudo que dá para achar ----------
 
-type OpenLesson = { aula: Aula; aulas: Aula[]; subjects: Subject[] };
-
 const stripHtml = (s: string) => s.replace(/<[^>]+>/g, ' ').replace(/&nbsp;/g, ' ').replace(/\s+/g, ' ').trim();
 const clip = (s: string, n: number) => (s.length > n ? `${s.slice(0, n - 1)}…` : s);
 
-function useItems(onLesson: (l: OpenLesson) => void): { items: SearchItem[]; now: SearchItem | null } {
+function useItems(): { items: SearchItem[]; now: SearchItem | null } {
   const { current } = usePeriod();
   const { data: subjects } = useCurrentSubjects();
   const { data: aulas } = useAulas(current);
@@ -146,7 +180,7 @@ function useItems(onLesson: (l: OpenLesson) => void): { items: SearchItem[]; now
           id: `l:${a.id}`, group: 'aulas', title: clip(content, 90), sub: [s?.name, d && shortDate(d)].filter(Boolean).join(' · '), keywords: content.length > 90 ? content : undefined,
           icon: 'history_edu', tone: s ? subjectTone(s) : undefined,
           meta: a.faltas > 0 ? `${a.faltas} ${a.faltas === 1 ? 'falta' : 'faltas'}` : undefined, metaTone: a.faltas > 0 ? 'error' : undefined,
-          run: () => onLesson({ aula: a, aulas, subjects }),
+          run: () => setLesson({ aula: a, aulas, subjects }),
           preview: {
             text: content,
             rows: [
@@ -241,7 +275,7 @@ function useItems(onLesson: (l: OpenLesson) => void): { items: SearchItem[]; now
       }
     }
     return { items, now };
-  }, [subjects, aulas, turmas, msgs, avaliacoes, tasks, campus, holidays, onLesson]);
+  }, [subjects, aulas, turmas, msgs, avaliacoes, tasks, campus, holidays]);
 }
 
 // ---------- Paleta ----------
@@ -282,8 +316,13 @@ function ItemIcon({ item, size = 40 }: { item: SearchItem; size?: number }) {
 
 const META = { error: 'text-error', warning: 'text-warning', success: 'text-success' };
 
-function Palette({ onClose, onLesson }: { onClose: () => void; onLesson: (l: OpenLesson) => void }) {
-  const { items, now } = useItems(onLesson);
+/**
+ * Campo e resultados. `dock`: dentro da barra do topo, que cresce para baixo.
+ * `mobile`: o campo ocupa a barra superior e os resultados ficam logo abaixo dela.
+ */
+export function SearchPanel({ variant }: { variant: 'dock' | 'mobile' }) {
+  const dock = variant === 'dock';
+  const { items, now } = useItems();
   const [query, setQuery] = useState('');
   const [scope, setScope] = useState<SearchGroup | 'tudo'>('tudo');
   const [active, setActive] = useState(0);
@@ -305,14 +344,13 @@ function Palette({ onClose, onLesson }: { onClose: () => void; onLesson: (l: Ope
     if (!q) {
       // Antes de digitar: o que importa agora, o que você abriu por último e os atalhos
       const byId = new Map(items.map((x) => [x.id, x]));
-      const recent = loadRecent().map((id) => byId.get(id)).filter((x): x is SearchItem => !!x && x.id !== now?.id).slice(0, 4);
+      const recent = loadRecent().map((id) => byId.get(id)).filter((x): x is SearchItem => !!x && x.id !== now?.id).slice(0, 3);
       const pick = (g: SearchGroup, n: number) => items.filter((x) => x.group === g).slice(0, n);
       if (scope !== 'tudo') return [{ label: GROUP_LABEL[scope], items: pick(scope, 30) }].filter((s) => s.items.length);
       return [
         { label: 'Agora', items: now ? [now] : [] },
         { label: 'Recentes', items: recent },
         { label: 'Ações', items: pick('acoes', 3) },
-        { label: 'Ir para', items: pick('paginas', 9) },
       ].filter((s) => s.items.length);
     }
     const scoped = scope === 'tudo' ? results : results.filter((r) => r.item.group === scope);
@@ -333,11 +371,13 @@ function Palette({ onClose, onLesson }: { onClose: () => void; onLesson: (l: Ope
   useEffect(() => { setActive(0); listRef.current?.scrollTo({ top: 0 }); }, [q, scope]);
 
   useEffect(() => {
+    inputRef.current?.focus();
+    if (dock) return;
+    // No celular os resultados cobrem a página, então ela não deve rolar por baixo
     const overflow = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
-    inputRef.current?.focus();
     return () => { document.body.style.overflow = overflow; };
-  }, []);
+  }, [dock]);
 
   useEffect(() => {
     listRef.current?.querySelector<HTMLElement>(`[data-i="${active}"]`)?.scrollIntoView({ block: 'nearest' });
@@ -345,7 +385,7 @@ function Palette({ onClose, onLesson }: { onClose: () => void; onLesson: (l: Ope
 
   const choose = (item: SearchItem) => {
     pushRecent(item.id);
-    onClose();
+    closeSearch();
     if (item.run) item.run();
     else if (item.href) window.open(item.href, '_blank', 'noopener');
     else if (item.to) navigate(item.to);
@@ -361,7 +401,7 @@ function Palette({ onClose, onLesson }: { onClose: () => void; onLesson: (l: Ope
     else if (e.key === 'Enter') { e.preventDefault(); if (current) choose(current); }
     else if (e.key === 'Tab') { e.preventDefault(); if (ghost && !e.shiftKey) accept(); }
     else if (e.key === 'ArrowRight' && ghost && atEnd) { e.preventDefault(); accept(); }
-    else if (e.key === 'Escape') { e.preventDefault(); if (query) setQuery(''); else onClose(); }
+    else if (e.key === 'Escape') { e.preventDefault(); if (query) setQuery(''); else closeSearch(); }
   };
 
   const suggestions = useMemo(() => {
@@ -371,159 +411,136 @@ function Palette({ onClose, onLesson }: { onClose: () => void; onLesson: (l: Ope
 
   let n = -1;
 
-  return createPortal(
-    <div className="fixed inset-0 z-[60] flex justify-center md:items-start md:px-6 md:pt-[9vh]" role="dialog" aria-modal aria-label="Busca">
-      <m.div className="absolute inset-0 bg-black/45 backdrop-blur-sm" onClick={onClose}
-        initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.2 }} />
-
-      <m.div
-        initial={{ opacity: 0, y: -18, scale: 0.96 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: -10, scale: 0.98 }}
-        transition={{ type: 'spring', stiffness: 380, damping: 32 }}
-        className="relative flex h-dvh w-full flex-col overflow-hidden bg-surface-container-low text-on-surface shadow-2xl md:h-auto md:max-h-[78vh] md:max-w-3xl md:rounded-[28px]">
-
-        {/* Campo */}
-        <div className="flex h-16 shrink-0 items-center gap-3 px-4 pt-[env(safe-area-inset-top)] md:px-5">
-          <button onClick={onClose} aria-label="Fechar busca" className="state flex size-10 shrink-0 items-center justify-center rounded-full md:hidden"><Icon name="arrow_back" /></button>
-          <m.span initial={{ scale: 0.5, rotate: -40 }} animate={{ scale: 1, rotate: 0 }} transition={{ type: 'spring', stiffness: 300, damping: 16 }} className="hidden text-primary md:inline-flex"><Icon name="search" size={26} /></m.span>
-          <div className="relative h-full min-w-0 flex-1 text-lg">
-            <div aria-hidden className="pointer-events-none absolute inset-0 flex items-center overflow-hidden whitespace-pre">
-              <span className="invisible">{query}</span>
-              <AnimatePresence mode="popLayout" initial={false}>
-                {ghost && <m.span key={ghost} initial={{ opacity: 0, x: -4 }} animate={{ opacity: 0.45, x: 0 }} exit={{ opacity: 0 }} transition={{ duration: 0.15 }}>{ghost}</m.span>}
-              </AnimatePresence>
-            </div>
-            <input ref={inputRef} value={query} onChange={(e) => setQuery(e.target.value)} onKeyDown={onKeyDown}
-              placeholder="Buscar matérias, aulas, pessoas, prazos…" aria-label="Buscar" autoComplete="off" autoCorrect="off" autoCapitalize="off" spellCheck={false} enterKeyHint="search"
-              role="combobox" aria-expanded aria-controls="search-results" aria-activedescendant={current ? `sr-${active}` : undefined}
-              className="relative size-full bg-transparent outline-none placeholder:text-on-surface-variant/70" />
-          </div>
-          <AnimatePresence initial={false}>
-            {ghost && (
-              <m.button key="tab" onClick={() => { accept(); inputRef.current?.focus(); }} aria-label="Completar" initial={{ opacity: 0, scale: 0.8 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.8 }} transition={spring}
-                className="flex shrink-0 items-center gap-1 rounded-full bg-secondary-container px-2.5 py-1 text-xs font-medium text-on-secondary-container">
-                <Icon name="keyboard_tab" size={16} /><span className="hidden md:inline">Tab</span>
-              </m.button>
-            )}
-            {query && (
-              <m.button key="clear" onClick={() => { setQuery(''); inputRef.current?.focus(); }} aria-label="Limpar" initial={{ opacity: 0, scale: 0.6, rotate: -90 }} animate={{ opacity: 1, scale: 1, rotate: 0 }} exit={{ opacity: 0, scale: 0.6 }} transition={spring}
-                className="state flex size-9 shrink-0 items-center justify-center rounded-full text-on-surface-variant"><Icon name="close" size={20} /></m.button>
-            )}
+  const field = (
+    <div className={cx('flex shrink-0 items-center gap-2', dock ? 'h-12 pr-2 pl-4' : 'h-full min-w-0 flex-1')}>
+      {dock
+        ? <Icon name="search" size={22} className="shrink-0 text-primary" />
+        : <button onClick={closeSearch} aria-label="Fechar busca" className="state flex size-10 shrink-0 items-center justify-center rounded-full"><Icon name="arrow_back" /></button>}
+      <div className={cx('relative h-full min-w-0 flex-1', dock ? 'ml-1 text-[15px]' : 'text-base')}>
+        <div aria-hidden className="pointer-events-none absolute inset-0 flex items-center overflow-hidden whitespace-pre">
+          <span className="invisible">{query}</span>
+          <AnimatePresence mode="popLayout" initial={false}>
+            {ghost && <m.span key={ghost} initial={{ opacity: 0, x: -4 }} animate={{ opacity: 0.45, x: 0 }} exit={{ opacity: 0 }} transition={{ duration: 0.15 }}>{ghost}</m.span>}
           </AnimatePresence>
-          <span className="hidden md:block"><Kbd>esc</Kbd></span>
         </div>
+        <input ref={inputRef} value={query} onChange={(e) => setQuery(e.target.value)} onKeyDown={onKeyDown}
+          placeholder="Buscar matérias, aulas, pessoas, prazos…" aria-label="Buscar" autoComplete="off" autoCorrect="off" autoCapitalize="off" spellCheck={false} enterKeyHint="search"
+          role="combobox" aria-expanded aria-controls="search-results" aria-activedescendant={current ? `sr-${active}` : undefined}
+          className="relative size-full bg-transparent outline-none placeholder:text-on-surface-variant/70" />
+      </div>
+      <AnimatePresence initial={false}>
+        {ghost && (
+          <m.button key="tab" onClick={() => { accept(); inputRef.current?.focus(); }} aria-label="Completar" initial={{ opacity: 0, scale: 0.8 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.8 }} transition={spring}
+            className="flex shrink-0 items-center gap-1 rounded-full bg-secondary-container px-2.5 py-1 text-xs font-medium text-on-secondary-container">
+            <Icon name="keyboard_tab" size={16} />{dock && 'Tab'}
+          </m.button>
+        )}
+        {query && (
+          <m.button key="clear" onClick={() => { setQuery(''); inputRef.current?.focus(); }} aria-label="Limpar" initial={{ opacity: 0, scale: 0.6, rotate: -90 }} animate={{ opacity: 1, scale: 1, rotate: 0 }} exit={{ opacity: 0, scale: 0.6 }} transition={spring}
+            className="state flex size-8 shrink-0 items-center justify-center rounded-full text-on-surface-variant"><Icon name="close" size={18} /></m.button>
+        )}
+      </AnimatePresence>
+      {dock && !query && <Kbd>esc</Kbd>}
+    </div>
+  );
 
-        {/* Filtros */}
-        <div className="no-scrollbar flex shrink-0 gap-1.5 overflow-x-auto border-b border-outline-variant/60 px-4 pb-3 md:px-5">
-          {SCOPES.map((s) => {
-            const on = scope === s.key;
-            const count = s.key === 'tudo' ? results.length : counts[s.key] ?? 0;
-            return (
-              <button key={s.key} onClick={() => { setScope(s.key); inputRef.current?.focus(); }}
-                className={cx('relative flex h-8 shrink-0 items-center gap-1.5 rounded-full px-3 text-sm font-medium transition-colors', on ? 'text-on-secondary-container' : 'text-on-surface-variant', q && !count && !on && 'opacity-40')}>
-                {on && <m.span layoutId="search-scope" transition={spring} className="absolute inset-0 rounded-full bg-secondary-container" />}
-                <span className="relative">{s.label}</span>
-                {q && count > 0 && <span className="relative text-xs tabular opacity-70">{count}</span>}
-              </button>
-            );
-          })}
+  // Filtros só aparecem quando há o que filtrar
+  const filters = q && results.length > 0 && (
+    <m.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} transition={{ duration: 0.2, ease: EMPHASIZED }} className="shrink-0 overflow-hidden">
+      <div className="no-scrollbar flex gap-1 overflow-x-auto px-3 pt-2">
+        {SCOPES.filter((s) => s.key === 'tudo' || counts[s.key] || scope === s.key).map((s) => {
+          const on = scope === s.key;
+          return (
+            <button key={s.key} onClick={() => { setScope(s.key); inputRef.current?.focus(); }}
+              className={cx('relative flex h-7 shrink-0 items-center gap-1.5 rounded-full px-2.5 text-[13px] font-medium transition-colors', on ? 'text-on-secondary-container' : 'text-on-surface-variant')}>
+              {on && <m.span layoutId="search-scope" transition={spring} className="absolute inset-0 rounded-full bg-secondary-container" />}
+              <span className="relative">{s.label}</span>
+              <span className="relative text-xs tabular opacity-70">{s.key === 'tudo' ? results.length : counts[s.key] ?? 0}</span>
+            </button>
+          );
+        })}
+      </div>
+    </m.div>
+  );
+
+  const list = (
+    <div ref={listRef} id="search-results" role="listbox" className={cx('overflow-y-auto overscroll-contain px-2 pt-1', dock ? 'max-h-[min(62vh,520px)] pb-2' : 'min-h-0 flex-1 pb-[max(1rem,env(safe-area-inset-bottom))]')}>
+      {!q && (
+        <div className="flex flex-wrap gap-1.5 px-2 pt-2 pb-1">
+          {suggestions.map((s, i) => (
+            <m.button key={s} onClick={() => { setQuery(s); inputRef.current?.focus(); }} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.04 + i * 0.03, duration: 0.25, ease: EMPHASIZED }}
+              className="state flex h-7 items-center gap-1 rounded-full border border-outline-variant px-2.5 text-[13px] text-on-surface-variant">
+              <Icon name="search" size={14} />{s}
+            </m.button>
+          ))}
         </div>
+      )}
 
-        <div className="flex min-h-0 flex-1">
-          {/* Resultados */}
-          <div ref={listRef} id="search-results" role="listbox" className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-2 pt-2 pb-[max(1rem,env(safe-area-inset-bottom))] md:px-3">
-            {!q && scope === 'tudo' && (
-              <div className="flex flex-wrap gap-1.5 px-2 pt-1 pb-2">
-                {suggestions.map((s, i) => (
-                  <m.button key={s} onClick={() => { setQuery(s); inputRef.current?.focus(); }} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 + i * 0.04, duration: 0.3, ease: EMPHASIZED }}
-                    className="state flex h-8 items-center gap-1.5 rounded-full border border-outline-variant px-3 text-sm text-on-surface-variant">
-                    <Icon name="search" size={16} />{s}
-                  </m.button>
-                ))}
-              </div>
-            )}
-
-            {flat.length === 0 ? (
-              <m.div key="empty" initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} transition={{ duration: 0.25, ease: EMPHASIZED }} className="flex flex-col items-center gap-2 px-6 py-14 text-center">
-                <m.span animate={{ rotate: [0, -12, 12, 0] }} transition={{ duration: 0.6, delay: 0.1 }} className="flex size-16 items-center justify-center rounded-full bg-surface-container-highest text-on-surface-variant"><Icon name="search_off" size={32} /></m.span>
-                <p className="mt-2 font-medium">Nada encontrado{q && <> para “{clip(q, 30)}”</>}</p>
-                <p className="text-sm text-on-surface-variant">{scope !== 'tudo' && q ? 'Tente buscar em Tudo.' : 'Tente o nome de uma matéria, um professor ou um conteúdo de aula.'}</p>
-              </m.div>
-            ) : sections.map((sec) => (
-              <div key={sec.label} className="mb-1">
-                <m.p layout="position" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="px-3 pt-3 pb-1 text-xs font-medium tracking-wide text-on-surface-variant uppercase">{sec.label}</m.p>
-                <AnimatePresence mode="popLayout" initial={false}>
-                  {sec.items.map((item) => {
-                    n += 1;
-                    const i = n;
-                    const on = i === active;
-                    return (
-                      <m.button key={item.id} id={`sr-${i}`} data-i={i} role="option" aria-selected={on} layout="position"
-                        initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, scale: 0.97 }}
-                        transition={{ duration: 0.22, ease: EMPHASIZED, delay: Math.min(i, 8) * 0.018 }}
-                        onClick={() => choose(item)} onMouseMove={() => active !== i && setActive(i)}
-                        className={cx('relative flex w-full items-center gap-3 rounded-2xl px-3 py-2 text-left', on && 'text-on-secondary-container')}>
-                        {on && <m.span layoutId="search-active" transition={{ type: 'spring', stiffness: 520, damping: 40 }} className="absolute inset-0 rounded-2xl bg-secondary-container" />}
-                        <ItemIcon item={item} />
-                        <span className="relative min-w-0 flex-1">
-                          <span className="block truncate font-medium"><Highlight text={item.title} query={q} /></span>
-                          {item.sub && <span className={cx('block truncate text-sm', on ? 'opacity-80' : 'text-on-surface-variant')}>{item.sub}</span>}
-                        </span>
-                        {item.meta && <span className={cx('relative shrink-0 text-xs font-medium tabular', item.metaTone ? META[item.metaTone] : on ? 'opacity-80' : 'text-on-surface-variant')}>{item.meta}</span>}
-                        <Icon name={item.href ? 'open_in_new' : 'keyboard_return'} size={18} className={cx('relative shrink-0 transition-opacity', on ? 'opacity-70' : 'opacity-0')} />
-                      </m.button>
-                    );
-                  })}
-                </AnimatePresence>
-              </div>
-            ))}
-          </div>
-
-          {/* Prévia do item selecionado (telas grandes) */}
-          <aside className="hidden w-72 shrink-0 overflow-y-auto border-l border-outline-variant/60 p-5 lg:block">
-            <AnimatePresence mode="wait" initial={false}>
-              {current && (
-                <m.div key={current.id} initial={{ opacity: 0, x: 12 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -8 }} transition={{ duration: 0.18, ease: EMPHASIZED }}>
-                  <ItemIcon item={current} size={56} />
-                  <p className="mt-3 text-lg leading-6 font-semibold">{current.title}</p>
-                  {current.sub && <p className="mt-1 text-sm text-on-surface-variant">{current.sub}</p>}
-                  {current.preview?.rows && (
-                    <dl className="mt-4 flex flex-col gap-2.5">
-                      {current.preview.rows.map((r, i) => (
-                        <div key={i} className="flex items-start gap-2.5 text-sm">
-                          <Icon name={r.icon} size={18} className="mt-0.5 shrink-0 text-on-surface-variant" />
-                          <div className="min-w-0"><dt className="text-xs text-on-surface-variant">{r.label}</dt><dd className="break-words">{r.value}</dd></div>
-                        </div>
-                      ))}
-                    </dl>
-                  )}
-                  {current.preview?.text && <p className="mt-4 line-clamp-[10] text-sm leading-6 text-on-surface-variant">{current.preview.text}</p>}
-                  <button onClick={() => choose(current)} className="state mt-5 flex h-10 w-full items-center justify-center gap-2 rounded-full bg-primary text-sm font-medium text-on-primary">
-                    <Icon name={current.href ? 'open_in_new' : 'arrow_forward'} size={18} />{current.href ? 'Abrir link' : current.run && current.group === 'acoes' ? 'Executar' : 'Abrir'}
-                  </button>
-                </m.div>
-              )}
-            </AnimatePresence>
-          </aside>
+      {flat.length === 0 ? (
+        <m.div key="empty" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.2 }} className="flex items-center gap-3 px-3 py-5 text-sm text-on-surface-variant">
+          <m.span animate={{ rotate: [0, -12, 12, 0] }} transition={{ duration: 0.5 }} className="inline-flex"><Icon name="search_off" size={22} /></m.span>
+          <span>Nada encontrado{q && <> para “{clip(q, 30)}”</>}. {scope !== 'tudo' ? 'Tente em Tudo.' : 'Tente uma matéria, um professor ou um conteúdo de aula.'}</span>
+        </m.div>
+      ) : sections.map((sec) => (
+        <div key={sec.label}>
+          <p className="px-3 pt-2.5 pb-1 text-[11px] font-medium tracking-wide text-on-surface-variant uppercase">{sec.label}</p>
+          <AnimatePresence mode="popLayout" initial={false}>
+            {sec.items.map((item) => {
+              n += 1;
+              const i = n;
+              const on = i === active;
+              return (
+                <m.button key={item.id} id={`sr-${i}`} data-i={i} role="option" aria-selected={on} layout="position"
+                  initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
+                  transition={{ duration: 0.2, ease: EMPHASIZED, delay: Math.min(i, 8) * 0.015 }}
+                  onClick={() => choose(item)} onMouseMove={() => active !== i && setActive(i)}
+                  className={cx('relative flex w-full items-center gap-3 rounded-2xl px-2.5 py-1.5 text-left', on && 'text-on-secondary-container')}>
+                  {on && <m.span layoutId="search-active" transition={{ type: 'spring', stiffness: 520, damping: 40 }} className="absolute inset-0 rounded-2xl bg-secondary-container" />}
+                  <ItemIcon item={item} size={36} />
+                  <span className="relative min-w-0 flex-1">
+                    <span className="block truncate text-[15px] font-medium"><Highlight text={item.title} query={q} /></span>
+                    {item.sub && <span className={cx('block truncate text-[13px]', on ? 'opacity-80' : 'text-on-surface-variant')}>{item.sub}</span>}
+                  </span>
+                  {item.meta && <span className={cx('relative shrink-0 text-xs font-medium tabular', item.metaTone ? META[item.metaTone] : on ? 'opacity-80' : 'text-on-surface-variant')}>{item.meta}</span>}
+                  <Icon name={item.href ? 'open_in_new' : 'keyboard_return'} size={16} className={cx('relative shrink-0 transition-opacity', on ? 'opacity-70' : 'opacity-0')} />
+                </m.button>
+              );
+            })}
+          </AnimatePresence>
         </div>
+      ))}
+    </div>
+  );
 
-        {/* Atalhos de teclado */}
-        <div className="hidden shrink-0 items-center gap-4 border-t border-outline-variant/60 px-5 py-2.5 text-xs text-on-surface-variant md:flex">
-          <span className="flex items-center gap-1.5"><Kbd>↑</Kbd><Kbd>↓</Kbd> navegar</span>
-          <span className="flex items-center gap-1.5"><Kbd>↵</Kbd> abrir</span>
-          <span className="flex items-center gap-1.5"><Kbd>Tab</Kbd> completar</span>
-          <span className="flex-1" />
-          <m.span key={flat.length} initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} className="tabular">{q ? `${results.length} ${results.length === 1 ? 'resultado' : 'resultados'}` : `${items.length} itens para buscar`}</m.span>
-        </div>
-      </m.div>
-    </div>,
-    document.body,
+  if (dock) {
+    return (
+      <>
+        {field}
+        <m.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.2, delay: 0.05 }} className="border-t border-outline-variant/50">
+          <AnimatePresence initial={false}>{filters}</AnimatePresence>
+          {list}
+        </m.div>
+      </>
+    );
+  }
+  return (
+    <>
+      {field}
+      {createPortal(
+        <m.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.22, ease: EMPHASIZED }}
+          className="fixed inset-x-0 top-16 bottom-0 z-40 flex flex-col bg-surface text-on-surface">
+          <AnimatePresence initial={false}>{filters}</AnimatePresence>
+          {list}
+        </m.div>,
+        document.body,
+      )}
+    </>
   );
 }
 
-/** Monta a busca global uma vez no app: atalhos de teclado, paleta e o detalhe de aula aberto por ela. */
+/** Monta uma vez no app: atalhos de teclado da busca e o detalhe de aula aberto por ela. */
 export function GlobalSearch() {
-  const open = useOpen();
-  const [lesson, setLesson] = useState<OpenLesson | null>(null);
+  const open = useSyncExternalStore((cb) => { lessonSubs.add(cb); return () => { lessonSubs.delete(cb); }; }, () => lesson);
 
   useEffect(() => {
     const onKey = (e: globalThis.KeyboardEvent) => {
@@ -536,13 +553,8 @@ export function GlobalSearch() {
   }, []);
 
   return (
-    <>
-      <AnimatePresence>
-        {open && <Palette key="palette" onClose={() => setOpen(false)} onLesson={setLesson} />}
-      </AnimatePresence>
-      <AnimatePresence>
-        {lesson && <LessonSheet key={lesson.aula.id} date={lesson.aula.data} only={lesson.aula} aulas={lesson.aulas} subjects={lesson.subjects} onClose={() => setLesson(null)} />}
-      </AnimatePresence>
-    </>
+    <AnimatePresence>
+      {open && <LessonSheet key={open.aula.id} date={open.aula.data} only={open.aula} aulas={open.aulas} subjects={open.subjects} onClose={() => setLesson(null)} />}
+    </AnimatePresence>
   );
 }
