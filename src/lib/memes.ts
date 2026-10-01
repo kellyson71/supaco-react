@@ -39,6 +39,19 @@ export function upcoming(subjects: Subject[], now: Date, holiday?: boolean, max 
   return out;
 }
 
+export type DayGroup = { date: string; when: string; targets: Target[] };
+
+/** Os próximos dias com aula (o primeiro só com o que ainda não começou), cada um com suas aulas. */
+export function dayGroups(subjects: Subject[], now: Date, holiday?: boolean, max = 6): DayGroup[] {
+  const groups: DayGroup[] = [];
+  for (const t of upcoming(subjects, now, holiday, 60)) {
+    const g = groups[groups.length - 1];
+    if (g && g.date === t.date) g.targets.push(t);
+    else if (groups.length < max) groups.push({ date: t.date, when: t.when, targets: [t] });
+  }
+  return groups;
+}
+
 /** As aulas que faltam no primeiro dia que ainda tem aula (hoje, ou o próximo dia letivo). */
 export function dayTargets(subjects: Subject[], now: Date, holiday?: boolean): Target[] {
   const all = upcoming(subjects, now, holiday, 12);
