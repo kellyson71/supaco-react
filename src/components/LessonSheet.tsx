@@ -9,6 +9,7 @@ import { isoDay, longDate, parseDay, time } from '../lib/dates';
 import { aulaMatchesSubject, cleanName, subjectTone, titleCase, type Aula, type Calendario, type Subject } from '../lib/suap';
 import { TONES } from '../lib/tones';
 import { Badge, cx, EMPHASIZED, Icon } from './ui';
+import { Link } from './Link';
 
 type Props = {
   date: string;
@@ -95,12 +96,12 @@ export function LessonSheet({ date, aulas, subjects, only, onClose }: Props) {
           <button ref={closeRef} onClick={onClose} aria-label="Fechar" className="state flex size-10 shrink-0 items-center justify-center rounded-full"><Icon name="close" /></button>
         </div>
 
-        <div className="flex flex-col gap-3 overflow-y-auto px-6 pb-[max(1.5rem,env(safe-area-inset-bottom))]">
+        <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto overscroll-contain px-6 pb-[max(1.5rem,env(safe-area-inset-bottom))]">
           {events.map((e) => (
             <p key={e.id} className="flex items-center gap-2 rounded-xl bg-surface-container-highest px-3.5 py-2.5 text-sm"><Icon name="apartment" size={18} className="text-primary" />Evento no campus: <b className="font-semibold">{e.nome}</b></p>
           ))}
 
-          {dayAulas.map((a) => <LessonCard key={a.id} a={a} aulas={aulas} subjects={subjects} />)}
+          {dayAulas.map((a) => <LessonCard key={a.id} a={a} aulas={aulas} subjects={subjects} onOpenSubject={onClose} />)}
 
           {!dayAulas.length && (
             scheduled.length > 0 && past ? (
@@ -131,17 +132,16 @@ export function LessonSheet({ date, aulas, subjects, only, onClose }: Props) {
   );
 }
 
-function Row({ icon, label, children }: { icon: string; label: string; children: ReactNode }) {
+function Tile({ icon, label, wide, children }: { icon: string; label: string; wide?: boolean; children: ReactNode }) {
   return (
-    <div className="flex items-start gap-3 py-2">
-      <Icon name={icon} size={20} className="mt-0.5 shrink-0 text-on-surface-variant" />
-      <dt className="w-28 shrink-0 text-sm text-on-surface-variant">{label}</dt>
-      <dd className="min-w-0 flex-1 text-sm">{children}</dd>
+    <div className={cx('rounded-xl bg-surface-container px-3 py-2.5', wide && 'col-span-2')}>
+      <p className="flex items-center gap-1.5 text-xs text-on-surface-variant"><Icon name={icon} size={16} />{label}</p>
+      <p className="mt-1 text-sm leading-5">{children}</p>
     </div>
   );
 }
 
-function LessonCard({ a, aulas, subjects }: { a: Aula; aulas: Aula[]; subjects: Subject[] }) {
+function LessonCard({ a, aulas, subjects, onOpenSubject }: { a: Aula; aulas: Aula[]; subjects: Subject[]; onOpenSubject: () => void }) {
   const s = subjects.find((x) => aulaMatchesSubject(a, x));
   const { data: diario } = useAulasDiario(s?.code);
   const { data: turma } = useTurma(s?.code);
@@ -169,57 +169,61 @@ function LessonCard({ a, aulas, subjects }: { a: Aula; aulas: Aula[]; subjects: 
 
   return (
     <article className="overflow-hidden rounded-2xl bg-surface-container-highest">
-      <div className={cx('flex items-start gap-3 px-4 py-3', absent ? 'bg-error-container text-on-error-container' : cx(t.container, t.onContainer))}>
-        <div className="min-w-0 flex-1">
-          <p className="text-lg leading-6 font-semibold">{s?.name ?? cleanName(a.disciplina)}</p>
-          {s?.sigla && <p className="text-xs opacity-80">{s.sigla}</p>}
-        </div>
-        {absent
-          ? <Badge className="bg-white/50 !text-current dark:bg-black/25"><Icon name="cancel" size={14} fill />{plural(a.faltas, 'falta', 'faltas')}</Badge>
-          : <Badge className="bg-white/50 !text-current dark:bg-black/25"><Icon name="check_circle" size={14} fill />presente</Badge>}
-      </div>
+      {(() => {
+        const head = (
+          <div className={cx('flex items-center gap-3 px-4 py-3', absent ? 'bg-error-container text-on-error-container' : cx(t.container, t.onContainer))}>
+            <div className="min-w-0 flex-1">
+              <p className="text-lg leading-6 font-semibold">{s?.name ?? cleanName(a.disciplina)}</p>
+              {s?.sigla && <p className="text-xs opacity-80">{s.sigla}</p>}
+            </div>
+            {absent
+              ? <Badge className="bg-white/50 !text-current dark:bg-black/25"><Icon name="cancel" size={14} fill />{plural(a.faltas, 'falta', 'faltas')}</Badge>
+              : <Badge className="bg-white/50 !text-current dark:bg-black/25"><Icon name="check_circle" size={14} fill />presente</Badge>}
+            {s && <Icon name="chevron_right" size={22} className="opacity-70" />}
+          </div>
+        );
+        // Clicar na matéria abre a página dela (e fecha a folha)
+        return s ? <div onClick={onOpenSubject}><Link to={`/disciplinas/${s.code}`} label={`Abrir ${s.name}`} className="state block">{head}</Link></div> : head;
+      })()}
 
       <div className="px-4 pt-3">
         <p className="text-xs font-medium tracking-wide text-on-surface-variant uppercase">Conteúdo</p>
         <p className="mt-1 text-[15px] leading-6 whitespace-pre-line">{a.conteudo?.trim() || 'Sem conteúdo informado pelo professor.'}</p>
       </div>
 
-      <dl className="divide-y divide-outline-variant/50 px-4 py-1">
-        {teacher && <Row icon="person" label="Professor">{titleCase(teacher)}</Row>}
-        <Row icon="schedule" label="Horário">
-          {slots.length ? slots.map((sl) => `${sl.start} – ${sl.end}`).join(' · ') : 'Fora do horário fixo (reposição ou ajuste)'}
-          <span className="text-on-surface-variant"> · {plural(a.qtd_aulas, 'aula', 'aulas')} de 45 min</span>
-        </Row>
-        {(slots[0]?.room || s?.rooms[0]) && <Row icon="location_on" label="Local">{slots[0]?.room || s?.rooms.join(' · ')}</Row>}
-        <Row icon="flag" label="Etapa">{a.etapa || '—'}{sameEtapa.length > 0 && <span className="text-on-surface-variant"> · {plural(sameEtapa.length, 'aula lançada', 'aulas lançadas')} nela</span>}</Row>
+      <div className="grid grid-cols-2 gap-2 p-4">
+        {teacher && <Tile icon="person" label="Professor" wide>{titleCase(teacher)}</Tile>}
+        <Tile icon="schedule" label="Horário">
+          {slots.length ? slots.map((sl) => `${sl.start} – ${sl.end}`).join(' · ') : 'Fora do horário fixo'}
+          <span className="block text-xs text-on-surface-variant">{plural(a.qtd_aulas, 'aula', 'aulas')} de 45 min</span>
+        </Tile>
+        {(slots[0]?.room || s?.rooms[0]) ? <Tile icon="location_on" label="Local">{slots[0]?.room || s?.rooms.join(' · ')}</Tile> : null}
+        <Tile icon="flag" label="Etapa">
+          {a.etapa || '—'}
+          {sameEtapa.length > 0 && <span className="block text-xs text-on-surface-variant">{plural(sameEtapa.length, 'aula lançada', 'aulas lançadas')}</span>}
+        </Tile>
         {idx >= 0 && (
-          <Row icon="format_list_numbered" label="Posição">
-            {a.qtd_aulas > 1 ? `Aulas ${firstNo} a ${lastNo}` : `Aula ${firstNo}`} da matéria no semestre
-            {s && <span className="text-on-surface-variant"> · carga horária de {s.workload} aulas</span>}
-          </Row>
+          <Tile icon="format_list_numbered" label="Posição">
+            {a.qtd_aulas > 1 ? `Aulas ${firstNo} a ${lastNo}` : `Aula ${firstNo}`}
+            {s && <span className="block text-xs text-on-surface-variant">de {s.workload} no semestre</span>}
+          </Tile>
         )}
         {idx >= 0 && (
-          <Row icon="how_to_reg" label="Até este dia">
+          <Tile icon="how_to_reg" label="Até este dia">
             {plural(totalFaltas, 'falta', 'faltas')} em {plural(totalAulas, 'aula', 'aulas')}
-            <span className="text-on-surface-variant"> · {Math.round(((totalAulas - totalFaltas) / Math.max(totalAulas, 1)) * 100)}% de presença</span>
-          </Row>
+            <span className="block text-xs text-on-surface-variant">{Math.round(((totalAulas - totalFaltas) / Math.max(totalAulas, 1)) * 100)}% de presença</span>
+          </Tile>
         )}
         {s && (
-          <Row icon="monitoring" label="Hoje na matéria">
+          <Tile icon="monitoring" label="Hoje na matéria" wide>
             {s.absences} de {s.limit} {s.limit === 1 ? 'falta permitida' : 'faltas permitidas'}
-            <span className="text-on-surface-variant"> · frequência {Math.round(s.attendance)}% · {s.workloadDone} de {s.workload} aulas dadas</span>
-          </Row>
+            <span className="block text-xs text-on-surface-variant">frequência {Math.round(s.attendance)}% · {s.workloadDone} de {s.workload} aulas dadas</span>
+          </Tile>
         )}
-        {check?.registeredAt && (
-          <Row icon="fact_check" label="Registro">
-            Aula vista no SUAP às {hhmm(check.registeredAt)}{check.absentAt ? `, falta vista às ${hhmm(check.absentAt)}` : ''}
-          </Row>
-        )}
-        <Row icon="tag" label="ID no SUAP"><span className="tabular">{a.id}</span></Row>
-      </dl>
+      </div>
 
       {materiais.length > 0 && (
-        <div className="px-4 pb-3">
+        <div className="px-4 pb-4">
           <p className="mb-1.5 text-xs font-medium tracking-wide text-on-surface-variant uppercase">Materiais deste dia</p>
           <ul className="flex flex-col gap-1.5">
             {materiais.map((x) => (
@@ -229,10 +233,9 @@ function LessonCard({ a, aulas, subjects }: { a: Aula; aulas: Aula[]; subjects: 
         </div>
       )}
 
-      <details className="border-t border-outline-variant/50 px-4 py-2.5 text-xs text-on-surface-variant">
-        <summary className="cursor-pointer select-none">Dados brutos do SUAP</summary>
-        <pre className="mt-2 overflow-x-auto rounded-lg bg-surface-container p-3 text-[11px] leading-5 text-on-surface">{JSON.stringify({ ...a, ...(diaryEntry ? { diario: diaryEntry } : {}) }, null, 2)}</pre>
-      </details>
+      <p className="border-t border-outline-variant/50 px-4 py-2.5 text-xs text-on-surface-variant">
+        {check?.registeredAt ? `Aula vista no SUAP às ${hhmm(check.registeredAt)}${check.absentAt ? `, falta às ${hhmm(check.absentAt)}` : ''} · ` : ''}ID no SUAP <span className="tabular">{a.id}</span>
+      </p>
     </article>
   );
 }

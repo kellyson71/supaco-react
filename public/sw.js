@@ -1,5 +1,5 @@
 // Service worker enxuto: o app abre offline, e os dados vêm do cache local do próprio app.
-const CACHE = 'supaco-v5';
+const CACHE = 'supaco-v6';
 const FONT_HOSTS = ['fonts.googleapis.com', 'fonts.gstatic.com'];
 
 self.addEventListener('install', () => self.skipWaiting());
@@ -45,7 +45,8 @@ self.addEventListener('fetch', (event) => {
   // Assets com hash no nome são imutáveis: cache primeiro
   event.respondWith(
     caches.match(request).then((hit) => hit || fetch(request).then((res) => {
-      if (res.ok) {
+      // Só guarda o que de fato é asset: um fallback em HTML (chunk que sumiu num deploy) não pode ficar no cache
+      if (res.ok && !(res.headers.get('content-type') || '').includes('text/html')) {
         const copy = res.clone();
         caches.open(CACHE).then((c) => c.put(request, copy));
       }
