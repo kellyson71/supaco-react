@@ -1,8 +1,8 @@
-import { StrictMode } from 'react';
+import { StrictMode, type ReactNode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { LazyMotion, MotionConfig } from 'motion/react';
 import App from './App';
-import { applyTheme } from './lib/theme';
+import { applyTheme, useThemeState } from './lib/theme';
 import './index.css';
 
 // Limpa chaves do app antigo (tokens, caches criptografados, configurações de wallpaper etc.)
@@ -39,12 +39,16 @@ window.addEventListener('load', () => setTimeout(() => { try { sessionStorage.re
 
 applyTheme();
 
+/** Animações do motion seguem o sistema, ou ficam reduzidas se a pessoa pedir no app. */
+function Motion({ children }: { children: ReactNode }) {
+  const { prefs } = useThemeState();
+  return <MotionConfig reducedMotion={prefs.reduceMotion ? 'always' : 'user'}>{children}</MotionConfig>;
+}
+
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <LazyMotion features={() => import('./motion-features').then((r) => r.default)} strict>
-      <MotionConfig reducedMotion="user">
-        <App />
-      </MotionConfig>
+      <Motion><App /></Motion>
     </LazyMotion>
   </StrictMode>,
 );

@@ -47,7 +47,7 @@ export function PersonSheet({ p, role, photo, onClose }: { p: Pessoa; role: Role
       <m.div
         initial={{ opacity: 0, y: 48, scale: 0.96 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 32, scale: 0.98 }}
         transition={{ duration: 0.4, ease: EMPHASIZED }}
-        className="relative w-full overflow-hidden rounded-t-[28px] bg-surface-container-high pb-[max(1.5rem,env(safe-area-inset-bottom))] text-on-surface sm:max-w-sm sm:rounded-[28px] sm:pb-6">
+        className="relative w-full overflow-hidden rounded-t-xl bg-surface-container-high pb-[max(1.5rem,env(safe-area-inset-bottom))] text-on-surface sm:max-w-sm sm:rounded-xl sm:pb-6">
         <div className="mx-auto mt-3 h-1 w-8 rounded-full bg-outline-variant sm:hidden" aria-hidden />
         <div className={cx('relative flex h-28 items-end justify-center', role === 'teacher' ? 'bg-secondary-container' : 'bg-primary-container')}>
           <div className="absolute top-2 right-2">

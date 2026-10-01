@@ -8,7 +8,7 @@ import { SUAP_URL } from '../lib/suap';
 import { classroom, connectClassroom } from '../lib/classroom';
 import { session } from '../lib/api';
 import { clearCache, refreshAll } from '../lib/store';
-import { SEEDS, setMode, setSeed, useThemeState, type Mode } from '../lib/theme';
+import { DEFAULT_PREFS, resetTheme, SEEDS, seedHex, setMode, setPref, setSeed, STYLES, swatch, useThemeState, type Mode, type Prefs } from '../lib/theme';
 import { shareSite, SITE_URL, useInstall } from '../lib/hooks';
 import { Badge, Button, Card, CountUp, cx, Icon, Item, Ring, SectionHeader, Segmented, Shape, Skeleton, spring, Stagger, Switch, Tap, WavyProgress } from '../components/ui';
 import { Avatar } from '../components/Avatar';
@@ -131,30 +131,133 @@ function Row({ icon, label, sub, right, to, href, onClick, danger }: { icon: str
   );
 }
 
+/** Miniatura de uma combinação de cores: primária em cima, secundária e terciária embaixo. */
+function Swatch({ colors, size = 56 }: { colors: { primary: string; secondary: string; tertiary: string }; size?: number }) {
+  return (
+    <span className="relative block overflow-hidden rounded-full" style={{ width: size, height: size, background: colors.primary }}>
+      <span className="absolute inset-x-0 bottom-0 flex h-1/2">
+        <span className="flex-1" style={{ background: colors.secondary }} />
+        <span className="flex-1" style={{ background: colors.tertiary }} />
+      </span>
+    </span>
+  );
+}
+
+function Setting({ label, hint, children }: { label: string; hint?: string; children: ReactNode }) {
+  return (
+    <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 py-3">
+      <div className="min-w-40 flex-1">
+        <p className="font-medium">{label}</p>
+        {hint && <p className="text-sm text-on-surface-variant">{hint}</p>}
+      </div>
+      {children}
+    </div>
+  );
+}
+
 function Appearance() {
-  const { mode, seed } = useThemeState();
+  const { mode, seed, dark, prefs } = useThemeState();
+  const custom = seed.startsWith('#');
+  const seeds = useMemo(() => SEEDS.map((s) => ({ ...s, colors: swatch(s.id, dark, prefs.style) })), [dark, prefs.style]);
+  const styles = useMemo(() => STYLES.map((st) => ({ ...st, colors: swatch(seed, dark, st.id) })), [seed, dark]);
+  const changed = seed !== SEEDS[0].id || (Object.keys(DEFAULT_PREFS) as (keyof Prefs)[]).some((k) => prefs[k] !== DEFAULT_PREFS[k]);
+
   return (
     <>
-      <SectionHeader title="Aparência" icon="palette" />
+      <SectionHeader title="Aparência" icon="palette"
+        action={changed && <Button variant="text" size="sm" icon="refresh" onClick={resetTheme}>Restaurar padrão</Button>} />
       <Card variant="filled" className="rounded-2xl p-5">
+        {/* Prévia: uma amostra do app com o tema atual */}
+        <div className="mb-5 grid grid-cols-[1.3fr_1fr] gap-2 overflow-hidden rounded-2xl bg-surface p-3">
+          <div className="flex flex-col justify-between gap-3 rounded-xl bg-primary-container p-3 text-on-primary-container">
+            <span className="w-fit rounded-full bg-white/50 px-2 py-0.5 text-[11px] font-medium dark:bg-black/25">Aula agora</span>
+            <p className="text-lg leading-6 font-semibold">Assim fica o seu Supaco</p>
+            <div className="flex gap-1.5">
+              <span className="rounded-full bg-primary px-3 py-1 text-xs font-medium text-on-primary">Botão</span>
+              <span className="rounded-full bg-secondary-container px-3 py-1 text-xs font-medium text-on-secondary-container">Filtro</span>
+            </div>
+          </div>
+          <div className="flex flex-col gap-2">
+            <div className="flex flex-1 items-center gap-1.5 rounded-xl bg-surface-container px-3">
+              {(['teal', 'pink', 'yellow', 'lilac', 'orange', 'sky'] as const).map((t) => <span key={t} className="size-3.5 rounded-full" style={{ background: `var(--c-${t})` }} />)}
+            </div>
+            <div className="flex flex-1 items-center gap-2 rounded-xl bg-tertiary-container px-3 text-xs font-medium text-on-tertiary-container"><Icon name="auto_awesome" size={16} fill />Destaque</div>
+            <div className="flex flex-1 items-center gap-2 rounded-xl bg-surface-container-high px-3 text-xs text-on-surface-variant"><span className="size-2 rounded-full bg-success" />presente<span className="size-2 rounded-full bg-error" />falta</div>
+          </div>
+        </div>
+
         <p className="mb-2 text-sm font-medium text-on-surface-variant">Modo</p>
         <Segmented<Mode> value={mode} onChange={setMode} className="w-full"
           options={[{ value: 'light', label: 'Claro', icon: 'light_mode' }, { value: 'dark', label: 'Escuro', icon: 'dark_mode' }, { value: 'system', label: 'Sistema', icon: 'brightness_auto' }]} />
+
         <p className="mt-5 mb-3 text-sm font-medium text-on-surface-variant">Cor do tema</p>
-        <div className="flex flex-wrap gap-3">
-          {SEEDS.map((s) => (
-            <button key={s.id} onClick={() => setSeed(s.id)} aria-label={s.label} title={s.label} aria-pressed={seed === s.id}
-              className="flex flex-col items-center gap-1.5">
-              <span className="relative flex size-14 items-center justify-center rounded-full" style={{ background: s.hex }}>
+        <div className="grid grid-cols-[repeat(auto-fill,minmax(64px,1fr))] gap-x-2 gap-y-3">
+          {seeds.map((s) => (
+            <button key={s.id} onClick={() => setSeed(s.id)} aria-label={s.label} title={s.label} aria-pressed={seed === s.id} className="flex flex-col items-center gap-1.5">
+              <m.span whileTap={{ scale: 0.9 }} transition={spring} className={cx('relative flex items-center justify-center rounded-full p-1 ring-2 transition-shadow', seed === s.id ? 'ring-primary' : 'ring-transparent')}>
+                <Swatch colors={s.colors} size={48} />
                 {seed === s.id && (
-                  <m.span layoutId="seed-check" transition={spring} className="flex size-7 items-center justify-center rounded-full bg-white text-black">
-                    <Icon name="check" size={18} weight={700} />
+                  <m.span layoutId="seed-check" transition={spring} className="absolute flex size-6 items-center justify-center rounded-full bg-white text-black shadow">
+                    <Icon name="check" size={16} weight={700} />
                   </m.span>
                 )}
-              </span>
+              </m.span>
               <span className="text-xs text-on-surface-variant">{s.label}</span>
             </button>
           ))}
+          {/* Qualquer cor: o seletor nativo fica invisível por cima da amostra */}
+          <label className="relative flex cursor-pointer flex-col items-center gap-1.5" title="Escolher outra cor">
+            <span className={cx('relative flex items-center justify-center rounded-full p-1 ring-2', custom ? 'ring-primary' : 'ring-transparent')}>
+              <span className="block size-12 rounded-full" style={{ background: custom ? seed : 'conic-gradient(#e64545, #e6c145, #4bc24b, #45bfe6, #6a5ae6, #e645b6, #e64545)' }} />
+              <span className="absolute flex size-6 items-center justify-center rounded-full bg-white text-black shadow"><Icon name={custom ? 'check' : 'palette'} size={16} weight={700} /></span>
+            </span>
+            <span className="text-xs text-on-surface-variant">Sua cor</span>
+            <input type="color" value={seedHex(seed)} onChange={(e) => setSeed(e.target.value)} aria-label="Escolher outra cor" className="absolute inset-0 size-full cursor-pointer opacity-0" />
+          </label>
+        </div>
+
+        <p className="mt-5 mb-2 text-sm font-medium text-on-surface-variant">Estilo da paleta</p>
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-3">
+          {styles.map((st) => {
+            const on = prefs.style === st.id;
+            return (
+              <button key={st.id} onClick={() => setPref('style', st.id)} aria-pressed={on}
+                className={cx('state relative flex items-center gap-3 rounded-xl border px-3 py-2.5 text-left', on ? 'border-transparent text-on-secondary-container' : 'border-outline-variant')}>
+                {on && <m.span layoutId="style-on" transition={spring} className="absolute inset-0 -z-10 rounded-xl bg-secondary-container" />}
+                <Swatch colors={st.colors} size={36} />
+                <span className="min-w-0 flex-1">
+                  <span className="block text-sm font-medium">{st.label}</span>
+                  <span className={cx('block truncate text-xs', on ? 'opacity-80' : 'text-on-surface-variant')}>{st.hint}</span>
+                </span>
+                {on && <Icon name="check" size={18} />}
+              </button>
+            );
+          })}
+        </div>
+
+        <div className="mt-4 divide-y divide-outline-variant/60">
+          <Setting label="Contraste" hint="Mais diferença entre texto e fundo">
+            <Segmented value={String(prefs.contrast) as '0' | '1' | '2'} onChange={(v) => setPref('contrast', Number(v) as Prefs['contrast'])}
+              options={[{ value: '0', label: 'Padrão' }, { value: '1', label: 'Médio' }, { value: '2', label: 'Alto' }]} />
+          </Setting>
+          <Setting label="Cantos" hint="Formato de cartões e blocos">
+            <Segmented<Prefs['shape']> value={prefs.shape} onChange={(v) => setPref('shape', v)}
+              options={[{ value: 'round', label: 'Redondos' }, { value: 'soft', label: 'Suaves' }, { value: 'sharp', label: 'Retos' }]} />
+          </Setting>
+          <Setting label="Tamanho do texto" hint="Aumenta ou diminui tudo junto">
+            <Segmented<Prefs['text']> value={prefs.text} onChange={(v) => setPref('text', v)}
+              options={[{ value: 'sm', label: 'Menor' }, { value: 'md', label: 'Padrão' }, { value: 'lg', label: 'Maior' }]} />
+          </Setting>
+          <Setting label="Cores das matérias" hint="O quanto cada matéria se destaca">
+            <Segmented<Prefs['subjects']> value={prefs.subjects} onChange={(v) => setPref('subjects', v)}
+              options={[{ value: 'soft', label: 'Suaves' }, { value: 'normal', label: 'Padrão' }, { value: 'vivid', label: 'Vivas' }]} />
+          </Setting>
+          <Setting label="Preto puro" hint={dark ? 'Fundo totalmente preto, bom para telas OLED' : 'Vale para o modo escuro'}>
+            <Switch on={prefs.amoled} onChange={(v) => setPref('amoled', v)} label="Preto puro no modo escuro" />
+          </Setting>
+          <Setting label="Reduzir animações" hint="Desliga transições e movimentos">
+            <Switch on={prefs.reduceMotion} onChange={(v) => setPref('reduceMotion', v)} label="Reduzir animações" />
+          </Setting>
         </div>
       </Card>
     </>

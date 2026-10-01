@@ -83,7 +83,7 @@ export function SearchBar() {
   return (
     <div ref={root} className="relative h-14 w-full max-w-3xl">
       <m.div initial={false} animate={{ height: shown ? 'auto' : 56 }} transition={{ type: 'spring', stiffness: 420, damping: 38 }}
-        className={cx('absolute inset-x-0 top-0 overflow-hidden rounded-[28px] bg-surface-container-high transition-shadow duration-200', shown && 'shadow-[0_8px_28px_rgb(0_0_0/0.22)] ring-1 ring-outline-variant/50')}>
+        className={cx('absolute inset-x-0 top-0 overflow-hidden rounded-xl bg-surface-container-high transition-shadow duration-200', shown && 'shadow-[0_8px_28px_rgb(0_0_0/0.22)] ring-1 ring-outline-variant/50')}>
         {shown ? <SearchPanel variant="dock" /> : (
           <button onClick={openSearch} aria-label="Buscar" className="state flex h-14 w-full items-center gap-3 pr-4 pl-5 text-left text-on-surface-variant">
             <Icon name="search" size={24} className="text-on-surface" />

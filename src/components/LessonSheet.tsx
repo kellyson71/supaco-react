@@ -78,7 +78,7 @@ export function LessonSheet({ date, aulas, subjects, only, onClose }: Props) {
       <m.div className="absolute inset-0 bg-black/50" onClick={onClose} initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.25 }} />
       <m.div
         initial={{ opacity: 0, y: 48, scale: 0.96 }} animate={{ opacity: 1, y: 0, scale: 1 }} transition={{ duration: 0.4, ease: EMPHASIZED }}
-        className="relative flex max-h-[92dvh] w-full flex-col overflow-hidden rounded-t-[28px] bg-surface-container-high text-on-surface sm:max-w-lg sm:rounded-[28px]">
+        className="relative flex max-h-[92dvh] w-full flex-col overflow-hidden rounded-t-xl bg-surface-container-high text-on-surface sm:max-w-lg sm:rounded-xl">
         <div className="mx-auto mt-3 h-1 w-8 shrink-0 rounded-full bg-outline-variant sm:hidden" aria-hidden />
         <div className="flex items-start gap-3 px-6 pt-4 pb-3">
           <div className="min-w-0 flex-1">
