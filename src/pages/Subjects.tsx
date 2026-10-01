@@ -1,10 +1,12 @@
 import { useMemo, useState } from 'react';
-import { useAulas, useDisciplinas, usePeriod } from '../lib/data';
-import { absenceLevel, currentAverage, gradeTone, outlook, type GradeOutlook } from '../lib/grades';
-import { aulaMatchesSubject, subjectTone, type Aula, type Subject } from '../lib/suap';
+import { AnimatePresence, m } from 'motion/react';
+import { useAulas, useDisciplinas, useParciais, usePeriod } from '../lib/data';
+import { WEEKDAYS_SHORT } from '../lib/schedule';
+import { absenceLevel, currentAverage, gradeTone, outlook, stageProgress, type GradeOutlook } from '../lib/grades';
+import { aulaMatchesSubject, subjectTone, type Aula, type Parcial, type Subject } from '../lib/suap';
 import { parseDay, relativeDay } from '../lib/dates';
 import { TONES } from '../lib/tones';
-import { AbsenceMeter, Card, levelColor, Chip, cx, Empty, ErrorNote, Icon, Item, Ring, Segmented, Skeleton, Stagger, Tap, TopTitle } from '../components/ui';
+import { AbsenceMeter, Card, levelColor, Chip, cx, EMPHASIZED, Empty, ErrorNote, Icon, Item, Ring, Segmented, Skeleton, Stagger, Tap, TopTitle } from '../components/ui';
 import { PeriodSelect } from '../components/PeriodSelect';
 
 type Sort = 'nome' | 'faltas' | 'media';
@@ -16,6 +18,7 @@ export function Subjects() {
   const { period } = usePeriod();
   const { data, error, loading, refresh } = useDisciplinas(period);
   const { data: aulas } = useAulas(period);
+  const { data: parciais } = useParciais(period);
   const [sort, setSort] = useState<Sort>('nome');
   const [filter, setFilter] = useState<Filter>('todas');
 
@@ -59,7 +62,7 @@ export function Subjects() {
 
       {list.length > 0 && (
         <Stagger key={sort + filter + (period?.label ?? '')} className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
-          {list.map((s) => <Item key={s.code}><SubjectCard s={s} last={aulas?.find((a) => aulaMatchesSubject(a, s))} /></Item>)}
+          {list.map((s) => <Item key={s.code}><SubjectCard s={s} last={aulas?.find((a) => aulaMatchesSubject(a, s))} parciais={parciais?.[s.code]} /></Item>)}
         </Stagger>
       )}
     </>
@@ -79,18 +82,28 @@ export function outlookLabel(o: GradeOutlook): { text: string; tone: string; ico
   }
 }
 
-function SubjectCard({ s, last }: { s: Subject; last?: Aula }) {
+function SubjectCard({ s, last, parciais }: { s: Subject; last?: Aula; parciais?: Parcial[] }) {
+  const [open, setOpen] = useState(false);
   const lastDay = parseDay(last?.data);
   const t = TONES[subjectTone(s)];
   const lvl = absenceLevel(s);
   const o = outlook(s);
-  const label = outlookLabel(o);
-  const avg = currentAverage(s);
+  const stage = stageProgress(parciais);
   const official = (s.finalAverage ?? s.average) !== null;
+  const closed = currentAverage(s);
+  // Sem etapa fechada, a média das avaliações já lançadas dá a noção
+  const avg = closed ?? stage?.avg ?? null;
+  const partialOnly = closed === null && avg !== null;
+  const label = partialOnly
+    ? { text: stage?.needed != null ? `Parcial · precisa de ${stage.needed} na ${stage.next}` : 'Média parcial', tone: stage?.needed != null && stage.needed > 75 ? 'text-warning' : 'text-on-surface-variant', icon: 'target' }
+    : outlookLabel(o);
   const left = s.limit - s.absences;
+  const stages = [...new Set((parciais ?? []).map((x) => x.etapa))].sort((a, b) => a - b);
+  const slots = s.slots.map((sl) => `${WEEKDAYS_SHORT[sl.day]} ${sl.start}–${sl.end}`).join(' · ');
 
   return (
-    <Tap to={`/disciplinas/${s.code}`} className="flex h-full flex-col gap-4 rounded-2xl bg-surface-container p-4">
+    <div className="flex h-full flex-col rounded-2xl bg-surface-container">
+    <Tap to={`/disciplinas/${s.code}`} className="flex flex-1 flex-col gap-4 rounded-2xl p-4">
       <div className="flex items-start gap-3">
         <span className={cx('flex size-10 shrink-0 items-center justify-center rounded-full text-sm font-semibold', t.container, t.onContainer)}>
           {s.name.split(' ').filter((w) => w.length > 2).slice(0, 2).map((w) => w[0]).join('').toUpperCase() || s.name[0]}
@@ -101,7 +114,10 @@ function SubjectCard({ s, last }: { s: Subject; last?: Aula }) {
         </div>
         {avg !== null ? (
           <Ring value={avg / 100} size={52} stroke={5} color={t.varColor} track={t.varContainer}>
-            <span className={cx('text-base font-semibold tabular', gradeTone(avg))}>{Math.round(avg)}</span>
+            <span className="flex flex-col items-center leading-none">
+              <span className={cx('text-base font-semibold tabular', gradeTone(avg))}>{Math.round(avg)}</span>
+              {partialOnly && <span className="mt-0.5 text-[8px] font-medium tracking-wide text-on-surface-variant uppercase">parcial</span>}
+            </span>
           </Ring>
         ) : (
           // Sem nota ainda: o anel mostra as faltas que sobram, para o card não ficar vazio
@@ -123,12 +139,16 @@ function SubjectCard({ s, last }: { s: Subject; last?: Aula }) {
         </div>
       )}
       <div className="flex gap-1.5">
-        {s.grades.map((g, i) => (
-          <div key={i} className={cx('flex-1 rounded-md py-1.5 text-center', g === null ? 'border border-dashed border-outline-variant' : 'bg-surface-container-highest')}>
-            <p className="text-[10px] font-medium text-on-surface-variant">N{i + 1}</p>
-            <p className={cx('text-sm font-semibold tabular', gradeTone(g))}>{g ?? '–'}</p>
-          </div>
-        ))}
+        {s.grades.map((g, i) => {
+          // Etapa ainda aberta: mostra a média das avaliações já lançadas nela
+          const part = g === null && stage?.etapa === i + 1 ? stage.avg : null;
+          return (
+            <div key={i} className={cx('flex-1 rounded-md py-1.5 text-center', g === null ? 'border border-dashed border-outline-variant' : 'bg-surface-container-highest')}>
+              <p className="text-[10px] font-medium text-on-surface-variant">N{i + 1}{part !== null && ` · ${stage!.done}/${stage!.total}`}</p>
+              <p className={cx('text-sm font-semibold tabular', gradeTone(g ?? part), part !== null && 'opacity-75')}>{g ?? (part !== null ? `~${Math.round(part)}` : '–')}</p>
+            </div>
+          );
+        })}
         {s.finalExam !== null && (
           <div className="flex-1 rounded-md bg-warning-container py-1.5 text-center text-on-warning-container">
             <p className="text-[10px] font-medium">Final</p>
@@ -139,5 +159,45 @@ function SubjectCard({ s, last }: { s: Subject; last?: Aula }) {
       <div className="mt-auto"><AbsenceMeter used={s.absences} limit={s.limit} level={lvl} /></div>
       {!official && avg !== null && <span className="sr-only">Média parcial</span>}
     </Tap>
+
+      {/* Detalhes sem sair da lista: notas de cada avaliação, horário e carga horária */}
+      <button onClick={() => setOpen(!open)} aria-expanded={open} className="state flex items-center gap-2 rounded-b-2xl border-t border-outline-variant/50 px-4 py-2.5 text-left text-sm font-medium text-on-surface-variant">
+        <Icon name="grade" size={18} />
+        <span className="flex-1">{stages.length ? 'Notas parciais e detalhes' : 'Detalhes'}</span>
+        <m.span animate={{ rotate: open ? 180 : 0 }} className="inline-flex"><Icon name="expand_more" size={20} /></m.span>
+      </button>
+      <AnimatePresence initial={false}>
+        {open && (
+          <m.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.3, ease: EMPHASIZED }} className="overflow-hidden">
+            <div className="flex flex-col gap-3 px-4 pb-4 text-sm">
+              {stages.map((n) => {
+                const items = parciais!.filter((x) => x.etapa === n);
+                return (
+                  <div key={n}>
+                    <p className="mb-1 text-xs font-medium text-on-surface-variant">{n}ª etapa</p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {items.map((x, i) => (
+                        <span key={i} title={x.tipo} className={cx('flex items-center gap-1.5 rounded-md px-2 py-1', x.nota === null ? 'border border-dashed border-outline-variant' : 'bg-surface-container-highest')}>
+                          <span className="text-xs text-on-surface-variant">{x.sigla}</span>
+                          <span className={cx('font-semibold tabular', gradeTone(x.nota))}>{x.nota ?? '–'}</span>
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })}
+              {!stages.length && <p className="text-on-surface-variant">Nenhuma avaliação detalhada no SUAP ainda.</p>}
+              <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-on-surface-variant">
+                {slots && <><dt>Horário</dt><dd className="text-on-surface">{slots}</dd></>}
+                {s.rooms[0] && <><dt>Sala</dt><dd className="text-on-surface">{s.rooms[0]}</dd></>}
+                <dt>Aulas</dt><dd className="text-on-surface tabular">{s.workloadDone} de {s.workload} dadas · frequência {Math.round(s.attendance)}%</dd>
+                <dt>Faltas</dt><dd className="text-on-surface tabular">{s.absences} de {s.limit} · {left >= 0 ? `sobram ${left}` : `${-left} além do limite`}</dd>
+                {s.status && <><dt>Situação</dt><dd className="text-on-surface">{s.status}</dd></>}
+              </dl>
+            </div>
+          </m.div>
+        )}
+      </AnimatePresence>
+    </div>
   );
 }

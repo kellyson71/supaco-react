@@ -32,6 +32,8 @@ export function Diagnostics() {
       `/api/ensino/minhas-turmas-virtuais/${p.ano}/${p.periodo}/`,
       `/api/ensino/frequencia-periodo-letivo/${p.ano}/${p.periodo}/`,
       `/api/ensino/meu-calendario-academico/${p.ano}/${p.periodo}/`,
+      `/api/ensino/disciplinas/${p.ano}.${p.periodo}/`,
+      `/api/ensino/disciplinas/${p.ano}${p.periodo}/`,
     ] : []),
     `/api/ensino/minhas-aulas/${now.getFullYear()}/${now.getMonth() + 1}/`,
     '/api/ensino/minhas-proximas-avaliacoes/',

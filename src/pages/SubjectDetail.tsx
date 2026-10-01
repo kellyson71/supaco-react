@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { useAulas, useDisciplinas, usePeriod } from '../lib/data';
+import { useAulas, useDisciplinas, useParciais, usePeriod } from '../lib/data';
 import { absenceLevel, currentAverage, FINAL_MIN, gradeTone, neededFinal, outlook, PASS, weightsFor, type GradeOutlook } from '../lib/grades';
 import { WEEKDAYS } from '../lib/schedule';
 import { back } from '../lib/router';
@@ -77,6 +77,7 @@ function Detail({ s }: { s: Subject }) {
 
       <Item className="xl:col-span-7"><Grades s={s} /></Item>
       <Item className="xl:col-span-5"><Absences s={s} /></Item>
+      <Partials s={s} />
       <Item className="xl:col-span-12"><Turma code={s.code} /></Item>
       <Item className="xl:col-span-12"><History s={s} /></Item>
     </Stagger>
@@ -204,6 +205,50 @@ function Absences({ s }: { s: Subject }) {
       )}
       <p className="mt-4 text-xs text-on-surface-variant">Frequência {Math.round(s.attendance)}% · {s.workloadDone} de {s.workload} aulas dadas</p>
     </Card>
+  );
+}
+
+/** Notas de cada avaliação por etapa (A1, A2...), que o boletim só soma quando a etapa fecha. */
+function Partials({ s }: { s: Subject }) {
+  const { period } = usePeriod();
+  const { data } = useParciais(period);
+  const list = data?.[s.code] ?? [];
+  if (!list.length) return null;
+  const stages = [...new Set(list.map((x) => x.etapa))].sort((a, b) => a - b);
+
+  return (
+    <Item className="xl:col-span-12">
+      <Card variant="filled" className="rounded-2xl p-5">
+        <SectionHeader title="Notas parciais" icon="grade" />
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
+          {stages.map((n) => {
+            const items = list.filter((x) => x.etapa === n);
+            const done = items.map((x) => x.nota).filter((x): x is number => x !== null);
+            const avg = done.length ? done.reduce((a, b) => a + b, 0) / done.length : null;
+            return (
+              <div key={n} className="rounded-xl bg-surface-container-low p-4">
+                <div className="mb-2 flex items-center justify-between gap-2">
+                  <p className="font-medium">{n}ª etapa</p>
+                  <p className="text-sm text-on-surface-variant tabular">{avg !== null ? `média até agora ${Math.round(avg)} · ${done.length} de ${items.length}` : 'nada lançado'}</p>
+                </div>
+                <ul className="flex flex-col gap-1.5">
+                  {items.map((x, i) => {
+                    const d = parseDay(x.data);
+                    return (
+                      <li key={i} className="flex items-center gap-3 text-sm">
+                        <span className="w-9 shrink-0 font-semibold">{x.sigla}</span>
+                        <span className="min-w-0 flex-1 truncate text-on-surface-variant">{x.tipo}{d && ` · ${d.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })}`}</span>
+                        <span className={cx('font-semibold tabular', x.nota === null ? 'text-on-surface-variant' : x.nota < PASS ? 'text-error' : 'text-success')}>{x.nota ?? '–'}</span>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </div>
+            );
+          })}
+        </div>
+      </Card>
+    </Item>
   );
 }
 

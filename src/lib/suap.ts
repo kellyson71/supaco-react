@@ -95,6 +95,11 @@ export type Calendario = {
 
 export type Aula = { id: number; etapa: string; conteudo: string; data: string; qtd_aulas: number; faltas: number; disciplina: string };
 
+/** Nota de uma avaliação dentro da etapa (A1, A2...), antes de a etapa fechar. */
+export type Parcial = { etapa: number; sigla: string; tipo: string; data: string | null; nota: number | null };
+type DisciplinaRaw = { id: number; sigla: string; descricao?: string | null };
+type EtapaRaw = { numero_etapa: number; avaliacoes?: { tipo: string; sigla: string; data?: string; nota?: string | number | null }[] | null };
+
 /** Aula do diário (diarios/{id}/aulas): traz o professor que lançou, que o minhas-aulas não tem. */
 export type AulaDiario = { data: string; etapa?: number | string; quantidade?: number; professor?: string; conteudo?: string };
 
@@ -201,6 +206,28 @@ export const api = {
     const list = await getAll<Aula>(`/api/ensino/minhas-aulas/${ano}/${mes}/`);
     // O SUAP manda "dd/mm/aaaa"; em ISO dá para ordenar e comparar como texto
     return list.map((a) => { const d = parseDay(a.data); return d ? { ...a, data: isoDay(d) } : a; });
+  },
+
+  /**
+   * Notas parciais (cada avaliação de cada etapa) por código de diário.
+   * O boletim só traz a nota quando a etapa fecha; isto mostra o que já foi lançado antes disso.
+   * O formato do semestre na URL não é documentado, então tenta os dois mais prováveis.
+   */
+  async parciais(p: Periodo, subjects: Pick<Subject, 'code' | 'sigla' | 'name'>[]): Promise<Record<string, Parcial[]>> {
+    let list: DisciplinaRaw[] = [];
+    for (const sem of [`${p.ano}.${p.periodo}`, `${p.ano}${p.periodo}`]) {
+      try { list = await getAll<DisciplinaRaw>(`/api/ensino/disciplinas/${sem}/`); if (list.length) break; } catch { /* tenta o outro formato */ }
+    }
+    const out: Record<string, Parcial[]> = {};
+    await Promise.all(subjects.map(async (s) => {
+      const d = list.find((x) => (s.sigla && x.sigla === s.sigla) || cleanName(x.descricao ?? '').toLowerCase() === s.name.toLowerCase());
+      if (!d) return;
+      try {
+        const etapas = await getAll<EtapaRaw>(`/api/ensino/disciplinas/${d.id}/etapas/`);
+        out[s.code] = etapas.flatMap((e) => (e.avaliacoes ?? []).map((a) => ({ etapa: e.numero_etapa, sigla: a.sigla, tipo: a.tipo, data: a.data || null, nota: num(a.nota) })));
+      } catch { /* matéria sem detalhamento liberado */ }
+    }));
+    return out;
   },
 
   /** Aulas do diário com o professor de cada uma (pode não estar liberado: quem chama trata o erro). */

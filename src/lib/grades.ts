@@ -104,3 +104,36 @@ export function stageFromGrades(subjects: Subject[]): number | null {
 
 export const gradeTone = (g: number | null) =>
   g === null ? 'text-on-surface-variant' : g >= PASS ? 'text-on-surface' : g >= FINAL_MIN ? 'text-warning' : 'text-error';
+
+// ---------- Notas parciais (avaliações dentro da etapa) ----------
+
+export type StageProgress = {
+  etapa: number;
+  /** Média das avaliações já lançadas na etapa. */
+  avg: number | null;
+  done: number;
+  total: number;
+  /** Nota que cada avaliação pendente precisa ter para a etapa fechar em 60 (média aritmética). */
+  needed: number | null;
+  /** Próxima avaliação sem nota. */
+  next: string | null;
+};
+
+/** Situação da etapa em andamento: a primeira que ainda tem avaliação sem nota. */
+export function stageProgress(list: { etapa: number; sigla: string; nota: number | null }[] | undefined): StageProgress | null {
+  if (!list?.length) return null;
+  const stages = [...new Set(list.map((x) => x.etapa))].sort((a, b) => a - b);
+  const etapa = stages.find((n) => list.some((x) => x.etapa === n && x.nota === null)) ?? stages[stages.length - 1];
+  const items = list.filter((x) => x.etapa === etapa);
+  const notas = items.map((x) => x.nota).filter((x): x is number => x !== null);
+  const pending = items.filter((x) => x.nota === null);
+  const sum = notas.reduce((a, b) => a + b, 0);
+  return {
+    etapa,
+    avg: notas.length ? sum / notas.length : null,
+    done: notas.length,
+    total: items.length,
+    needed: notas.length && pending.length ? Math.max(0, Math.ceil((PASS * items.length - sum) / pending.length)) : null,
+    next: pending[0]?.sigla ?? null,
+  };
+}

@@ -1,8 +1,10 @@
 // Modo zueira: decide se dá para faltar uma aula pesando vários fatores e responde com frase e meme.
-import { currentAverage, PASS } from './grades';
+import { currentAverage, PASS, stageProgress } from './grades';
+import { presenceByDay, streaks } from './semester';
+import type { Task } from './classroom';
 import { classesOn, nowMin, toMin, WEEKDAYS, type ClassItem } from './schedule';
 import { daysBetween, isoDay, parseDay } from './dates';
-import { aulaMatchesSubject, cleanName, type Aula, type Avaliacao, type Calendario, type Subject } from './suap';
+import { aulaMatchesSubject, cleanName, type Aula, type Avaliacao, type Calendario, type Parcial, type Subject } from './suap';
 
 export const memeSrc = (id: string) => `/memes/${id}.webp`;
 
@@ -37,19 +39,26 @@ export function upcoming(subjects: Subject[], now: Date, holiday?: boolean, max 
   return out;
 }
 
+/** As aulas que faltam no primeiro dia que ainda tem aula (hoje, ou o próximo dia letivo). */
+export function dayTargets(subjects: Subject[], now: Date, holiday?: boolean): Target[] {
+  const all = upcoming(subjects, now, holiday, 12);
+  return all.filter((t) => t.date === all[0]?.date);
+}
+
 // ---------- Decisão ----------
 
 export type Verdict = 'pode' | 'depende' | 'melhor-nao' | 'zerou' | 'estourou';
 
 /** Cada coisa que pesa na decisão. */
 export type Reason =
-  | 'folga' | 'sobra' | 'reta-final' | 'nota-boa' | 'cansado'
+  | 'folga' | 'sobra' | 'reta-final' | 'nota-boa' | 'cansado' | 'precisa-pouco' | 'aula-unica' | 'cedo' | 'sextou' | 'prof-relaxado'
   | 'comeco' | 'sem-nota' | 'nota-baixa' | 'prova' | 'limite' | 'gastando-rapido' | 'duas-seguidas' | 'cara'
+  | 'precisa' | 'tarefa' | 'vicio' | 'sequencia'
   | 'zerou' | 'estourou';
 
 export type Factor = { reason: Reason; weight: number; label: string };
 
-type Facts = {
+export type Facts = {
   left: number; after: number; cost: number; used: number; limit: number;
   /** Quanto do semestre já passou (0 a 1) e quantas semanas faltam; null sem calendário. */
   progress: number | null; weeksLeft: number | null;
@@ -59,17 +68,34 @@ type Facts = {
   examIn: number | null;
   dayLessons: number;
   name: string;
+  /** Nota que falta na próxima avaliação da etapa, e qual é ela. */
+  need: number | null; needSigla: string;
+  task: string;
+  start: string;
+  /** "segundas", "terças"... e quanto das aulas desse dia da semana a pessoa já faltou. */
+  weekday: string; weekdayPct: number;
+  /** Aulas que o professor lançou, contra as que o horário previa até hoje. */
+  profDone: number; profExpected: number;
+  streak: number;
 };
 
-export type Decision = { target: Target; verdict: Verdict; factors: Factor[]; main: Reason; facts: Facts };
+export type Decision = { target: Target; verdict: Verdict; factors: Factor[]; main: Reason; facts: Facts; score: number };
 
-type Ctx = { subjects: Subject[]; now: Date; aulas?: Aula[]; cal?: Calendario | null; avaliacoes?: Avaliacao[] };
+export type Ctx = {
+  subjects: Subject[]; now: Date; aulas?: Aula[]; cal?: Calendario | null; avaliacoes?: Avaliacao[];
+  parciais?: Record<string, Parcial[]>; tasks?: Task[];
+};
 
-export function decide(target: Target, { subjects, now, aulas, cal, avaliacoes }: Ctx): Decision {
+const WEEKDAY_PLURAL = ['domingos', 'segundas', 'terças', 'quartas', 'quintas', 'sextas', 'sábados'];
+const flat = (s: string) => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+
+export function decide(target: Target, { subjects, now, aulas, cal, avaliacoes, parciais, tasks }: Ctx): Decision {
   const s = target.subject;
   const cost = target.item.lessons;
   const left = s.limit - s.absences;
   const after = left - cost;
+  const day0 = parseDay(target.date) ?? now;
+  const dow = day0.getDay();
 
   const start = parseDay(cal?.data_inicio), end = parseDay(cal?.data_fim);
   const total = start && end ? daysBetween(start, end) : 0;
@@ -77,31 +103,60 @@ export function decide(target: Target, { subjects, now, aulas, cal, avaliacoes }
   const weeksLeft = end ? Math.max(0, Math.ceil(daysBetween(now, end) / 7)) : null;
   const remaining = Math.max(0, s.workload - s.workloadDone);
 
-  const hasGrades = s.grades.some((g) => g !== null) || s.finalAverage !== null;
-  const avg = hasGrades ? currentAverage(s) : null;
+  // Etapa fechada vale mais; sem ela, a média das avaliações já lançadas (A1, A2...) dá a noção
+  const closed = s.grades.some((g) => g !== null) || s.finalAverage !== null;
+  const stage = stageProgress(parciais?.[s.code]);
+  const partial = (parciais?.[s.code] ?? []).map((x) => x.nota).filter((x): x is number => x !== null);
+  const hasGrades = closed || partial.length > 0;
+  const avg = closed ? currentAverage(s) : partial.length ? partial.reduce((a, b) => a + b, 0) / partial.length : null;
+  const avgLabel = closed ? 'média' : 'parcial';
 
-  const target0 = parseDay(target.date) ?? now;
   const examIn = (avaliacoes ?? [])
     .filter((a) => a.data && ((s.sigla && a.diario?.includes(s.sigla)) || cleanName(a.diario || '').toLowerCase() === s.name.toLowerCase()))
-    .map((a) => daysBetween(target0, parseDay(a.data)!))
+    .map((a) => daysBetween(day0, parseDay(a.data)!))
     .filter((d) => d >= 0 && d <= 7)
     .sort((a, b) => a - b)[0] ?? null;
 
   const mine = (aulas ?? []).filter((a) => aulaMatchesSubject(a, s)).sort((a, b) => b.data.localeCompare(a.data));
   const missedLast = !!mine[0] && mine[0].faltas > 0;
-  const dayLessons = classesOn(subjects, (parseDay(target.date) ?? now).getDay()).reduce((n, c) => n + c.lessons, 0);
+  const dayClasses = classesOn(subjects, dow);
+  const dayLessons = dayClasses.reduce((n, c) => n + c.lessons, 0);
 
-  const facts: Facts = { left, after, cost, used: s.absences, limit: s.limit, progress, weeksLeft, remaining, avg, hasGrades, examIn, dayLessons, name: s.name };
+  // Tarefa do Classroom da matéria vencendo no dia da aula
+  const name = flat(s.name);
+  const task = (tasks ?? []).find((t) => t.due && isoDay(new Date(t.due)) === target.date && (flat(t.course).includes(name) || name.includes(flat(t.course))))?.title ?? '';
+
+  // Seu histórico nesse dia da semana, em todas as matérias
+  const sameDow = (aulas ?? []).filter((a) => parseDay(a.data)?.getDay() === dow);
+  const dowLessons = sameDow.reduce((n, a) => n + a.qtd_aulas, 0);
+  const weekdayPct = dowLessons ? sameDow.reduce((n, a) => n + a.faltas, 0) / dowLessons : 0;
+  const dowDays = new Set(sameDow.map((a) => a.data)).size;
+
+  // Quantas aulas o professor lançou, contra as que o horário previa do começo do semestre até ontem
+  let profExpected = 0;
+  if (start) {
+    const days = new Set(s.slots.map((sl) => sl.day));
+    for (const d = new Date(start); isoDay(d) < isoDay(now); d.setDate(d.getDate() + 1)) if (days.has(d.getDay())) profExpected++;
+  }
+  const profDone = new Set(mine.map((a) => a.data)).size;
+
+  const streak = aulas ? streaks(presenceByDay(aulas)).current : 0;
+
+  const facts: Facts = {
+    left, after, cost, used: s.absences, limit: s.limit, progress, weeksLeft, remaining, avg, hasGrades, examIn, dayLessons, name: s.name,
+    need: stage?.needed ?? null, needSigla: stage?.next ?? 'próxima', task, start: target.item.start,
+    weekday: WEEKDAY_PLURAL[dow], weekdayPct, profDone, profExpected, streak,
+  };
   const factors: Factor[] = [];
   const add = (reason: Reason, weight: number, label: string) => factors.push({ reason, weight, label });
 
   if (left < 0) {
     add('estourou', -10, `${plural(-left, 'falta', 'faltas')} além do limite`);
-    return { target, verdict: 'estourou', factors, main: 'estourou', facts };
+    return { target, verdict: 'estourou', factors, main: 'estourou', facts, score: -10 };
   }
   if (after < 0) {
     add('zerou', -10, left === 0 ? 'nenhuma falta sobrando' : `sobra ${left}, essa custa ${cost}`);
-    return { target, verdict: 'zerou', factors, main: 'zerou', facts };
+    return { target, verdict: 'zerou', factors, main: 'zerou', facts, score: -10 };
   }
 
   const usedPct = s.limit > 0 ? s.absences / s.limit : 0;
@@ -109,20 +164,31 @@ export function decide(target: Target, { subjects, now, aulas, cal, avaliacoes }
   // Contra faltar
   if (after <= 2) add('limite', -3, `sobraria ${plural(after, 'falta', 'faltas')}`);
   if (examIn !== null) add('prova', -3, examIn === 0 ? 'avaliação no mesmo dia' : `avaliação em ${plural(examIn, 'dia', 'dias')}`);
-  if (avg !== null && avg < PASS) add('nota-baixa', -2, `média ${Math.round(avg)}`);
+  if (stage?.needed != null && stage.needed > 70) add('precisa', -2, `precisa de ${stage.needed} na ${facts.needSigla}`);
+  if (avg !== null && avg < PASS) add('nota-baixa', -2, `${avgLabel} ${Math.round(avg)}`);
   if (progress !== null && usedPct - progress > 0.2 && s.absences > 0) add('gastando-rapido', -2, `${Math.round(usedPct * 100)}% das faltas em ${Math.round(progress * 100)}% do semestre`);
-  if (!hasGrades) add('sem-nota', -1, 'sem nota lançada');
+  if (task) add('tarefa', -1, 'tarefa do Classroom para o dia');
   if (missedLast) add('duas-seguidas', -1, 'faltou a última aula');
   if (cost >= 3) add('cara', -1, `custa ${cost} faltas de uma vez`);
+  if (dowDays >= 3 && weekdayPct >= 0.4) add('vicio', -1, `faltou ${Math.round(weekdayPct * 100)}% das ${facts.weekday}`);
+  if (streak >= 5) add('sequencia', -1, `${streak} dias seguidos sem faltar`);
   if (progress !== null && progress < 0.25) add('comeco', -1, `começo do semestre (${Math.round(progress * 100)}%)`);
+  // Não ter nota é normal em boa parte do semestre: só informa, não muda o veredito
+  if (!hasGrades) add('sem-nota', 0, 'sem nota lançada');
 
   // A favor
   if (left >= remaining && remaining > 0) add('sobra', 3, `${left} faltas para ${plural(remaining, 'aula restante', 'aulas restantes')}`);
   if (progress !== null && progress > 0.8 && after >= 3) add('reta-final', 2, weeksLeft !== null ? `${plural(weeksLeft, 'semana', 'semanas')} para acabar` : 'fim do semestre');
   if (after >= 6) add('folga', 2, `${left} faltas sobrando`);
   else if (after >= 3) add('folga', 1, `${left} faltas sobrando`);
-  if (avg !== null && avg >= 80) add('nota-boa', 1, `média ${Math.round(avg)}`);
+  if (stage?.needed != null && stage.needed <= 30) add('precisa-pouco', 1, stage.needed === 0 ? 'etapa já garantida em 60' : `só precisa de ${stage.needed} na ${facts.needSigla}`);
+  if (avg !== null && avg >= 80) add('nota-boa', 1, `${avgLabel} ${Math.round(avg)}`);
+  if (dayClasses.length === 1) add('aula-unica', 1, 'única aula do dia');
   if (dayLessons >= 5) add('cansado', 1, `${dayLessons} aulas no dia`);
+  if (toMin(target.item.start) <= 7 * 60 + 45) add('cedo', 1, `aula às ${target.item.start}`);
+  if (dow === 5 && dayClasses[dayClasses.length - 1]?.start === target.item.start && toMin(target.item.start) >= 15 * 60) add('sextou', 1, 'última aula de sexta');
+  // Só vale com histórico de verdade: matéria sem nenhuma aula lançada não diz nada sobre o professor
+  if (profExpected >= 4 && profDone >= 2 && profDone / profExpected < 0.6) add('prof-relaxado', 1, `professor lançou ${profDone} de ${profExpected} aulas`);
 
   const score = factors.reduce((n, f) => n + f.weight, 0);
   const verdict: Verdict = score >= 1 ? 'pode' : score >= -2 ? 'depende' : 'melhor-nao';
@@ -135,7 +201,23 @@ export function decide(target: Target, { subjects, now, aulas, cal, avaliacoes }
   const caveat = verdict === 'pode' && con[0] && con[0].weight <= -1 && (pro[0]?.reason === 'folga') ? con[0].reason : null;
 
   factors.sort((a, b) => Math.abs(b.weight) - Math.abs(a.weight));
-  return { target, verdict, factors, main: caveat ?? main, facts };
+  return { target, verdict, factors, main: caveat ?? main, facts, score };
+}
+
+// ---------- O dia inteiro ----------
+
+const RANK: Record<Verdict, number> = { estourou: 0, zerou: 1, 'melhor-nao': 2, depende: 3, pode: 4 };
+
+export type DayDecision = { decisions: Decision[]; verdict: Verdict; /** A aula que define o veredito do dia. */ pivot: Decision; lessons: number };
+
+/** Faltar todas as aulas que restam no dia: vale o pior caso entre elas. */
+export function decideDay(targets: Target[], ctx: Ctx): DayDecision | null {
+  if (!targets.length) return null;
+  const decisions = targets.map((t) => decide(t, ctx));
+  const worst = [...decisions].sort((a, b) => RANK[a.verdict] - RANK[b.verdict] || a.score - b.score)[0];
+  // Dia todo liberado: a frase fica com a aula que tem o motivo menos óbvio
+  const pivot = worst.verdict === 'pode' ? decisions.find((d) => d.main !== 'folga') ?? worst : worst;
+  return { decisions, verdict: worst.verdict, pivot, lessons: targets.reduce((n, t) => n + t.item.lessons, 0) };
 }
 
 // ---------- Frases e memes ----------
@@ -215,6 +297,44 @@ const LINES: Record<Reason, Line[]> = {
     (f) => `essa custa ${f.cost} faltas de uma vez. cara, hein`,
     (f) => `${f.cost} aulas seguidas, ${f.cost} faltas numa tacada. pensa`,
   ],
+  precisa: [
+    (f) => `precisa de ${f.need} na ${f.needSigla} pra fechar 60. e quer faltar. ousado`,
+    (f) => `tá precisando de ${f.need} na ${f.needSigla}. a aula é meio que o tutorial`,
+    (f) => `${f.need} na ${f.needSigla} não vem de graça. vai pra aula`,
+  ],
+  'precisa-pouco': [
+    (f) => (f.need === 0 ? 'a etapa já fechou em 60 sem a próxima prova. pode sumir' : `só precisa de ${f.need} na ${f.needSigla}. dá pra tirar isso dormindo, então dorme`),
+    (f) => (f.need === 0 ? `nem precisa da ${f.needSigla} pra passar na etapa. vai pra aula fazer o quê` : `faltam ${f.need} pontos na ${f.needSigla} pra fechar a etapa. tá ganho, pode sumir`),
+  ],
+  tarefa: [
+    () => 'tem tarefa do classroom pra esse dia. faltar e não entregar é combo',
+    (f) => `"${f.task}" vence nesse dia. só avisando`,
+  ],
+  'aula-unica': [
+    () => 'única aula do dia. vai sair de casa só pra isso?',
+    () => 'uma aula só. a passagem custa mais que o aprendizado',
+    () => 'se arrumar todo pra uma aula. pensa na logística',
+  ],
+  cedo: [
+    (f) => `aula às ${f.start}. isso nem deveria ser legal`,
+    (f) => `${f.start} da manhã. seu corpo vai, sua alma fica na cama`,
+  ],
+  sextou: [
+    () => 'última de sexta. o professor também não quer estar lá',
+    () => 'sexta nesse horário. a sala vai estar vazia de qualquer jeito',
+  ],
+  vicio: [
+    (f) => `você já faltou ${Math.round(f.weekdayPct * 100)}% das ${f.weekday}. virou tradição`,
+    (f) => `pelo histórico, ${f.weekday} é seu dia oficial de faltar. só registrando`,
+  ],
+  'prof-relaxado': [
+    (f) => `o professor só lançou ${f.profDone} de ${f.profExpected} aulas. se nem ele registra, quem sou eu`,
+    () => 'esse professor lança chamada quando lembra. arrisca',
+  ],
+  sequencia: [
+    (f) => `${f.streak} dias seguidos sem faltar. vai quebrar isso agora?`,
+    (f) => `sequência de ${f.streak} dias. o duolingo ficaria orgulhoso. não estraga`,
+  ],
   zerou: [
     () => 'não. senta lá. presença agora é igual boleto: obrigatória',
     () => 'acabou o crédito. se faltar reprova e eu vou rir',
@@ -242,9 +362,35 @@ const REASON_MEMES: Record<Reason, string[]> = {
   'gastando-rapido': ['caralho', 'senhor-cinema'],
   'duas-seguidas': ['reflita'],
   cara: ['reflita'],
+  precisa: ['senhor-cinema', 'reflita'],
+  'precisa-pouco': ['arrogante', 'falte-meu-filho'],
+  tarefa: ['reflita'],
+  'aula-unica': ['baixo-em-disposicao', 'falte-aula-filho'],
+  cedo: ['to-cansado-pai', 'baixo-em-disposicao'],
+  sextou: ['falte-meu-filho', 'baixo-em-disposicao'],
+  vicio: ['reflita', 'caralho'],
+  'prof-relaxado': ['falte-aula-filho', 'falte-meu-filho'],
+  sequencia: ['reflita', 'arrogante'],
   zerou: ['nao-sobrou-nada'],
   estourou: ['alem-do-infinito'],
 };
+
+// ---------- Depuração: ver qualquer situação ----------
+
+/** Dados de exemplo para renderizar as frases fora de uma decisão real. */
+export const SAMPLE: Facts = {
+  left: 12, after: 10, cost: 2, used: 8, limit: 20, progress: 0.4, weeksLeft: 9, remaining: 36, avg: 72, hasGrades: true, examIn: 2,
+  dayLessons: 6, name: 'Estrutura de Dados', need: 20, needSigla: 'A3', task: 'Lista 4', start: '07:00', weekday: 'segundas', weekdayPct: 0.5,
+  profDone: 5, profExpected: 11, streak: 9,
+};
+
+export const REASONS = Object.keys(REASON_MEMES) as Reason[];
+/** Todas as frases de um motivo, já preenchidas com os dados de exemplo. */
+export const linesFor = (r: Reason, f: Facts = SAMPLE) => LINES[r].map((fn) => fn(f));
+export const memesFor = (r: Reason) => REASON_MEMES[r];
+const PRO: Reason[] = ['folga', 'sobra', 'reta-final', 'nota-boa', 'cansado', 'precisa-pouco', 'aula-unica', 'cedo', 'sextou', 'prof-relaxado'];
+/** Veredito que normalmente acompanha um motivo (para colorir a prévia). */
+export const verdictOf = (r: Reason): Verdict => (r === 'zerou' || r === 'estourou' ? r : PRO.includes(r) ? 'pode' : 'depende');
 
 /** Frase e meme da decisão. `roll` troca por outra opção (botão "outra"). */
 export function say(d: Decision, now: Date, roll = 0): { line: string; meme: string } {

@@ -1,7 +1,7 @@
 // Hooks de dados compartilhados pelas telas + período letivo selecionado.
 import { createContext, useContext, useMemo, useState, type ReactNode } from 'react';
 import { useResource } from './store';
-import { api, aulaMatchesSubject, type Calendario, type Periodo, type Turma } from './suap';
+import { api, aulaMatchesSubject, type Calendario, type Parcial, type Periodo, type Turma } from './suap';
 import { isoDay, parseDay } from './dates';
 import { fetchPendingTasks } from './classroom';
 import type { Holiday } from './insights';
@@ -19,6 +19,11 @@ export const useFrequencia = (p: Periodo | undefined) =>
   useResource(p ? `frequencia:${p.label}` : null, () => api.frequencia(p!), 60);
 export const useTurma = (code: string | undefined) =>
   useResource(code ? `turma:${code}` : null, () => api.turma(code!), 12 * 60);
+/** Notas parciais de cada matéria do período (vazio se o SUAP não liberar). */
+export function useParciais(p: Periodo | undefined) {
+  const { data: subjects } = useDisciplinas(p);
+  return useResource(p && subjects ? `parciais:${p.label}` : null, () => api.parciais(p!, subjects!).catch((): Record<string, Parcial[]> => ({})), 60);
+}
 /** Professor de cada aula do diário; some em silêncio se o SUAP não liberar. */
 export const useAulasDiario = (code: string | undefined) =>
   useResource(code ? `aulasdiario:${code}` : null, () => api.aulasDiario(code!).catch(() => []), 60);
