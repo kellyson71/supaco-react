@@ -16,11 +16,11 @@ import { TONES, toneFor, type Tone } from '../lib/tones';
 import { AbsenceMeter, Badge, Button, Card, Chip, CountUp, cx, EMPHASIZED, Empty, ErrorNote, Icon, Item, Ring, SectionHeader, Shape, Skeleton, Stagger, Tap } from '../components/ui';
 import { Avatar } from '../components/Avatar';
 import { Highlights } from '../components/Highlights';
-import { MemeCard, VibePrompt } from '../components/Memes';
+import { SkipHero, VibePrompt } from '../components/Memes';
 import { useVibe } from '../lib/vibe';
 
 const greeting = (h: number) => (h < 5 ? 'Boa noite' : h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite');
-const greetingZueira = (h: number) => (h < 5 ? 'Vai dormir' : h < 12 ? 'Acorda' : h < 18 ? 'Fala' : 'E aí');
+const greetingZueira = (h: number) => (h < 5 ? 'vai dormir' : h < 12 ? 'acorda' : h < 18 ? 'fala' : 'e aí');
 
 export function Today() {
   const now = useNow();
@@ -53,8 +53,8 @@ export function Today() {
       {res.error && !subjects && <div className="mb-4"><ErrorNote error={res.error} onRetry={res.refresh} /></div>}
 
       <VibePrompt />
+      {subjects && <SkipHero subjects={subjects} now={now} holiday={!!holiday} />}
       {subjects && <News subjects={subjects} />}
-      {subjects && <MemeCard subjects={subjects} now={now} holiday={!!holiday} />}
 
       <Stagger className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-12">
         <Item className="md:col-span-2 xl:col-span-7 xl:row-span-2">
@@ -434,7 +434,7 @@ const VERDICT: Record<SkipVerdict, { title: string; icon: string; shape: 'flower
   noclass: { title: 'Não tem aula', icon: 'beach_access', shape: 'sunny', bg: 'text-tertiary', fg: 'text-on-tertiary' },
 };
 /** Os mesmos veredictos no modo zueira. */
-const VERDICT_ZUEIRA: Record<SkipVerdict, string> = { yes: 'Falte, meu filho', tight: 'Reflita', no: 'Nem pense nisso', noclass: 'Baixo em disposição' };
+const VERDICT_ZUEIRA: Record<SkipVerdict, string> = { yes: 'pode, vai com deus', tight: 'pode, mas reflita', no: 'não. senta lá', noclass: 'nem tem aula, relaxa' };
 
 function SkipCard({ subjects, now }: { subjects: Subject[]; now: Date }) {
   const options = useMemo(() => {

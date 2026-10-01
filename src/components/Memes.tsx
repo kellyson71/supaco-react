@@ -1,22 +1,35 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { AnimatePresence, m } from 'motion/react';
 import { useAulas, useCalendario, usePeriod } from '../lib/data';
 import { useAttendance } from '../lib/attendance';
-import { MEMES, memeSrc, moments, SITUATION } from '../lib/memes';
+import { MEMES, memeSrc, nextSkip, reactions, type NextSkip } from '../lib/memes';
 import { memesOn, setVibe, useVibe } from '../lib/vibe';
 import type { Subject } from '../lib/suap';
-import { Badge, Button, Card, cx, EMPHASIZED, IconButton, spring } from './ui';
+import { Button, Card, cx, EMPHASIZED, spring, Tap } from './ui';
 
-/** Fileira de memes deslizando sem parar (a lista vai duas vezes para emendar o fim no começo). */
-function Marquee({ reverse }: { reverse?: boolean }) {
-  const list = reverse ? [...MEMES].reverse() : MEMES;
+const REEL = Object.keys(MEMES);
+
+/** Dois memes por vez, trocando em sequência: um entra pela direita enquanto o outro sai. */
+function MemeReel() {
+  const [i, setI] = useState(0);
+  useEffect(() => {
+    const id = setInterval(() => setI((n) => n + 1), 2200);
+    return () => clearInterval(id);
+  }, []);
+  // Cada posição troca numa batida diferente, para as duas não mudarem juntas
+  const slots = [REEL[Math.floor((i + 1) / 2) * 2 % REEL.length], REEL[(Math.floor(i / 2) * 2 + 1) % REEL.length]];
   return (
-    <div className="overflow-hidden" aria-hidden>
-      <div className={cx('marquee flex w-max gap-2', reverse && 'marquee-reverse')}>
-        {[...list, ...list].map((x, i) => (
-          <img key={i} src={memeSrc(x.id)} alt="" loading="lazy" decoding="async" className="h-24 w-28 shrink-0 rounded-lg object-cover md:h-28 md:w-36" />
-        ))}
-      </div>
+    <div className="flex shrink-0 justify-center gap-3" aria-hidden>
+      {slots.map((id, k) => (
+        <div key={k} className={cx('relative size-28 overflow-hidden rounded-xl bg-black shadow-lg sm:size-32', k === 0 ? '-rotate-3' : 'mt-3 rotate-3')}>
+          <AnimatePresence initial={false}>
+            <m.img key={id} src={memeSrc(id)} alt="" decoding="async"
+              initial={{ x: '100%', opacity: 0.4 }} animate={{ x: 0, opacity: 1 }} exit={{ x: '-100%', opacity: 0.4 }}
+              transition={{ type: 'spring', stiffness: 260, damping: 28 }}
+              className="absolute inset-0 size-full object-cover" />
+          </AnimatePresence>
+        </div>
+      ))}
     </div>
   );
 }
@@ -28,19 +41,14 @@ export function VibePrompt() {
     <AnimatePresence initial={false}>
       {!vibe.asked && (
         <m.section key="vibe" initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} transition={{ duration: 0.4, ease: EMPHASIZED }} className="overflow-hidden">
-          <Card variant="tertiary" className="relative mb-4 overflow-hidden rounded-2xl">
-            <div className="flex flex-col gap-2 pt-3 opacity-90">
-              <Marquee />
-              <Marquee reverse />
-            </div>
-            <div className="flex flex-col gap-3 p-5 md:flex-row md:items-center">
-              <div className="min-w-0 flex-1">
-                <p className="text-[22px] leading-7 font-semibold tracking-tight">Quer desativar o modo sério?</p>
-                <p className="mt-1 text-sm opacity-85">O Supaco passa a falar no modo zueira e mostra um meme conforme a sua situação: faltas, notas, fim de semestre. Dá para voltar atrás em Você › Aparência.</p>
-              </div>
-              <div className="flex shrink-0 gap-2">
-                <Button variant="text" onClick={() => setVibe({ asked: true })} className="!text-current">Continuar sério</Button>
-                <Button icon="celebration" onClick={() => setVibe({ tone: 'zueira', memes: true, asked: true })}>Bora</Button>
+          <Card variant="tertiary" className="mb-4 flex flex-col items-center gap-5 overflow-hidden rounded-2xl p-5 sm:flex-row md:p-6">
+            <MemeReel />
+            <div className="min-w-0 flex-1">
+              <p className="text-[22px] leading-7 font-semibold tracking-tight">Quer desativar o modo sério?</p>
+              <p className="mt-1 text-sm opacity-85">o supaco para de falar igual e-mail da coordenação e te diz logo se dá pra faltar a próxima aula. dá pra voltar atrás em Você › Aparência.</p>
+              <div className="mt-4 flex gap-2">
+                <Button icon="celebration" onClick={() => setVibe({ tone: 'zueira', memes: true, asked: true })}>bora</Button>
+                <Button variant="text" onClick={() => setVibe({ asked: true })} className="!text-current">sou sério</Button>
               </div>
             </div>
           </Card>
@@ -50,47 +58,62 @@ export function VibePrompt() {
   );
 }
 
-/** Meme do momento: escolhido pela situação do aluno, com a classificação e o motivo. */
-export function MemeCard({ subjects, now, holiday }: { subjects: Subject[]; now: Date; holiday?: boolean }) {
+const HERO: Record<NextSkip['verdict'], string> = {
+  pode: 'bg-success-container text-on-success-container',
+  reflita: 'bg-warning-container text-on-warning-container',
+  zerou: 'bg-error-container text-on-error-container',
+  estourou: 'bg-error-container text-on-error-container',
+};
+
+/**
+ * Topo da Hoje no modo zueira: dá para faltar a próxima aula? A resposta vem numa frase,
+ * com o meme do lado (quando os memes estão ligados) e os números de verdade embaixo.
+ */
+export function SkipHero({ subjects, now, holiday }: { subjects: Subject[]; now: Date; holiday?: boolean }) {
   const vibe = useVibe();
   const { current } = usePeriod();
   const { data: aulas } = useAulas(current);
   const { data: cal } = useCalendario(current);
   const checks = useAttendance();
-  const [i, setI] = useState(0);
-  const list = useMemo(() => moments({ subjects, now, aulas, checks, cal, holiday }), [subjects, now, aulas, checks, cal, holiday]);
+  const next = useMemo(() => nextSkip(subjects, now, holiday), [subjects, now, holiday]);
+  const extras = useMemo(() => reactions({ subjects, now, aulas, checks, cal, holiday }), [subjects, now, aulas, checks, cal, holiday]);
 
-  if (!memesOn(vibe) || !list.length) return null;
-  const cur = list[i % list.length];
-  const sit = SITUATION[cur.situation];
+  if (vibe.tone !== 'zueira' || (!next && !extras.length)) return null;
+  const memes = memesOn(vibe);
+  const h = next && HERO[next.verdict];
 
   return (
-    <Card variant="filled" className="mb-4 flex items-stretch gap-4 overflow-hidden rounded-2xl">
-      <div className="relative w-32 shrink-0 self-stretch overflow-hidden bg-surface-container-highest sm:w-44">
-        <AnimatePresence initial={false}>
-          <m.img key={cur.meme.id} src={memeSrc(cur.meme.id)} alt={cur.meme.caption} decoding="async"
-            initial={{ opacity: 0, scale: 1.15, rotate: -4 }} animate={{ opacity: 1, scale: 1, rotate: 0 }} exit={{ opacity: 0 }} transition={spring}
-            className="absolute inset-0 size-full object-cover" />
-        </AnimatePresence>
-      </div>
-      <div className="flex min-h-32 min-w-0 flex-1 flex-col justify-center gap-1.5 py-4 pr-4">
-        <div className="flex items-center gap-2">
-          <Badge tone={sit.tone === 'neutral' ? 'neutral' : sit.tone}>{sit.label}</Badge>
-          {list.length > 1 && <span className="text-xs text-on-surface-variant tabular">{(i % list.length) + 1} de {list.length}</span>}
-        </div>
-        <AnimatePresence mode="wait" initial={false}>
-          <m.div key={cur.situation} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }} transition={{ duration: 0.2, ease: EMPHASIZED }}>
-            <p className="text-lg leading-6 font-semibold">{cur.meme.caption}</p>
-            <p className="mt-0.5 text-sm text-on-surface-variant">{cur.text}</p>
-          </m.div>
-        </AnimatePresence>
-      </div>
-      {list.length > 1 && (
-        <div className="flex shrink-0 items-center pr-3">
-          <IconButton icon="arrow_forward" label="Próximo meme" variant="tonal" onClick={() => setI((n) => n + 1)} />
-        </div>
+    <div className="mb-4 flex flex-col gap-2">
+      {next && h && (
+        <Tap to={`/disciplinas/${next.subject.code}`} className={cx('flex flex-col overflow-hidden rounded-2xl sm:flex-row', h)}>
+          {memes && (
+            <m.img key={next.meme} src={memeSrc(next.meme)} alt={MEMES[next.meme]} decoding="async"
+              initial={{ opacity: 0, scale: 1.08 }} animate={{ opacity: 1, scale: 1 }} transition={spring}
+              className="max-h-64 w-full bg-black object-contain sm:max-h-72 sm:w-auto sm:max-w-[46%]" />
+          )}
+          <div className="flex min-w-0 flex-1 flex-col justify-center gap-2 p-5 md:p-6">
+            <p className="text-sm font-medium opacity-80">
+              dá pra faltar {next.subject.name}, {next.when} às {next.item.start}?
+            </p>
+            <p className="text-[26px] leading-8 font-semibold tracking-tight md:text-[32px] md:leading-10">{next.line}</p>
+            <p className="text-sm opacity-80 tabular">
+              {next.subject.absences} de {next.subject.limit} faltas usadas
+              {next.verdict !== 'estourou' && <> · faltando essa ({next.item.lessons} {next.item.lessons === 1 ? 'aula' : 'aulas'}) {next.leftAfter < 0 ? `estoura em ${-next.leftAfter}` : `sobram ${next.leftAfter}`}</>}
+            </p>
+          </div>
+        </Tap>
       )}
-    </Card>
+      {extras.length > 0 && (
+        <ul className="grid grid-cols-1 gap-2 md:grid-cols-2">
+          {extras.map((r, i) => (
+            <m.li key={r.id} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.08 + i * 0.06, duration: 0.3, ease: EMPHASIZED }}
+              className="flex items-center gap-3 overflow-hidden rounded-2xl bg-surface-container">
+              {memes && <img src={memeSrc(r.meme)} alt={MEMES[r.meme]} loading="lazy" decoding="async" className="size-20 shrink-0 object-cover" />}
+              <p className={cx('min-w-0 flex-1 py-3 pr-4 text-[15px] leading-5 font-medium', !memes && 'pl-4')}>{r.line}</p>
+            </m.li>
+          ))}
+        </ul>
+      )}
+    </div>
   );
 }
-

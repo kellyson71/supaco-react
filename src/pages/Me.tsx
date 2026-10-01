@@ -204,7 +204,7 @@ function Appearance() {
         <Segmented<'serio' | 'zueira'> value={vibe.tone} onChange={(tone) => setVibe({ tone, asked: true, ...(tone === 'zueira' && !vibe.asked ? { memes: true } : {}) })} className="w-full"
           options={[{ value: 'serio', label: 'Sério', icon: 'school' }, { value: 'zueira', label: 'Zueira', icon: 'celebration' }]} />
         <div className={cx('transition-opacity', vibe.tone === 'serio' && 'pointer-events-none opacity-45')}>
-          <Setting label="Memes" hint={vibe.tone === 'serio' ? 'Disponível no modo zueira' : 'Um meme na tela Hoje conforme a sua situação'}>
+          <Setting label="Memes" hint={vibe.tone === 'serio' ? 'Disponível no modo zueira' : 'A resposta do “posso faltar?” vem com meme'}>
             <Switch on={vibe.tone === 'zueira' && vibe.memes} onChange={(memes) => setVibe({ memes })} label="Mostrar memes" />
           </Setting>
         </div>
