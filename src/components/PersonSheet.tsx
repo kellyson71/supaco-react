@@ -2,19 +2,16 @@ import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { m } from 'motion/react';
 import { session } from '../lib/api';
-import { useCurrentSubjects, useSalario, useTurmas } from '../lib/data';
+import { useCurrentSubjects, useTurmas } from '../lib/data';
 import { subjectTone, titleCase, type Pessoa } from '../lib/suap';
 import { TONES } from '../lib/tones';
-import { longMonth } from '../lib/dates';
-import { Button, cx, EMPHASIZED, Icon, Skeleton } from './ui';
-
-export type Role = 'teacher' | 'student';
+import { Button, cx, EMPHASIZED, Icon } from './ui';
 
 /**
- * Cartão com os detalhes de uma pessoa da turma. A foto entra pelo `layoutId`
- * (a mesma da miniatura), no padrão de transformação de contêiner do Material 3.
+ * Cartão com os detalhes de um colega de turma (docentes têm página própria em /servidores). A foto entra pelo
+ * `layoutId` (a mesma da miniatura), no padrão de transformação de contêiner do Material 3.
  */
-export function PersonSheet({ p, role, photo, onClose }: { p: Pessoa; role: Role; photo: ReactNode; onClose: () => void }) {
+export function PersonSheet({ p, photo, onClose }: { p: Pessoa; photo: ReactNode; onClose: () => void }) {
   const { data: subjects } = useCurrentSubjects();
   const { data: turmas } = useTurmas(subjects?.map((s) => s.code));
   const [copied, setCopied] = useState(false);
@@ -23,7 +20,7 @@ export function PersonSheet({ p, role, photo, onClose }: { p: Pessoa; role: Role
 
   const shared = (subjects ?? []).filter((s) => {
     const t = turmas?.[s.code];
-    return (role === 'teacher' ? t?.professores : t?.colegas)?.some((x) => x.matricula === p.matricula);
+    return t?.colegas.some((x) => x.matricula === p.matricula);
   });
 
   useEffect(() => {
@@ -50,7 +47,7 @@ export function PersonSheet({ p, role, photo, onClose }: { p: Pessoa; role: Role
         transition={{ duration: 0.4, ease: EMPHASIZED }}
         className="relative max-h-[92dvh] w-full overflow-x-hidden overflow-y-auto overscroll-contain rounded-t-xl bg-surface-container-high pb-[max(1.5rem,env(safe-area-inset-bottom))] text-on-surface sm:max-w-sm sm:rounded-xl sm:pb-6">
         <div className="mx-auto mt-3 h-1 w-8 rounded-full bg-outline-variant sm:hidden" aria-hidden />
-        <div className={cx('relative flex h-28 items-end justify-center', role === 'teacher' ? 'bg-secondary-container' : 'bg-primary-container')}>
+        <div className="relative flex h-28 items-end justify-center bg-primary-container">
           <div className="absolute top-2 right-2">
             <button ref={closeRef} onClick={onClose} aria-label="Fechar" className="state flex size-10 items-center justify-center rounded-full">
               <Icon name="close" />
@@ -60,7 +57,7 @@ export function PersonSheet({ p, role, photo, onClose }: { p: Pessoa; role: Role
         </div>
 
         <m.div className="px-6 pt-20 text-center" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.12, duration: 0.3, ease: EMPHASIZED }}>
-          <p className="text-xs font-medium tracking-wide text-on-surface-variant uppercase">{isMe ? 'Você' : role === 'teacher' ? 'Docente' : 'Colega de turma'}</p>
+          <p className="text-xs font-medium tracking-wide text-on-surface-variant uppercase">{isMe ? 'Você' : 'Colega de turma'}</p>
           <h2 className="mt-1 text-2xl leading-8 font-semibold tracking-tight">{titleCase(p.nome)}</h2>
           <button onClick={copy} className="mx-auto mt-2 flex items-center gap-1.5 rounded-full px-3 py-1 text-sm text-on-surface-variant tabular hover:bg-surface-container-highest">
             <Icon name={copied ? 'check' : 'content_copy'} size={16} />{copied ? 'Matrícula copiada' : `Matrícula ${p.matricula}`}
@@ -69,7 +66,7 @@ export function PersonSheet({ p, role, photo, onClose }: { p: Pessoa; role: Role
           {shared.length > 0 && (
             <div className="mt-5 text-left">
               <p className="mb-2 text-sm font-medium text-on-surface-variant">
-                {isMe ? 'Suas matérias' : role === 'teacher' ? `Dá aula para você em ${shared.length === 1 ? '1 matéria' : `${shared.length} matérias`}` : `Divide sala com você em ${shared.length === 1 ? '1 matéria' : `${shared.length} matérias`}`}
+                {isMe ? 'Suas matérias' : `Divide sala com você em ${shared.length === 1 ? '1 matéria' : `${shared.length} matérias`}`}
               </p>
               <ul className="flex flex-col gap-1.5">
                 {shared.map((s, i) => (
@@ -83,8 +80,6 @@ export function PersonSheet({ p, role, photo, onClose }: { p: Pessoa; role: Role
             </div>
           )}
 
-          {role === 'teacher' && <Salary p={p} />}
-
           {p.email && (
             <Button icon="mail" href={`mailto:${p.email}`} className="mt-5 w-full">Enviar e-mail</Button>
           )}
@@ -92,34 +87,5 @@ export function PersonSheet({ p, role, photo, onClose }: { p: Pessoa; role: Role
       </m.div>
     </div>,
     document.body,
-  );
-}
-
-const money = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' });
-
-/** Remuneração pública do docente (Portal da Transparência). Se a consulta falhar, o bloco simplesmente não aparece. */
-function Salary({ p }: { p: Pessoa }) {
-  const { data, loading } = useSalario(p);
-  if (loading) return <Skeleton className="mt-5 h-[104px] rounded-xl" />;
-  if (!data) return null;
-  if (!data.encontrado) return <p className="mt-5 text-xs text-on-surface-variant">Sem remuneração publicada no Portal da Transparência para este nome.</p>;
-
-  const cargo = [data.cargo && titleCase(data.cargo), data.classe, data.jornada && titleCase(data.jornada)].filter(Boolean).join(' · ');
-  return (
-    <div className="mt-5 text-left">
-      <p className="mb-2 text-sm font-medium text-on-surface-variant">Remuneração em {longMonth(data.mes)}</p>
-      <dl className="grid grid-cols-2 gap-1.5">
-        {[['Bruta', data.bruto], ['Após deduções', data.liquido]].map(([label, value]) => (
-          <div key={label} className="rounded-xl bg-surface-container-highest px-3.5 py-2.5">
-            <dt className="text-xs text-on-surface-variant">{label}</dt>
-            <dd className="text-lg font-semibold tabular">{money.format(value as number)}</dd>
-          </div>
-        ))}
-      </dl>
-      {cargo && <p className="mt-2 text-xs text-on-surface-variant">{cargo}</p>}
-      <a href={data.link} target="_blank" rel="noreferrer" className="mt-1 inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline">
-        Fonte: Portal da Transparência<Icon name="open_in_new" size={14} />
-      </a>
-    </div>
   );
 }

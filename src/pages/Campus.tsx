@@ -20,9 +20,12 @@ export function Campus() {
 
   return (
     <>
-      <header className="mb-5">
-        <p className="text-sm font-medium text-on-surface-variant">Campus</p>
-        <h1 className="text-[36px] leading-[44px] font-semibold tracking-tight md:text-[45px] md:leading-[52px]">{campusName(mine?.campus_nome) || sigla || ' '}</h1>
+      <header className="mb-5 flex flex-wrap items-end justify-between gap-3">
+        <div className="min-w-0">
+          <p className="text-sm font-medium text-on-surface-variant">Campus</p>
+          <h1 className="text-[36px] leading-[44px] font-semibold tracking-tight md:text-[45px] md:leading-[52px]">{campusName(mine?.campus_nome) || sigla || ' '}</h1>
+        </div>
+        <Button variant="tonal" icon="badge" to="/servidores">Servidores</Button>
       </header>
       <Segmented<Tab> value={tab} onChange={setTab} className="mb-5 w-full max-w-lg"
         options={[{ value: 'eventos', label: 'Eventos', icon: 'event' }, { value: 'projetos', label: 'Projetos', icon: 'science' }, { value: 'numeros', label: 'Números', icon: 'bar_chart' }]} />

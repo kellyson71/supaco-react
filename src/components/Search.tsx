@@ -16,7 +16,7 @@ import { buildIndex, completion, GROUP_LABEL, loadRecent, matchRanges, pushRecen
 import { TONES } from '../lib/tones';
 import { cx, EMPHASIZED, Icon, spring } from './ui';
 import { LessonSheet } from './LessonSheet';
-import { PersonSheet, type Role } from './PersonSheet';
+import { PersonSheet } from './PersonSheet';
 import { personPhoto } from './Turma';
 
 // ---------- Abrir / fechar de qualquer lugar ----------
@@ -34,7 +34,7 @@ let lesson: OpenLesson | null = null;
 const lessonSubs = new Set<() => void>();
 const setLesson = (l: OpenLesson | null) => { lesson = l; lessonSubs.forEach((fn) => fn()); };
 
-let person: { p: Pessoa; role: Role } | null = null;
+let person: Pessoa | null = null;
 const personSubs = new Set<() => void>();
 const setPerson = (v: typeof person) => { person = v; personSubs.forEach((fn) => fn()); };
 
@@ -127,6 +127,7 @@ function useItems(): { items: SearchItem[]; now: SearchItem | null } {
       { id: 'p:voce', group: 'paginas', title: 'Você', sub: 'Perfil, presença e conclusão do curso', icon: 'person', to: '/voce', keywords: 'perfil conta ira tema aparência' },
       { id: 'p:mensagens', group: 'paginas', title: 'Mensagens', sub: 'Caixa de entrada do SUAP', icon: 'mail', to: '/mensagens', keywords: 'recados avisos inbox' },
       { id: 'p:campus', group: 'paginas', title: 'Campus', sub: 'Eventos e projetos', icon: 'apartment', to: '/campus', keywords: 'ifrn pesquisa extensão' },
+      { id: 'p:servidores', group: 'paginas', title: 'Servidores', sub: 'Professores e técnicos do IFRN', icon: 'badge', to: '/servidores', keywords: 'professores docentes técnicos funcionários pessoas salário' },
       { id: 'p:retro', group: 'paginas', title: 'Retrospectiva', sub: 'Seu semestre em números', icon: 'auto_awesome', to: '/retrospectiva', keywords: 'resumo wrapped semestre' },
       { id: 'p:diag', group: 'paginas', title: 'Diagnóstico', sub: 'Conexão com o SUAP', icon: 'troubleshoot', to: '/diagnostico', keywords: 'erro problema status' },
       {
@@ -225,7 +226,8 @@ function useItems(): { items: SearchItem[]; now: SearchItem | null } {
           id: `u:${matricula}`, group: 'pessoas', title: titleCase(p.nome), keywords: `${matricula} ${p.teacher ? 'professor docente' : 'colega aluno'}`,
           sub: `${p.teacher ? 'Docente' : 'Colega'} · ${p.in.length === 1 ? p.in[0].name : `${p.in.length} matérias com você`}`,
           icon: p.teacher ? 'person' : 'groups', photo: p.foto || undefined, boost: p.teacher ? 4 : 0,
-          run: () => setPerson({ p: { nome: p.nome, matricula, foto: p.foto, ...(p.email ? { email: p.email } : {}) }, role: p.teacher ? 'teacher' : 'student' }),
+          // Docente tem página própria; colega abre o cartão rápido
+          ...(p.teacher ? { to: `/servidores/${matricula}` } : { run: () => setPerson({ nome: p.nome, matricula, foto: p.foto }) }),
           preview: {
             rows: [
               { icon: 'badge', label: 'Matrícula', value: matricula },
@@ -564,7 +566,7 @@ export function GlobalSearch() {
   return (
     <>
       <AnimatePresence>
-        {who && <PersonSheet key={who.p.matricula} p={who.p} role={who.role} photo={personPhoto(who.p, who.role)} onClose={closePerson} />}
+        {who && <PersonSheet key={who.matricula} p={who} photo={personPhoto(who)} onClose={closePerson} />}
       </AnimatePresence>
       <AnimatePresence>
       {open && <LessonSheet key={open.aula.id} date={open.aula.data} only={open.aula} aulas={open.aulas} subjects={open.subjects} onClose={() => setLesson(null)} />}

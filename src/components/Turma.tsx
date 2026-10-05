@@ -5,13 +5,14 @@ import { useTurma } from '../lib/data';
 import { initials, shortName, titleCase, type Material, type Pessoa } from '../lib/suap';
 import { TONES, toneFor } from '../lib/tones';
 import { parseDay } from '../lib/dates';
-import { PersonSheet, type Role } from './PersonSheet';
+import { fotoGrande as big } from '../lib/staff';
+import { PersonSheet } from './PersonSheet';
+import { Link } from './Link';
 import { Button, Card, cx, EMPHASIZED, Icon, SectionHeader, SHAPES, Skeleton, Tap, type ShapeName } from './ui';
 
 const STACK = 6;
 /** Mola da foto compartilhada entre a miniatura e o cartão (container transform do M3). */
 const SHARED = { type: 'spring', stiffness: 380, damping: 34 } as const;
-const big = (foto: string) => foto.replace('75x100', '150x200');
 const STACK_MOBILE = 3;
 
 const More = ({ n, className }: { n: number; className?: string }) => (
@@ -21,14 +22,13 @@ const More = ({ n, className }: { n: number; className?: string }) => (
 );
 
 /** Foto grande para o cartão da pessoa (sem animação compartilhada), usada também pela busca. */
-export const personPhoto = (p: Pessoa, role: Role) => role === 'teacher'
-  ? <ShapedPhoto src={big(p.foto)} name={p.nome} shape="flower" size={128} still />
-  : <span className="rounded-full ring-4 ring-[var(--md-surface-container-high)]"><Face p={{ ...p, foto: big(p.foto) }} size={120} eager /></span>;
+export const personPhoto = (p: Pessoa) =>
+  <span className="rounded-full ring-4 ring-[var(--md-surface-container-high)]"><Face p={{ ...p, foto: big(p.foto) }} size={120} eager /></span>;
 
 /** Professores, colegas e materiais da turma; some sem alarde se o SUAP não responder. */
 export function Turma({ code }: { code: string }) {
   const { data, loading } = useTurma(code);
-  const [sel, setSel] = useState<{ p: Pessoa; role: Role } | null>(null);
+  const [sel, setSel] = useState<Pessoa | null>(null);
   const close = useCallback(() => setSel(null), []);
 
   if (loading) return <Skeleton className="h-48 rounded-2xl" />;
@@ -40,38 +40,54 @@ export function Turma({ code }: { code: string }) {
       <div className="grid grid-cols-1 gap-3 lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)]">
         {data.professores.length > 0 && (
           <div className="flex flex-col gap-3">
-            {data.professores.map((p) => <Teacher key={p.matricula} p={p} open={sel?.p.matricula === p.matricula} onOpen={() => setSel({ p, role: 'teacher' })} />)}
+            {data.professores.map((p) => <Teacher key={p.matricula} p={p} />)}
           </div>
         )}
-        {data.colegas.length > 0 && <Classmates list={data.colegas} openId={sel?.role === 'student' ? sel.p.matricula : undefined} onOpen={(p) => setSel({ p, role: 'student' })} />}
+        {data.colegas.length > 0 && <Classmates list={data.colegas} openId={sel?.matricula} onOpen={setSel} />}
       </div>
       {data.materiais.length > 0 && <Materials list={data.materiais} />}
       <AnimatePresence>
         {sel && (
-          <PersonSheet key={sel.p.matricula} p={sel.p} role={sel.role} onClose={close}
-            photo={sel.role === 'teacher'
-              ? <m.div layoutId={`photo-${sel.p.matricula}`} transition={SHARED}><ShapedPhoto src={big(sel.p.foto)} name={sel.p.nome} shape="flower" size={128} still /></m.div>
-              : <m.div layoutId={`photo-${sel.p.matricula}`} transition={SHARED} className="rounded-full ring-4 ring-[var(--md-surface-container-high)]"><Face p={{ ...sel.p, foto: big(sel.p.foto) }} size={120} eager /></m.div>} />
+          <PersonSheet key={sel.matricula} p={sel} onClose={close}
+            photo={<m.div layoutId={`photo-${sel.matricula}`} transition={SHARED} className="rounded-full ring-4 ring-[var(--md-surface-container-high)]"><Face p={{ ...sel, foto: big(sel.foto) }} size={120} eager /></m.div>} />
         )}
       </AnimatePresence>
     </Card>
   );
 }
 
-function Teacher({ p, open, onOpen }: { p: Pessoa; open: boolean; onOpen: () => void }) {
+/** Cartão do docente: o cartão inteiro leva à página dele; no hover a foto gira e surge o "Ver detalhes". */
+function Teacher({ p }: { p: Pessoa }) {
   return (
-    <div className="relative flex items-center gap-4 overflow-hidden rounded-xl bg-secondary-container p-4 text-on-secondary-container">
-      <button onClick={onOpen} aria-label={`Ver detalhes de ${titleCase(p.nome)}`} className="shrink-0 rounded-full transition-transform active:scale-95" style={{ width: 76, height: 76 }}>
-        {!open && <m.div layoutId={`photo-${p.matricula}`} transition={SHARED}><ShapedPhoto src={big(p.foto)} name={p.nome} shape="flower" size={76} /></m.div>}
-      </button>
-      <div className="min-w-0 flex-1">
+    <div className="group relative flex items-center gap-4 overflow-hidden rounded-xl bg-secondary-container p-4 text-on-secondary-container transition-[box-shadow,transform] duration-300 ease-emphasized hover:-translate-y-0.5 hover:shadow-[0_6px_20px_rgb(0_0_0/0.18)]">
+      <Link to={`/servidores/${p.matricula}`} label={`Ver detalhes de ${titleCase(p.nome)}`} className="absolute inset-0 rounded-xl outline-offset-[-3px]"><span /></Link>
+      <span className="pointer-events-none shrink-0 transition-transform duration-500 ease-emphasized group-hover:scale-105 group-hover:rotate-6">
+        <ShapedPhoto src={big(p.foto)} name={p.nome} shape="flower" size={76} />
+      </span>
+      <div className="pointer-events-none min-w-0 flex-1">
         <p className="text-xs font-medium tracking-wide uppercase opacity-75">Docente</p>
         <p className="mt-0.5 text-lg leading-6 font-medium">{titleCase(p.nome)}</p>
         {p.email && (
-          <Button variant="text" size="sm" icon="mail" href={`mailto:${p.email}`} className="-ml-3 !text-current">Enviar e-mail</Button>
+          <span className="pointer-events-auto relative inline-flex">
+            <Button variant="text" size="sm" icon="mail" href={`mailto:${p.email}`} className="-ml-3 !text-current">Enviar e-mail</Button>
+          </span>
         )}
       </div>
+      <SeeDetails className="self-start" />
     </div>
+  );
+}
+
+/**
+ * Chamada "Ver detalhes" para cartões clicáveis (o pai precisa de `group`): no hover o texto desliza para dentro;
+ * no toque, onde não há hover, fica só a seta.
+ */
+export function SeeDetails({ className }: { className?: string }) {
+  return (
+    <span aria-hidden className={cx('pointer-events-none flex h-8 shrink-0 items-center overflow-hidden rounded-full bg-black/10 pr-2 pl-2 text-xs font-medium transition-[padding,background-color] duration-300 ease-emphasized group-hover:bg-primary group-hover:pl-3 group-hover:text-on-primary group-focus-within:bg-primary group-focus-within:pl-3 group-focus-within:text-on-primary dark:bg-white/10', className)}>
+      <span className="max-w-0 overflow-hidden whitespace-nowrap opacity-0 transition-[max-width,opacity,margin] duration-300 ease-emphasized group-hover:mr-1 group-hover:max-w-24 group-hover:opacity-100 group-focus-within:mr-1 group-focus-within:max-w-24 group-focus-within:opacity-100">Ver detalhes</span>
+      <Icon name="arrow_forward" size={16} className="transition-transform duration-300 ease-emphasized group-hover:translate-x-0.5" />
+    </span>
   );
 }
 
@@ -186,7 +202,7 @@ function Materials({ list }: { list: Material[] }) {
 }
 
 /** Foto redonda com carregamento preguiçoso; cai para as iniciais se a imagem falhar. */
-function Face({ p, size, className, eager }: { p: Pessoa; size: number; className?: string; eager?: boolean }) {
+export function Face({ p, size, className, eager }: { p: Pessoa; size: number; className?: string; eager?: boolean }) {
   const [failed, setFailed] = useState(!p.foto);
   const t = TONES[toneFor(p.matricula)];
   if (failed) {
@@ -204,7 +220,7 @@ function Face({ p, size, className, eager }: { p: Pessoa; size: number; classNam
 }
 
 /** Foto recortada numa forma expressiva do M3. */
-function ShapedPhoto({ src, name, shape, size, still }: { src: string; name: string; shape: ShapeName; size: number; still?: boolean }) {
+export function ShapedPhoto({ src, name, shape, size, still }: { src: string; name: string; shape: ShapeName; size: number; still?: boolean }) {
   const id = useId();
   const [failed, setFailed] = useState(!src);
   return (

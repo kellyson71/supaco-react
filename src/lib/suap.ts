@@ -128,13 +128,52 @@ export type Estatisticas = {
 };
 
 export type Pessoa = { nome: string; matricula: string; foto: string; email?: string };
-
-/** Remuneração de um servidor no Portal da Transparência (função /api/salario). `mes` vem como "2026-08". */
-export type Salario =
-  | { encontrado: false }
-  | { encontrado: true; mes: string; bruto: number; liquido: number; cargo: string | null; classe: string | null; jornada: string | null; situacao: string | null; link: string };
 export type Material = { descricao: string; url: string; data?: string };
 export type Turma = { professores: Pessoa[]; colegas: Pessoa[]; materiais: Material[] };
+
+/** Servidor do IFRN como o SUAP lista em rh/servidores (docentes, técnicos e estagiários). */
+type ServidorRaw = {
+  matricula: string; nome: string; setor_suap: string | null; jornada_trabalho: string | null; campus: string | null; cargo: string | null;
+  funcao: string[] | null; disciplina_ingresso: string | null; categoria: string | null; telefones_institucionais: string[] | null;
+  url_foto_75x100: string | null; curriculo_lattes: string | null;
+};
+export type Servidor = {
+  matricula: string; nome: string; campus: string; setor: string; cargo: string; jornada: string;
+  /** "docente", "tecnico_administrativo" ou "estagiario" */
+  categoria: string;
+  /** Códigos das funções ativas, como "FUC0001 - CTAL/PF". */
+  funcoes: string[];
+  /** Área do concurso do docente ("Química"); vazio para os demais. */
+  disciplina: string;
+  foto: string; lattes: string; telefones: string[];
+};
+export type Unidade = { sigla: string; nome: string };
+
+/** Folha de um mês no Portal da Transparência. `liquido` não inclui `indenizacoes` (auxílios). */
+export type Folha = {
+  mes: string; bruto: number; liquido: number; irrf: number; previdencia: number; outrosDescontos: number;
+  ferias: number; natalina: number; eventuais: number; indenizacoes: number;
+};
+/** Cadastro e remuneração de um servidor no Portal da Transparência (função /api/servidor). Datas em "aaaa-mm-dd", `mes` em "aaaa-mm". */
+export type Transparencia =
+  | { encontrado: false }
+  | {
+    encontrado: true; link: string;
+    cargo: string | null; classe: string | null; nivel: string | null; jornada: string | null; regime: string | null; situacao: string | null;
+    lotacao: string | null; exercicio: string | null;
+    ingressoOrgao: string | null; ingressoServico: string | null; ingressoCargo: string | null;
+    funcao: { nome: string | null; atividade: string | null; unidade: string | null; desde: string | null } | null;
+    afastado: boolean; afastamentos: string[];
+    remuneracao: Folha | null;
+  };
+
+/** Viagem a serviço paga pelo IFRN (função /api/viagens). */
+export type Viagem = {
+  id: number; nome: string; cargo: string; motivo: string; inicio: string; fim: string;
+  diarias: number; passagens: number; total: number; internacional: boolean; situacao: string;
+};
+/** Viagens de uma pessoa nos meses consultados; `meses` são os que o Portal respondeu. */
+export type Viagens = { meses: string[]; viagens: Viagem[] };
 
 type CH = { ch_esperada: number; ch_cumprida: number; ch_pendente: number };
 export type Requisitos = { percentual_cumprida: number; totais: CH } & Record<string, CH | number>;
@@ -179,6 +218,32 @@ const num = (v: unknown): number | null => {
   const n = typeof v === 'number' ? v : Number(String(v).replace(',', '.'));
   return Number.isFinite(n) ? n : null;
 };
+
+/** "José  da Silva" → "JOSE DA SILVA": o formato dos nomes no Portal da Transparência. */
+export const semAcento = (s: string) => s.normalize('NFD').replace(/\p{M}/gu, '').toUpperCase().replace(/\s+/g, ' ').trim();
+
+/** Funções do próprio app (/api): dado público, sem o token do SUAP. */
+async function publicGet<T>(path: string): Promise<T> {
+  const res = await fetch(path);
+  if (!res.ok) throw new ApiError(res.status, `${path.split('?')[0]} respondeu ${res.status}`);
+  return res.json();
+}
+
+const servidor = (s: ServidorRaw): Servidor => ({
+  matricula: s.matricula,
+  nome: s.nome,
+  campus: s.campus ?? '',
+  setor: s.setor_suap ?? '',
+  cargo: s.cargo ?? '',
+  jornada: s.jornada_trabalho ?? '',
+  categoria: s.categoria ?? '',
+  funcoes: s.funcao ?? [],
+  // O SUAP usa "-" e "None" para quem não entrou por área
+  disciplina: /^(-|none)?$/i.test(s.disciplina_ingresso ?? '') ? '' : s.disciplina_ingresso!,
+  foto: s.url_foto_75x100 ?? '',
+  lattes: s.curriculo_lattes ?? '',
+  telefones: s.telefones_institucionais ?? [],
+});
 
 export const photoUrl = (foto?: string) => (!foto ? '' : foto.startsWith('http') ? foto : `${SUAP}${foto}`);
 
@@ -249,11 +314,49 @@ export const api = {
   campus: (sigla: string) => get<CampusInfo>(`${window.location.origin}/api/campus?campus=${encodeURIComponent(sigla)}&v=2`),
   estatisticas: async () => (await get<{ results: Estatisticas }>('/api/institucional/estatisticas/')).results,
 
-  /** Remuneração de um docente pela função /api/salario. É dado público: vai sem o token do SUAP, para a CDN poder guardar a resposta. */
-  salario: async (p: Pick<Pessoa, 'nome' | 'matricula'>): Promise<Salario> => {
-    const res = await fetch(`/api/salario?${new URLSearchParams({ nome: p.nome, matricula: p.matricula })}`);
-    if (!res.ok) throw new ApiError(res.status, `Portal da Transparência respondeu ${res.status}`);
-    return res.json();
+  /** Servidores de um campus (o SUAP entrega 100 por página, em ordem alfabética). */
+  servidores: async (campus: string) => (await getAll<ServidorRaw>(`/api/rh/servidores/?campus=${encodeURIComponent(campus)}`)).map(servidor),
+  /** Busca por nome em todos os campi; devolve só a primeira página. */
+  buscarServidores: async (nome: string) => {
+    const page = await get<{ results: ServidorRaw[]; count: number }>(`/api/rh/servidores/?nome=${encodeURIComponent(nome)}`);
+    return { total: page.count, lista: (page.results ?? []).map(servidor) };
+  },
+  servidor: async (matricula: string) => {
+    const page = await get<{ results: ServidorRaw[] }>(`/api/rh/servidores/?matricula=${encodeURIComponent(matricula)}`);
+    const found = page.results?.find((s) => s.matricula === matricula);
+    return found ? servidor(found) : null;
+  },
+  unidades: async (): Promise<Unidade[]> =>
+    (await getAll<Unidade>('/api/rh/unidades-organizacionais/')).map((u) => ({ sigla: u.sigla, nome: u.nome })).sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR')),
+
+  /** Cadastro e folha no Portal da Transparência. É dado público: vai sem o token do SUAP, para a CDN poder guardar a resposta. */
+  transparencia: (p: Pick<Pessoa, 'nome' | 'matricula'>) =>
+    publicGet<Transparencia>(`/api/servidor?${new URLSearchParams({ nome: p.nome, matricula: p.matricula })}`),
+
+  /**
+   * Viagens a serviço de uma pessoa nos últimos meses. O Portal só lista por órgão e mês, então busca
+   * cada mês do IFRN (um de cada vez, por causa do limite de requisições da chave) e filtra pelo nome.
+   */
+  viagens: async (nome: string, meses = 6): Promise<Viagens> => {
+    const alvo = semAcento(nome);
+    const out: Viagens = { meses: [], viagens: [] };
+    const d = new Date();
+    for (let i = 0; i < meses; i++) {
+      d.setDate(1);
+      d.setMonth(d.getMonth() - 1);
+      const mes = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+      try {
+        const page = await publicGet<{ viagens: Viagem[] }>(`/api/viagens?mes=${mes}`);
+        out.meses.push(mes);
+        out.viagens.push(...page.viagens.filter((v) => semAcento(v.nome) === alvo));
+      } catch (e) {
+        // Sem nenhum mês não há o que mostrar; com alguns, mostra o que veio
+        if (!out.meses.length) throw e;
+        break;
+      }
+    }
+    out.viagens.sort((a, b) => b.inicio.localeCompare(a.inicio));
+    return out;
   },
 
   avaliacoes: () => getAll<Avaliacao>('/api/ensino/minhas-proximas-avaliacoes/'),

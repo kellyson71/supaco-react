@@ -95,6 +95,7 @@ export function Me() {
           <Row to="/mensagens" icon="mail" label="Mensagens do SUAP" sub={unread ? `${unread} não ${unread === 1 ? 'lida' : 'lidas'}` : 'Caixa de entrada'}
             right={unread > 0 ? <Badge tone="error">{unread}</Badge> : <Icon name="chevron_right" />} />
           <Row to="/retrospectiva" icon="auto_awesome" label="Retrospectiva do semestre" sub="Seus números, pronta para compartilhar" right={<Icon name="chevron_right" />} />
+          <Row to="/servidores" icon="badge" label="Servidores do IFRN" sub="Professores e técnicos, com cargo, remuneração e viagens" right={<Icon name="chevron_right" />} />
           <Row to="/campus" icon="apartment" label="Campus" sub="Eventos, projetos e o IFRN em números" right={<Icon name="chevron_right" />} />
           <Row href={SUAP_URL} icon="open_in_new" label="Abrir o SUAP" sub="suap.ifrn.edu.br" right={<Icon name="chevron_right" />} />
           {canInstall && <Row onClick={install} icon="install_mobile" label="Instalar o Supaco" sub="Abre como app, direto da tela inicial" right={<Icon name="download" />} />}

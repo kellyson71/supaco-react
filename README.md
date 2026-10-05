@@ -8,6 +8,7 @@ Cliente web do SUAP (IFRN) focado no que o aluno precisa ver rápido: aula de ag
 - **Disciplinas** — notas por etapa, média, quanto falta para passar e faltas livres (marcas de chamada). O detalhe traz simulador de notas, nota necessária na prova final e quantos dias ainda dá para faltar.
 - **Horário** — semana em grade (desktop) ou por dia (mobile).
 - **Agenda** — avaliações do SUAP + tarefas pendentes do Google Classroom.
+- **Servidores** — quem trabalha no IFRN, com página de detalhes de cada professor ou técnico.
 - **Você** — curso, IRA, conclusão do curso, mensagens do SUAP, tema e conexão com o Classroom.
 
 ## Desenvolvimento
@@ -33,7 +34,8 @@ O Classroom usa o fluxo de token do Google Identity Services (sem client secret)
 - **Manter conectado** (ligado por padrão no login): a senha fica cifrada no IndexedDB do aparelho (`src/lib/vault.ts`, AES-GCM com chave não exportável). Quando o refresh token do SUAP vence, `src/lib/api.ts` entra de novo sozinho; a sessão só cai se a senha for trocada no SUAP ou a pessoa sair da conta. Desligado, nada da senha é guardado.
 - Cada consulta é salva localmente e exibida na hora; a atualização acontece em segundo plano (ao abrir, ao voltar para a aba e no botão "Atualizar").
 - Regras do IFRN em `src/lib/grades.ts`: média 60, pesos 2/3 (2 etapas) e 2/2/3/3 (4 etapas), prova final e limite de 25% de faltas.
-- Remuneração dos docentes: a função `api/salario.ts` consulta a API de dados do Portal da Transparência (servidores do IFRN, órgão SIAPE 26435) e o cartão do docente mostra a folha mais recente publicada. A chave gratuita sai em https://portaldatransparencia.gov.br/api-de-dados/cadastrar-email e vai em `PORTAL_TRANSPARENCIA_KEY` (variável de ambiente no Vercel; `.env.local` no dev). Sem a chave, o bloco simplesmente não aparece.
+- **Servidores** (`/servidores`): diretório de docentes, técnicos e estagiários a partir de `rh/servidores` do SUAP (o token de aluno tem acesso), com busca e filtro por campus e categoria. Cada pessoa tem uma página (`/servidores/<matrícula>`) com setor, função, matérias que dá para você, projetos que coordena e os dados públicos do Portal da Transparência: tempo de casa, folha mais recente detalhada e viagens a serviço dos últimos seis meses.
+- Portal da Transparência: as funções `api/servidor.ts` (cadastro e folha, pelo nome dentro do órgão SIAPE 26435) e `api/viagens.ts` (viagens do IFRN por mês; o app filtra pela pessoa) usam a API de dados do Portal. A chave gratuita sai em https://portaldatransparencia.gov.br/api-de-dados/cadastrar-email e vai em `PORTAL_TRANSPARENCIA_KEY` (variável de ambiente no Vercel; `.env.local` no dev). Sem a chave, a página do servidor só mostra o que vem do SUAP.
 - Horários vêm de `minhas-turmas-virtuais` (código `3V1234`), convertidos em `src/lib/schedule.ts`.
 
 ## App instalável (PWA)

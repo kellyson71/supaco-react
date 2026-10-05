@@ -19,6 +19,8 @@ const NAV = [
   { to: '/disciplinas', label: 'Matérias', icon: 'school' },
   { to: '/horario', label: 'Horário', icon: 'calendar_view_week' },
   { to: '/agenda', label: 'Agenda', icon: 'event_note' },
+  // No celular a barra já está no limite de cinco destinos: lá os servidores ficam dentro de "Você"
+  { to: '/servidores', label: 'Servidores', icon: 'badge', railOnly: true },
   { to: '/voce', label: 'Você', icon: 'person' },
 ];
 
@@ -79,7 +81,7 @@ export function Shell({ children }: { children: ReactNode }) {
   const searchOpen = useSearchOpen();
   const isWide = useIsWide();
   const searching = searchOpen && !isWide;
-  const pageKey = path.startsWith('/disciplinas/') ? 'detail' : path;
+  const pageKey = path.startsWith('/disciplinas/') || path.startsWith('/servidores/') ? 'detail' : path;
 
   return (
     <div className="min-h-dvh bg-surface">
@@ -87,7 +89,7 @@ export function Shell({ children }: { children: ReactNode }) {
       <aside className="fixed inset-y-0 left-0 z-30 hidden w-24 flex-col items-center bg-surface py-5 md:flex">
         <Link to="/" label="Início" className="mb-8 rounded-full"><Logo size={52} /></Link>
         <nav className="flex w-full flex-col gap-3">
-          {NAV.map((n) => <NavItem key={n.to} {...n} active={isActive(path, n.to)} unread={n.to === '/voce' && unread} rail />)}
+          {NAV.map((n) => <NavItem key={n.to} to={n.to} label={n.label} icon={n.icon} active={isActive(path, n.to)} unread={n.to === '/voce' && unread} rail />)}
         </nav>
         <div className="mt-auto flex flex-col items-center gap-2">
           <SyncButton />
@@ -131,7 +133,10 @@ export function Shell({ children }: { children: ReactNode }) {
 
       {/* Barra de navegação (celular) */}
       <nav className="fixed inset-x-0 bottom-0 z-30 flex bg-surface-container pb-[env(safe-area-inset-bottom)] md:hidden">
-        {NAV.map((n) => <NavItem key={n.to} {...n} active={isActive(path, n.to)} unread={n.to === '/voce' && unread} />)}
+        {NAV.filter((n) => !n.railOnly).map((n) => (
+          <NavItem key={n.to} to={n.to} label={n.label} icon={n.icon} unread={n.to === '/voce' && unread}
+            active={isActive(path, n.to) || (n.to === '/voce' && path.startsWith('/servidores'))} />
+        ))}
       </nav>
 
       <GlobalSearch />

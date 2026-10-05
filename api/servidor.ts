@@ -1,4 +1,4 @@
-// Função serverless (Vercel): remuneração de um docente do IFRN no Portal da Transparência.
+// Função serverless (Vercel): cadastro e remuneração de um servidor do IFRN no Portal da Transparência.
 // A API do Portal exige uma chave pessoal (gratuita), que fica só no servidor, em PORTAL_TRANSPARENCIA_KEY.
 // Não pede o token do SUAP: o dado é público e, sem Authorization, a resposta fica no cache da CDN
 // e serve a todos os alunos daquele professor, poupando o limite de requisições da chave.
@@ -12,9 +12,12 @@ const MONTHS_BACK = 6;
 const DAY = 86_400;
 
 type Ficha = {
-  matriculaDescaracterizada?: string; cargo?: string; classeCargo?: string; padraoCargo?: string;
-  jornadaTrabalho?: string; situacaoServidor?: string; dataIngressoOrgao?: string;
+  matriculaDescaracterizada?: string; cargo?: string; classeCargo?: string; padraoCargo?: string; nivelCargo?: string;
+  jornadaTrabalho?: string; regimeJuridico?: string; situacaoServidor?: string; afastamentos?: string[];
+  uorgLotacao?: string; uorgExercicio?: string; dataIngressoOrgao?: string; dataIngressoServicoPublico?: string; dataIngressoCargo?: string;
 };
+
+type FichaFuncao = { funcao?: string; atividade?: string; dataIngressoFuncao?: string; uorgExercicio?: string };
 
 type Cadastro = {
   servidor?: {
@@ -22,14 +25,18 @@ type Cadastro = {
     pessoa?: { nome?: string };
     situacao?: string;
     codigoMatriculaFormatado?: string;
+    flagAfastado?: number;
   };
   fichasCargoEfetivo?: Ficha[];
   fichasDemaisSituacoes?: Ficha[];
+  fichasFuncao?: FichaFuncao[];
 };
 
 type Remuneracao = {
-  mesAno?: string; existeValorMes?: boolean;
+  existeValorMes?: boolean;
   remuneracaoBasicaBruta?: string; valorTotalRemuneracaoAposDeducoes?: string;
+  impostoRetidoNaFonte?: string; previdenciaOficial?: string; outrasDeducoesObrigatorias?: string;
+  gratificacaoNatalina?: string; ferias?: string; outrasRemuneracoesEventuais?: string; verbasIndenizatorias?: string;
 };
 
 class Upstream extends Error {
@@ -49,6 +56,15 @@ const norm = (s: string) => s.normalize('NFD').replace(/\p{M}/gu, '').toUpperCas
 
 /** "12.345,67" → 12345.67 */
 const brl = (s: string | undefined) => Number((s ?? '').replace(/[^\d,-]/g, '').replace(',', '.')) || 0;
+
+/** "31/01/2015" → "2015-01-31" */
+const iso = (s: string | undefined) => {
+  const m = s?.match(/^(\d{2})\/(\d{2})\/(\d{4})/);
+  return m ? `${m[3]}-${m[2]}-${m[1]}` : null;
+};
+
+/** O Portal usa "Sem informação", "-1" e afins no lugar de vazio. */
+const text = (s: string | undefined) => (s && !/^(sem informa|-\d|inv[aá]lido)/i.test(s.trim()) ? s.trim() : null);
 
 /** O Portal mascara a matrícula ("123****"): confere só os dígitos que ele deixa à mostra. */
 function sameMatricula(masked: string | undefined, matricula: string) {
@@ -87,13 +103,25 @@ function mesAno(back: number) {
   return `${d.getUTCFullYear()}${String(d.getUTCMonth() + 1).padStart(2, '0')}`;
 }
 
-/** Folha mais recente já publicada para o servidor. */
+/** Folha mais recente já publicada. O valor após deduções não inclui as verbas indenizatórias (auxílios). */
 async function latestPay(id: number, key: string) {
   for (let back = 1; back <= MONTHS_BACK; back++) {
     const mes = mesAno(back);
     const list = await portal<{ remuneracoesDTO?: Remuneracao[] }[]>('/servidores/remuneracao', { id: String(id), mesAno: mes }, key);
     const pay = list.flatMap((x) => x.remuneracoesDTO ?? []).find((r) => r.existeValorMes !== false && brl(r.remuneracaoBasicaBruta) > 0);
-    if (pay) return { mes: `${mes.slice(0, 4)}-${mes.slice(4)}`, bruto: brl(pay.remuneracaoBasicaBruta), liquido: brl(pay.valorTotalRemuneracaoAposDeducoes) };
+    if (!pay) continue;
+    return {
+      mes: `${mes.slice(0, 4)}-${mes.slice(4)}`,
+      bruto: brl(pay.remuneracaoBasicaBruta),
+      liquido: brl(pay.valorTotalRemuneracaoAposDeducoes),
+      irrf: Math.abs(brl(pay.impostoRetidoNaFonte)),
+      previdencia: Math.abs(brl(pay.previdenciaOficial)),
+      outrosDescontos: Math.abs(brl(pay.outrasDeducoesObrigatorias)),
+      ferias: brl(pay.ferias),
+      natalina: brl(pay.gratificacaoNatalina),
+      eventuais: brl(pay.outrasRemuneracoesEventuais),
+      indenizacoes: brl(pay.verbasIndenizatorias),
+    };
   }
   return null;
 }
@@ -114,18 +142,30 @@ export async function GET(request: Request) {
   try {
     const found = await find(nome, matricula, key);
     const id = found?.servidor?.idServidorAposentadoPensionista;
-    const pay = id ? await latestPay(id, key) : null;
-    if (!found || !id || !pay) return json({ encontrado: false }, DAY);
+    if (!found || !id) return json({ encontrado: false }, DAY);
 
     const ficha = fichaOf(found);
+    const funcao = found.fichasFuncao?.[0];
     return json({
       encontrado: true,
-      ...pay,
-      cargo: ficha?.cargo || null,
-      classe: [ficha?.classeCargo, ficha?.padraoCargo].filter(Boolean).join(' ') || null,
-      jornada: ficha?.jornadaTrabalho || null,
-      situacao: ficha?.situacaoServidor || found.servidor?.situacao || null,
       link: `https://portaldatransparencia.gov.br/servidores/${id}`,
+      cargo: text(ficha?.cargo),
+      classe: [text(ficha?.classeCargo), text(ficha?.padraoCargo)].filter(Boolean).join(' ') || null,
+      nivel: text(ficha?.nivelCargo),
+      jornada: text(ficha?.jornadaTrabalho),
+      regime: text(ficha?.regimeJuridico),
+      situacao: text(ficha?.situacaoServidor) ?? text(found.servidor?.situacao),
+      lotacao: text(ficha?.uorgLotacao),
+      exercicio: text(ficha?.uorgExercicio),
+      ingressoOrgao: iso(ficha?.dataIngressoOrgao),
+      ingressoServico: iso(ficha?.dataIngressoServicoPublico),
+      ingressoCargo: iso(ficha?.dataIngressoCargo),
+      funcao: funcao && text(funcao.funcao)
+        ? { nome: text(funcao.funcao), atividade: text(funcao.atividade), unidade: text(funcao.uorgExercicio), desde: iso(funcao.dataIngressoFuncao) }
+        : null,
+      afastado: !!found.servidor?.flagAfastado,
+      afastamentos: (ficha?.afastamentos ?? []).slice(0, 5),
+      remuneracao: await latestPay(id, key),
     }, 7 * DAY);
   } catch (e) {
     // Limite da chave estourado: o app tenta de novo depois

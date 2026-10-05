@@ -18,6 +18,8 @@ const Me = lazy(() => import('./pages/Me').then((m) => ({ default: m.Me })));
 const Messages = lazy(() => import('./pages/Messages').then((m) => ({ default: m.Messages })));
 const Diagnostics = lazy(() => import('./pages/Diagnostics').then((m) => ({ default: m.Diagnostics })));
 const Campus = lazy(() => import('./pages/Campus').then((m) => ({ default: m.Campus })));
+const Staff = lazy(() => import('./pages/Staff').then((m) => ({ default: m.Staff })));
+const StaffDetail = lazy(() => import('./pages/StaffDetail').then((m) => ({ default: m.StaffDetail })));
 const Retrospective = lazy(() => import('./pages/Retrospective').then((m) => ({ default: m.Retrospective })));
 
 const useLoggedIn = () => useSyncExternalStore(onSessionChange, () => session.isLoggedIn);
@@ -41,8 +43,11 @@ export default function App() {
   if (!loggedIn) return <><Suspense fallback={null}><Login /></Suspense><UpdatePrompt /></>;
 
   const detail = path.match(/^\/disciplinas\/([^/]+)/);
+  const staff = path.match(/^\/servidores\/([^/]+)/);
   const page =
     detail ? <SubjectDetail code={decodeURIComponent(detail[1])} /> :
+    staff ? <StaffDetail matricula={decodeURIComponent(staff[1])} /> :
+    path === '/servidores' ? <Staff /> :
     path === '/disciplinas' ? <Subjects /> :
     path === '/horario' ? <Schedule /> :
     path === '/agenda' ? <Agenda /> :

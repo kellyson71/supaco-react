@@ -65,9 +65,20 @@ export const useAulasDiario = (code: string | undefined) =>
 export const useCampus = (sigla: string | undefined) =>
   useResource(sigla ? `campus:v3:${sigla}` : null, () => api.campus(sigla!), 6 * 60);
 export const useEstatisticas = () => useResource('estatisticas', api.estatisticas, 24 * 60);
-/** Remuneração do docente no Portal da Transparência. A folha muda uma vez por mês, então o cache dura uma semana. */
-export const useSalario = (p: Pessoa | undefined) =>
-  useResource(p ? `salario:${p.matricula}` : null, () => api.salario(p!), 7 * 24 * 60);
+
+// ---------- Servidores do IFRN ----------
+
+export const useUnidades = () => useResource('unidades', api.unidades, 30 * 24 * 60);
+export const useServidores = (campus: string | undefined) =>
+  useResource(campus ? `servidores:${campus}` : null, () => api.servidores(campus!), 24 * 60);
+export const useServidor = (matricula: string | undefined) =>
+  useResource(matricula ? `servidor:${matricula}` : null, () => api.servidor(matricula!), 7 * 24 * 60);
+/** Cadastro e folha no Portal da Transparência. A folha muda uma vez por mês, então o cache dura uma semana. */
+export const useTransparencia = (p: Pick<Pessoa, 'nome' | 'matricula'> | undefined) =>
+  useResource(p ? `transparencia:${p.matricula}` : null, () => api.transparencia(p!), 7 * 24 * 60);
+/** Viagens a serviço da pessoa nos últimos meses (Portal da Transparência). */
+export const useViagens = (p: Pick<Pessoa, 'nome' | 'matricula'> | undefined) =>
+  useResource(p ? `viagens:${p.matricula}` : null, () => api.viagens(p!.nome), 24 * 60);
 
 /** Nomes dos professores das matérias atuais (para destacar projetos que eles coordenam). */
 export function useMyTeachers(codes: string[] | undefined) {
