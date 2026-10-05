@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 import { readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { defineConfig, type Plugin } from 'vite';
+import { defineConfig, loadEnv, type Plugin } from 'vite';
 import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
 
@@ -48,8 +48,12 @@ const swPrecache = (): Plugin => {
   };
 };
 
-export default defineConfig({
-  plugins: [react(), tailwindcss(), vercelApi(), swPrecache()],
-  server: { port: 5173, host: true },
-  build: { target: 'es2022' },
+export default defineConfig(({ mode }) => {
+  // As funções de /api leem segredos de process.env (como no Vercel); no dev eles vêm do .env.local
+  Object.assign(process.env, loadEnv(mode, process.cwd(), 'PORTAL_'));
+  return {
+    plugins: [react(), tailwindcss(), vercelApi(), swPrecache()],
+    server: { port: 5173, host: true },
+    build: { target: 'es2022' },
+  };
 });

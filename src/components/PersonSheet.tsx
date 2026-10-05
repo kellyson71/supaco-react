@@ -2,10 +2,11 @@ import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { m } from 'motion/react';
 import { session } from '../lib/api';
-import { useCurrentSubjects, useTurmas } from '../lib/data';
+import { useCurrentSubjects, useSalario, useTurmas } from '../lib/data';
 import { subjectTone, titleCase, type Pessoa } from '../lib/suap';
 import { TONES } from '../lib/tones';
-import { Button, cx, EMPHASIZED, Icon } from './ui';
+import { longMonth } from '../lib/dates';
+import { Button, cx, EMPHASIZED, Icon, Skeleton } from './ui';
 
 export type Role = 'teacher' | 'student';
 
@@ -47,7 +48,7 @@ export function PersonSheet({ p, role, photo, onClose }: { p: Pessoa; role: Role
       <m.div
         initial={{ opacity: 0, y: 48, scale: 0.96 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 32, scale: 0.98 }}
         transition={{ duration: 0.4, ease: EMPHASIZED }}
-        className="relative w-full overflow-hidden rounded-t-xl bg-surface-container-high pb-[max(1.5rem,env(safe-area-inset-bottom))] text-on-surface sm:max-w-sm sm:rounded-xl sm:pb-6">
+        className="relative max-h-[92dvh] w-full overflow-x-hidden overflow-y-auto overscroll-contain rounded-t-xl bg-surface-container-high pb-[max(1.5rem,env(safe-area-inset-bottom))] text-on-surface sm:max-w-sm sm:rounded-xl sm:pb-6">
         <div className="mx-auto mt-3 h-1 w-8 rounded-full bg-outline-variant sm:hidden" aria-hidden />
         <div className={cx('relative flex h-28 items-end justify-center', role === 'teacher' ? 'bg-secondary-container' : 'bg-primary-container')}>
           <div className="absolute top-2 right-2">
@@ -82,6 +83,8 @@ export function PersonSheet({ p, role, photo, onClose }: { p: Pessoa; role: Role
             </div>
           )}
 
+          {role === 'teacher' && <Salary p={p} />}
+
           {p.email && (
             <Button icon="mail" href={`mailto:${p.email}`} className="mt-5 w-full">Enviar e-mail</Button>
           )}
@@ -89,5 +92,34 @@ export function PersonSheet({ p, role, photo, onClose }: { p: Pessoa; role: Role
       </m.div>
     </div>,
     document.body,
+  );
+}
+
+const money = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' });
+
+/** Remuneração pública do docente (Portal da Transparência). Se a consulta falhar, o bloco simplesmente não aparece. */
+function Salary({ p }: { p: Pessoa }) {
+  const { data, loading } = useSalario(p);
+  if (loading) return <Skeleton className="mt-5 h-[104px] rounded-xl" />;
+  if (!data) return null;
+  if (!data.encontrado) return <p className="mt-5 text-xs text-on-surface-variant">Sem remuneração publicada no Portal da Transparência para este nome.</p>;
+
+  const cargo = [data.cargo && titleCase(data.cargo), data.classe, data.jornada && titleCase(data.jornada)].filter(Boolean).join(' · ');
+  return (
+    <div className="mt-5 text-left">
+      <p className="mb-2 text-sm font-medium text-on-surface-variant">Remuneração em {longMonth(data.mes)}</p>
+      <dl className="grid grid-cols-2 gap-1.5">
+        {[['Bruta', data.bruto], ['Após deduções', data.liquido]].map(([label, value]) => (
+          <div key={label} className="rounded-xl bg-surface-container-highest px-3.5 py-2.5">
+            <dt className="text-xs text-on-surface-variant">{label}</dt>
+            <dd className="text-lg font-semibold tabular">{money.format(value as number)}</dd>
+          </div>
+        ))}
+      </dl>
+      {cargo && <p className="mt-2 text-xs text-on-surface-variant">{cargo}</p>}
+      <a href={data.link} target="_blank" rel="noreferrer" className="mt-1 inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline">
+        Fonte: Portal da Transparência<Icon name="open_in_new" size={14} />
+      </a>
+    </div>
   );
 }

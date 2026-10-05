@@ -1,5 +1,5 @@
 // Endpoints do SUAP usados pelo app e a normalização dos dados para a UI.
-import { get, getAll, SUAP } from './api';
+import { ApiError, get, getAll, SUAP } from './api';
 
 export { SUAP as SUAP_URL };
 import { parseHorarios, shortRoom, type Slot } from './schedule';
@@ -128,6 +128,11 @@ export type Estatisticas = {
 };
 
 export type Pessoa = { nome: string; matricula: string; foto: string; email?: string };
+
+/** Remuneração de um servidor no Portal da Transparência (função /api/salario). `mes` vem como "2026-08". */
+export type Salario =
+  | { encontrado: false }
+  | { encontrado: true; mes: string; bruto: number; liquido: number; cargo: string | null; classe: string | null; jornada: string | null; situacao: string | null; link: string };
 export type Material = { descricao: string; url: string; data?: string };
 export type Turma = { professores: Pessoa[]; colegas: Pessoa[]; materiais: Material[] };
 
@@ -243,6 +248,13 @@ export const api = {
   /** Eventos e projetos do campus, já filtrados pela função /api/campus. */
   campus: (sigla: string) => get<CampusInfo>(`${window.location.origin}/api/campus?campus=${encodeURIComponent(sigla)}&v=2`),
   estatisticas: async () => (await get<{ results: Estatisticas }>('/api/institucional/estatisticas/')).results,
+
+  /** Remuneração de um docente pela função /api/salario. É dado público: vai sem o token do SUAP, para a CDN poder guardar a resposta. */
+  salario: async (p: Pick<Pessoa, 'nome' | 'matricula'>): Promise<Salario> => {
+    const res = await fetch(`/api/salario?${new URLSearchParams({ nome: p.nome, matricula: p.matricula })}`);
+    if (!res.ok) throw new ApiError(res.status, `Portal da Transparência respondeu ${res.status}`);
+    return res.json();
+  },
 
   avaliacoes: () => getAll<Avaliacao>('/api/ensino/minhas-proximas-avaliacoes/'),
   frequencia: (p: Periodo) => get<Frequencia>(`/api/ensino/frequencia-periodo-letivo/${p.ano}/${p.periodo}/`),

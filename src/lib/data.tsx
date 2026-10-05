@@ -1,7 +1,7 @@
 // Hooks de dados compartilhados pelas telas + período letivo selecionado.
 import { createContext, useContext, useMemo, useState, type ReactNode } from 'react';
 import { useResource } from './store';
-import { api, aulaMatchesSubject, type Calendario, type Parcial, type Periodo, type Turma } from './suap';
+import { api, aulaMatchesSubject, type Calendario, type Parcial, type Periodo, type Pessoa, type Turma } from './suap';
 import { isoDay, parseDay } from './dates';
 import { fetchPendingTasks } from './classroom';
 import type { Holiday } from './insights';
@@ -65,6 +65,9 @@ export const useAulasDiario = (code: string | undefined) =>
 export const useCampus = (sigla: string | undefined) =>
   useResource(sigla ? `campus:v3:${sigla}` : null, () => api.campus(sigla!), 6 * 60);
 export const useEstatisticas = () => useResource('estatisticas', api.estatisticas, 24 * 60);
+/** Remuneração do docente no Portal da Transparência. A folha muda uma vez por mês, então o cache dura uma semana. */
+export const useSalario = (p: Pessoa | undefined) =>
+  useResource(p ? `salario:${p.matricula}` : null, () => api.salario(p!), 7 * 24 * 60);
 
 /** Nomes dos professores das matérias atuais (para destacar projetos que eles coordenam). */
 export function useMyTeachers(codes: string[] | undefined) {

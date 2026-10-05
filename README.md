@@ -22,6 +22,7 @@ Opcional em `.env.local`:
 
 ```
 VITE_GOOGLE_CLIENT_ID=<client id OAuth do Google>
+PORTAL_TRANSPARENCIA_KEY=<chave da API do Portal da Transparência>
 ```
 
 O Classroom usa o fluxo de token do Google Identity Services (sem client secret). A origem do app (ex.: `https://supaco.vercel.app` e `http://localhost:5173`) precisa estar em **Authorized JavaScript origins** no Google Cloud Console.
@@ -32,6 +33,7 @@ O Classroom usa o fluxo de token do Google Identity Services (sem client secret)
 - **Manter conectado** (ligado por padrão no login): a senha fica cifrada no IndexedDB do aparelho (`src/lib/vault.ts`, AES-GCM com chave não exportável). Quando o refresh token do SUAP vence, `src/lib/api.ts` entra de novo sozinho; a sessão só cai se a senha for trocada no SUAP ou a pessoa sair da conta. Desligado, nada da senha é guardado.
 - Cada consulta é salva localmente e exibida na hora; a atualização acontece em segundo plano (ao abrir, ao voltar para a aba e no botão "Atualizar").
 - Regras do IFRN em `src/lib/grades.ts`: média 60, pesos 2/3 (2 etapas) e 2/2/3/3 (4 etapas), prova final e limite de 25% de faltas.
+- Remuneração dos docentes: a função `api/salario.ts` consulta a API de dados do Portal da Transparência (servidores do IFRN, órgão SIAPE 26435) e o cartão do docente mostra a folha mais recente publicada. A chave gratuita sai em https://portaldatransparencia.gov.br/api-de-dados/cadastrar-email e vai em `PORTAL_TRANSPARENCIA_KEY` (variável de ambiente no Vercel; `.env.local` no dev). Sem a chave, o bloco simplesmente não aparece.
 - Horários vêm de `minhas-turmas-virtuais` (código `3V1234`), convertidos em `src/lib/schedule.ts`.
 
 ## App instalável (PWA)
