@@ -27,7 +27,7 @@ export function StaffDetail({ matricula }: { matricula: string }) {
   const shared = useMemo(() => (subjects ?? []).filter((s) => turmas?.[s.code]?.professores.some((p) => p.matricula === matricula)), [subjects, turmas, matricula]);
 
   const person: Servidor | null = found ?? (teacher
-    ? { matricula, nome: teacher.nome, foto: teacher.foto, campus: '', setor: '', cargo: '', jornada: '', categoria: 'docente', funcoes: [], disciplina: '', lattes: '', telefones: [] }
+    ? { matricula, nome: teacher.nome, foto: teacher.foto, campus: '', setor: '', cargo: '', jornada: '', categoria: 'docente', funcoes: [], disciplina: '', lattes: '' }
     : null);
 
   return (
@@ -77,12 +77,12 @@ function Profile({ s, email, shared }: { s: Servidor; email?: string; shared: Su
       </Item>
 
       {shared.length > 0 && <Item className="xl:col-span-5"><WithYou shared={shared} /></Item>}
-      <Item className={shared.length > 0 ? 'xl:col-span-7' : 'xl:col-span-12'}><Bond s={s} info={info} campusLabel={campusLabel} loading={portal.loading} /></Item>
+      <Item className={shared.length > 0 ? 'xl:col-span-7' : 'xl:col-span-12'}><Bond s={s} info={info} loading={portal.loading} /></Item>
 
       {lookup && !portalDown && (
         <>
           <Item className="xl:col-span-6"><Pay portal={portal.data} loading={portal.loading} /></Item>
-          <Item className="xl:col-span-6"><Trips data={trips.data} loading={portal.loading || trips.loading} failed={!!trips.error && !trips.data} hidden={!!portal.data && !info} /></Item>
+          <Item className="xl:col-span-6"><Trips data={trips.data} loading={portal.loading || trips.loading} failed={!!trips.error && !trips.data} hidden={!!portal.data && !info} link={info?.link} /></Item>
         </>
       )}
       {portalDown && (
@@ -101,12 +101,6 @@ function Profile({ s, email, shared }: { s: Servidor; email?: string; shared: Su
 // ---------- Cabeçalho ----------
 
 function Hero({ s, info, email, campusLabel }: { s: Servidor; info: Extract<Transparencia, { encontrado: true }> | null; email?: string; campusLabel: string }) {
-  const [copied, setCopied] = useState(false);
-  const copy = async () => {
-    await navigator.clipboard?.writeText(s.matricula);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  };
   const role = info?.funcao?.atividade ? pretty(info.funcao.atividade) : s.funcoes[0] ? funcaoLabel(s.funcoes[0]).tipo : null;
   const chip = 'bg-white/50 !text-current dark:bg-black/25';
 
@@ -129,13 +123,12 @@ function Hero({ s, info, email, campusLabel }: { s: Servidor; info: Extract<Tran
           <p className="mt-2 max-w-2xl text-base opacity-90">
             {ocupacao(s)}{role && ` · ${role}`}
           </p>
-          <div className="mt-5 flex flex-wrap items-center gap-2">
-            {email && <Button icon="mail" href={`mailto:${email}`}>Enviar e-mail</Button>}
-            {s.lattes && <Button variant="tonal" icon="history_edu" href={s.lattes}>Currículo Lattes</Button>}
-            <button onClick={copy} className="state inline-flex h-10 items-center gap-2 rounded-full border border-current/25 px-4 text-sm font-medium tabular">
-              <Icon name={copied ? 'check' : 'content_copy'} size={18} />{copied ? 'Matrícula copiada' : `Matrícula ${s.matricula}`}
-            </button>
-          </div>
+          {(email || s.lattes) && (
+            <div className="mt-5 flex flex-wrap items-center gap-2">
+              {email && <Button icon="mail" href={`mailto:${email}`}>Enviar e-mail</Button>}
+              {s.lattes && <Button variant="tonal" icon="history_edu" href={s.lattes}>Currículo Lattes</Button>}
+            </div>
+          )}
         </div>
       </div>
     </div>
@@ -181,7 +174,7 @@ function WithYou({ shared }: { shared: Subject[] }) {
 
 // ---------- Vínculo ----------
 
-function Bond({ s, info, campusLabel, loading }: { s: Servidor; info: Extract<Transparencia, { encontrado: true }> | null; campusLabel: string; loading: boolean }) {
+function Bond({ s, info, loading }: { s: Servidor; info: Extract<Transparencia, { encontrado: true }> | null; loading: boolean }) {
   const since = (iso: string | null | undefined) => {
     if (!iso) return null;
     const y = anosDesde(iso);
@@ -196,12 +189,9 @@ function Bond({ s, info, campusLabel, loading }: { s: Servidor; info: Extract<Tr
     ['workspace_premium', 'Função', info?.funcao?.atividade
       ? `${pretty(info.funcao.atividade)}${info.funcao.desde ? `, desde ${fullDate(info.funcao.desde)}` : ''}`
       : funcoes.join('; ')],
-    ['apartment', 'Lotação', [campusLabel && `Campus ${campusLabel}`, s.setor].filter(Boolean).join(' · ')],
     ['event_available', 'No IFRN desde', since(info?.ingressoOrgao)],
     ['history', 'No serviço público desde', info?.ingressoServico !== info?.ingressoOrgao ? since(info?.ingressoServico) : null],
-    ['verified', 'Situação', info?.situacao && [pretty(info.situacao), info.regime && pretty(info.regime)].filter(Boolean).join(' · ')],
     ['event_busy', 'Afastamentos', info?.afastamentos.join('; ')],
-    ['call', 'Telefone', s.telefones.join(' · ')],
   ];
   const filled = rows.filter(([, , v]) => v);
 
@@ -294,7 +284,7 @@ function PayBreakdown({ pay, link }: { pay: Folha; link: string }) {
 
 // ---------- Viagens ----------
 
-function Trips({ data, loading, failed, hidden }: { data: { meses: string[]; viagens: Viagem[] } | undefined; loading: boolean; failed: boolean; hidden: boolean }) {
+function Trips({ data, loading, failed, hidden, link }: { data: { meses: string[]; viagens: Viagem[] } | undefined; loading: boolean; failed: boolean; hidden: boolean; link?: string }) {
   const [all, setAll] = useState(false);
   const list = data?.viagens ?? [];
   const total = list.reduce((a, v) => a + v.total, 0);
@@ -303,7 +293,7 @@ function Trips({ data, loading, failed, hidden }: { data: { meses: string[]; via
 
   return (
     <Card variant="filled" className="h-full rounded-2xl p-5">
-      <SectionHeader title="Viagens a serviço" icon="flight_takeoff" action={months > 0 && <span className="shrink-0 text-sm text-on-surface-variant">{plural(months, 'mês', 'meses')}</span>} />
+      <SectionHeader title="Viagens a serviço" icon="flight_takeoff" action={months > 0 && <span className="shrink-0 text-sm text-on-surface-variant">últimos {plural(months, 'mês', 'meses')}</span>} />
       {hidden ? <p className="px-1 text-sm text-on-surface-variant">Sem o cadastro no Portal da Transparência não dá para ligar viagens a esta pessoa.</p>
         : loading ? (
           <>
@@ -311,20 +301,30 @@ function Trips({ data, loading, failed, hidden }: { data: { meses: string[]; via
             <p className="mt-2 px-1 text-xs text-on-surface-variant">Conferindo mês a mês no Portal da Transparência…</p>
           </>
         ) : failed ? <p className="px-1 text-sm text-on-surface-variant">O Portal da Transparência não respondeu agora. Tente de novo mais tarde.</p>
-          : list.length === 0 ? <p className="px-1 text-sm text-on-surface-variant">Nenhuma viagem a serviço paga pelo IFRN desde {since}.</p>
-            : (
-              <>
-                <p className="mb-3 px-1 text-sm text-on-surface-variant">
-                  {plural(list.length, 'viagem', 'viagens')}, <span className="font-medium text-on-surface tabular">{money.format(total)}</span> em diárias e passagens.
-                </p>
+          : (
+            <>
+              <p className="mb-3 px-1 text-sm text-on-surface-variant">
+                {list.length === 0 ? `Nenhuma viagem a serviço paga pelo IFRN desde ${since}.`
+                  : <>{plural(list.length, 'viagem', 'viagens')} desde {since}{total > 0 ? <>, <span className="font-medium text-on-surface tabular">{money.format(total)}</span> em diárias e passagens.</> : ', sem custo registrado para o IFRN.'}</>}
+              </p>
+              {list.length > 0 && (
                 <ul className="flex flex-col gap-1.5">
                   {(all ? list : list.slice(0, 4)).map((v) => <Trip key={v.id} v={v} />)}
                 </ul>
-                {list.length > 4 && (
-                  <Button variant="text" size="sm" icon={all ? undefined : 'expand_more'} onClick={() => setAll(!all)} className="mt-2">{all ? 'Mostrar menos' : `Ver as ${list.length} viagens`}</Button>
-                )}
-              </>
-            )}
+              )}
+              {list.length > 4 && (
+                <Button variant="text" size="sm" icon={all ? undefined : 'expand_more'} onClick={() => setAll(!all)} className="mt-2">{all ? 'Mostrar menos' : `Ver as ${list.length} viagens`}</Button>
+              )}
+              {link && (
+                <p className="mt-3 border-t border-outline-variant px-1 pt-3 text-xs text-on-surface-variant">
+                  Aqui só entram os últimos {plural(months, 'mês', 'meses')}.{' '}
+                  <a href={link} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 font-medium text-primary hover:underline">
+                    Histórico completo no Portal da Transparência<Icon name="open_in_new" size={14} />
+                  </a>
+                </p>
+              )}
+            </>
+          )}
     </Card>
   );
 }
@@ -349,7 +349,7 @@ function Trip({ v }: { v: Viagem }) {
             {open && v.passagens > 0 && <span>· {money0.format(v.passagens)} em passagens</span>}
           </span>
         </span>
-        <span className="shrink-0 text-sm font-medium tabular">{money0.format(v.total)}</span>
+        <span className={cx('shrink-0 text-sm tabular', v.total > 0 ? 'font-medium' : 'text-on-surface-variant')}>{v.total > 0 ? money0.format(v.total) : 'sem custo'}</span>
       </button>
     </li>
   );

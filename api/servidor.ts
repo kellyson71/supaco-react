@@ -43,12 +43,21 @@ class Upstream extends Error {
   constructor(public status: number) { super(`Portal da Transparência respondeu ${status}`); }
 }
 
+/**
+ * Quem passa do limite por minuto não recebe 429: a chave é bloqueada (o desbloqueio vai por e-mail) e a API
+ * passa a responder 200 com um aviso em texto puro. Trata como limite estourado.
+ */
+async function body<T>(r: Response): Promise<T> {
+  if (!r.ok) throw new Upstream(r.status);
+  if (!(r.headers.get('content-type') ?? '').includes('json')) throw new Upstream(429);
+  return r.json();
+}
+
 async function portal<T>(path: string, params: Record<string, string>, key: string): Promise<T> {
   const r = await fetch(`${PORTAL}${path}?${new URLSearchParams({ ...params, pagina: '1' })}`, {
     headers: { Accept: 'application/json', 'chave-api-dados': key },
   });
-  if (!r.ok) throw new Upstream(r.status);
-  return r.json();
+  return body<T>(r);
 }
 
 /** "José  da Silva" → "JOSE DA SILVA", para comparar com o nome do Portal. */

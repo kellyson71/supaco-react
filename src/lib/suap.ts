@@ -134,7 +134,7 @@ export type Turma = { professores: Pessoa[]; colegas: Pessoa[]; materiais: Mater
 /** Servidor do IFRN como o SUAP lista em rh/servidores (docentes, técnicos e estagiários). */
 type ServidorRaw = {
   matricula: string; nome: string; setor_suap: string | null; jornada_trabalho: string | null; campus: string | null; cargo: string | null;
-  funcao: string[] | null; disciplina_ingresso: string | null; categoria: string | null; telefones_institucionais: string[] | null;
+  funcao: string[] | null; disciplina_ingresso: string | null; categoria: string | null;
   url_foto_75x100: string | null; curriculo_lattes: string | null;
 };
 export type Servidor = {
@@ -145,7 +145,7 @@ export type Servidor = {
   funcoes: string[];
   /** Área do concurso do docente ("Química"); vazio para os demais. */
   disciplina: string;
-  foto: string; lattes: string; telefones: string[];
+  foto: string; lattes: string;
 };
 export type Unidade = { sigla: string; nome: string };
 
@@ -242,7 +242,6 @@ const servidor = (s: ServidorRaw): Servidor => ({
   disciplina: /^(-|none)?$/i.test(s.disciplina_ingresso ?? '') ? '' : s.disciplina_ingresso!,
   foto: s.url_foto_75x100 ?? '',
   lattes: s.curriculo_lattes ?? '',
-  telefones: s.telefones_institucionais ?? [],
 });
 
 export const photoUrl = (foto?: string) => (!foto ? '' : foto.startsWith('http') ? foto : `${SUAP}${foto}`);
