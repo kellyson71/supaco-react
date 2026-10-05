@@ -1,8 +1,8 @@
 import { useState, type FormEvent } from 'react';
 import { m } from 'motion/react';
-import { login } from '../lib/api';
+import { login, session } from '../lib/api';
 import { shareSite, SITE_URL, useInstall } from '../lib/hooks';
-import { Button, cx, EMPHASIZED, Icon, IconButton, Shape, TextField, type ShapeName } from '../components/ui';
+import { Button, cx, EMPHASIZED, Icon, IconButton, Shape, Switch, TextField, type ShapeName } from '../components/ui';
 import { Logo } from '../components/Logo';
 import { ThemeButton } from '../components/Shell';
 
@@ -14,12 +14,15 @@ const FEATURES: { icon: string; title: string; text: string; shape: ShapeName; c
 ];
 
 export function Login() {
-  const [user, setUser] = useState('');
+  // Quem já entrou neste aparelho volta com a matrícula preenchida
+  const [returning] = useState(() => !!session.lastUser);
+  const [user, setUser] = useState(() => session.lastUser);
   const [pass, setPass] = useState('');
+  const [keep, setKeep] = useState(true);
   const [show, setShow] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
-  const { canInstall, install } = useInstall();
+  const { canInstall, install, iosHint } = useInstall();
   const [copied, setCopied] = useState(false);
 
   const submit = async (e: FormEvent) => {
@@ -28,7 +31,7 @@ export function Login() {
     setBusy(true);
     setError('');
     try {
-      await login(user, pass);
+      await login(user, pass, keep);
     } catch (err) {
       setError((err as Error).message);
       setBusy(false);
@@ -43,8 +46,8 @@ export function Login() {
     <div className="min-h-dvh bg-surface lg:grid lg:grid-cols-[1.15fr_1fr] lg:gap-4 lg:p-4">
       {/* Apresentação */}
       <section className="relative overflow-hidden px-5 pt-4 pb-8 lg:flex lg:flex-col lg:rounded-3xl lg:bg-surface-container-low lg:p-12">
-        <Shape shape="sunny" size={520} spin className="pointer-events-none absolute -top-40 -right-40 hidden text-primary-container/60 lg:inline-flex" />
-        <Shape shape="flower" size={260} spin className="pointer-events-none absolute -bottom-24 -left-20 hidden text-tertiary-container/60 lg:inline-flex" />
+        <Shape shape="sunny" size={520} spin className="pointer-events-none absolute -top-40 -right-40 text-primary-container/60 max-lg:hidden" />
+        <Shape shape="flower" size={260} spin className="pointer-events-none absolute -bottom-24 -left-20 text-tertiary-container/60 max-lg:hidden" />
 
         <div className="relative flex items-center gap-3">
           <Logo size={48} />
@@ -79,9 +82,17 @@ export function Login() {
           <p className="mt-1 text-sm text-on-surface-variant">Use sua conta do suap.ifrn.edu.br</p>
 
           <div className="mt-6 flex flex-col gap-4">
-            <TextField id="user" label="Matrícula" value={user} onChange={setUser} inputMode="numeric" autoComplete="username" autoFocus error={!!error && !user} />
-            <TextField id="pass" label="Senha" value={pass} onChange={setPass} type={show ? 'text' : 'password'} autoComplete="current-password" error={!!error && !pass}
+            <TextField id="user" label="Matrícula" value={user} onChange={setUser} inputMode="numeric" autoComplete="username" autoFocus={!returning} error={!!error && !user} />
+            <TextField id="pass" label="Senha" value={pass} onChange={setPass} type={show ? 'text' : 'password'} autoComplete="current-password" autoFocus={returning} error={!!error && !pass}
               trailing={<IconButton icon={show ? 'visibility_off' : 'visibility'} label={show ? 'Esconder senha' : 'Mostrar senha'} onClick={() => setShow(!show)} />} />
+          </div>
+
+          <div className="mt-4 flex items-center gap-3">
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-medium">Manter conectado</p>
+              <p className="text-xs text-on-surface-variant">Não pede a senha de novo neste aparelho</p>
+            </div>
+            <Switch on={keep} onChange={setKeep} label="Manter conectado" />
           </div>
 
           {error && (
@@ -97,7 +108,9 @@ export function Login() {
 
           <p className="mt-5 flex items-start gap-2 text-xs leading-relaxed text-on-surface-variant">
             <Icon name="lock" size={16} className="mt-px shrink-0" />
-            A senha vai direto para o SUAP e não fica salva. O Supaco guarda só o token de acesso neste aparelho.
+            {keep
+              ? 'A senha vai direto para o SUAP. Uma cópia cifrada fica só neste aparelho, para o Supaco renovar seu acesso sozinho; ela some quando você sai da conta.'
+              : 'A senha vai direto para o SUAP e não fica salva. O Supaco guarda só o token de acesso neste aparelho, e o SUAP pode pedir a senha de novo de tempos em tempos.'}
           </p>
         </m.form>
 
@@ -113,6 +126,12 @@ export function Login() {
             </button>
             {canInstall && <Button variant="tonal" icon="install_mobile" onClick={install}>Instalar app</Button>}
           </div>
+          {iosHint && (
+            <p className="flex max-w-sm items-start gap-2 rounded-lg bg-surface-container px-4 py-3 text-left text-sm text-on-surface-variant">
+              <Icon name="ios_share" size={20} className="mt-px shrink-0 text-primary" />
+              <span>Para instalar no iPhone, abra no Safari, toque em <b className="font-medium text-on-surface">Compartilhar</b> e depois em <b className="font-medium text-on-surface">Adicionar à Tela de Início</b>.</span>
+            </p>
+          )}
           <p className="mt-2 max-w-sm text-xs text-on-surface-variant">
             Projeto independente feito por estudante, sem vínculo oficial com o IFRN. Usa a API pública do SUAP.
           </p>

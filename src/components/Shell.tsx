@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import { useEffect, type ReactNode } from 'react';
 import { AnimatePresence, m } from 'motion/react';
 import { usePath } from '../lib/router';
 import { refreshAll, useIsRefreshing } from '../lib/store';
@@ -68,7 +68,13 @@ function NavItem({ to, label, icon, active, unread, rail }: { to: string; label:
 export function Shell({ children }: { children: ReactNode }) {
   const path = usePath();
   const { data: msgs } = useMensagens();
-  const unread = (msgs?.filter((x) => !x.registro_leitura).length ?? 0) > 0;
+  const unreadCount = msgs?.filter((x) => !x.registro_leitura).length ?? 0;
+  const unread = unreadCount > 0;
+  // No app instalado, as mensagens não lidas aparecem como contador no ícone
+  useEffect(() => {
+    if (!msgs || !navigator.setAppBadge) return;
+    (unreadCount ? navigator.setAppBadge(unreadCount) : navigator.clearAppBadge()).catch(() => { /* sem permissão */ });
+  }, [msgs, unreadCount]);
   // No celular a busca toma o lugar da barra superior; em telas maiores ela vive na barra do topo
   const searchOpen = useSearchOpen();
   const isWide = useIsWide();

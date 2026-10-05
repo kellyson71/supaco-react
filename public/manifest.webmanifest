@@ -2,16 +2,28 @@
   "id": "/",
   "name": "Supaco",
   "short_name": "Supaco",
-  "description": "Notas, faltas e horários do SUAP/IFRN.",
+  "description": "Notas, faltas, horários e prazos do SUAP/IFRN num app rápido, que abre até sem internet.",
   "lang": "pt-BR",
+  "dir": "ltr",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
-  "background_color": "#f8faf3",
-  "theme_color": "#2f7d3a",
+  "background_color": "#0c0f0b",
+  "theme_color": "#0c0f0b",
   "categories": ["education", "productivity"],
+  "prefer_related_applications": false,
+  "launch_handler": { "client_mode": ["navigate-existing", "auto"] },
   "icons": [
-    { "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+    { "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/maskable-192.png", "sizes": "192x192", "type": "image/png", "purpose": "maskable" },
+    { "src": "/icons/maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" },
+    { "src": "/icons/monochrome-512.png", "sizes": "512x512", "type": "image/png", "purpose": "monochrome" },
+    { "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }
+  ],
+  "screenshots": [
+    { "src": "/screenshots/celular.png", "sizes": "1080x2400", "type": "image/png", "form_factor": "narrow", "label": "Seu SUAP, rápido e sem enrolação" },
+    { "src": "/screenshots/desktop.png", "sizes": "1920x1200", "type": "image/png", "form_factor": "wide", "label": "Seu SUAP, rápido e sem enrolação" }
   ],
   "shortcuts": [
     { "name": "Hoje", "short_name": "Hoje", "description": "Aula de agora e o resumo do dia", "url": "/", "icons": [{ "src": "/shortcuts/today.png", "sizes": "192x192", "type": "image/png" }] },

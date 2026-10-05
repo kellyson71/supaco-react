@@ -74,7 +74,7 @@ export function IconButton({ icon, label, onClick, variant = 'standard', fill, s
   const cls = cx('state relative inline-flex shrink-0 items-center justify-center rounded-full transition-[border-radius] duration-200 active:rounded-xl', v, className);
   const inner = <>{layer}<Icon name={icon} fill={fill} size={Math.round(size * 0.55)} /></>;
   if (to) return <Link to={to} label={label} className={cls}><span onPointerDown={onPointerDown} className="contents" style={{ width: size, height: size }}>{inner}</span></Link>;
-  return <button aria-label={label} title={label} onClick={onClick} onPointerDown={onPointerDown} className={cls} style={{ width: size, height: size }}>{inner}</button>;
+  return <button type="button" aria-label={label} title={label} onClick={onClick} onPointerDown={onPointerDown} className={cls} style={{ width: size, height: size }}>{inner}</button>;
 }
 
 // ---------- Cards e superfícies ----------
@@ -180,7 +180,7 @@ export function Segmented<T extends string>({ value, options, onChange, classNam
 /** Switch do M3: o polegar cresce e ganha ✓ quando ligado. */
 export function Switch({ on, onChange, label }: { on: boolean; onChange: (v: boolean) => void; label: string }) {
   return (
-    <button role="switch" aria-checked={on} aria-label={label} onClick={() => onChange(!on)}
+    <button type="button" role="switch" aria-checked={on} aria-label={label} onClick={() => onChange(!on)}
       className={cx('relative flex h-8 w-[52px] shrink-0 items-center rounded-full border-2 transition-colors', on ? 'border-primary bg-primary' : 'border-outline bg-surface-container-highest')}>
       <m.span layout transition={spring}
         className={cx('flex items-center justify-center rounded-full', on ? 'ml-auto mr-0.5 size-6 bg-on-primary text-primary' : 'ml-1.5 size-4 bg-outline')}>

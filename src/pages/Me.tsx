@@ -1,4 +1,4 @@
-import { useMemo, useState, type ReactNode } from 'react';
+import { useMemo, useState, useSyncExternalStore, type ReactNode } from 'react';
 import { AnimatePresence, m } from 'motion/react';
 import { useAluno, useAulas, useCalendario, useEu, useFrequencia, useMensagens, usePeriod, usePeriodos, useRequisitos } from '../lib/data';
 import { graduationForecast, presenceByDay, streaks, type Forecast } from '../lib/semester';
@@ -6,7 +6,7 @@ import { daysBetween, isoDay, parseDay } from '../lib/dates';
 import { PresenceCalendar } from '../components/PresenceCalendar';
 import { SUAP_URL } from '../lib/suap';
 import { classroom, connectClassroom } from '../lib/classroom';
-import { session } from '../lib/api';
+import { onSessionChange, session } from '../lib/api';
 import { clearCache, refreshAll } from '../lib/store';
 import { DEFAULT_PREFS, resetTheme, SEEDS, seedHex, setMode, setPref, setSeed, STYLES, swatch, useThemeState, type Mode, type Prefs } from '../lib/theme';
 import { setVibe, useVibe } from '../lib/vibe';
@@ -42,13 +42,14 @@ export function Me() {
   // preferimos contar quantos períodos letivos o aluno já teve diário/matrícula.
   const periodoAtual = periodos?.length || aluno?.periodo_referencia;
   const ira = aluno ? Number(String(aluno.ira).replace(',', '.')) : null;
-  const { canInstall, install } = useInstall();
+  const { canInstall, install, iosHint } = useInstall();
   const [shareMsg, setShareMsg] = useState('');
 
   const logout = () => {
     classroom.unlink();
     clearCache();
     session.clear();
+    navigator.clearAppBadge?.().catch(() => { /* sem permissão */ });
   };
 
   const share = async () => {
@@ -97,6 +98,7 @@ export function Me() {
           <Row to="/campus" icon="apartment" label="Campus" sub="Eventos, projetos e o IFRN em números" right={<Icon name="chevron_right" />} />
           <Row href={SUAP_URL} icon="open_in_new" label="Abrir o SUAP" sub="suap.ifrn.edu.br" right={<Icon name="chevron_right" />} />
           {canInstall && <Row onClick={install} icon="install_mobile" label="Instalar o Supaco" sub="Abre como app, direto da tela inicial" right={<Icon name="download" />} />}
+          {iosHint && <InfoRow icon="ios_share" label="Instalar o Supaco" sub="No Safari, toque em Compartilhar e depois em “Adicionar à Tela de Início”" />}
           <Row onClick={share} icon="share" label="Compartilhar com a turma" sub={shareMsg || SITE_URL.replace('https://', '')} right={<Icon name="chevron_right" />} />
           <Row to="/diagnostico" icon="troubleshoot" label="Diagnóstico" sub="Ver o que o SUAP está respondendo" right={<Icon name="chevron_right" />} />
         </List>
@@ -106,6 +108,7 @@ export function Me() {
         <SectionHeader title="Conta" icon="manage_accounts" />
         <List>
           <ClassroomRow />
+          <KeepLoginRow />
           <Row onClick={logout} icon="logout" label="Sair da conta" sub="Apaga os dados salvos neste aparelho" danger />
         </List>
       </Item>
@@ -422,6 +425,30 @@ function StreakPill({ icon, value, label, hot }: { icon: string; value: number; 
       <span className="text-lg font-semibold tabular">{value}</span>
       <span className="text-sm opacity-80">{label}</span>
     </div>
+  );
+}
+
+/** Linha só informativa (ou com um controle à direita): o texto de apoio quebra em vez de cortar. */
+function InfoRow({ icon, label, sub, right }: { icon: string; label: string; sub: string; right?: ReactNode }) {
+  return (
+    <div className="flex min-h-[72px] items-center gap-4 rounded-sm bg-surface-container px-4 py-3">
+      <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-secondary-container text-on-secondary-container"><Icon name={icon} size={22} /></span>
+      <div className="min-w-0 flex-1">
+        <p className="text-base">{label}</p>
+        <p className="text-sm text-on-surface-variant">{sub}</p>
+      </div>
+      {right}
+    </div>
+  );
+}
+
+function KeepLoginRow() {
+  const keeps = useSyncExternalStore(onSessionChange, () => session.keepsLogin);
+  // Religar exige a senha, e ela só passa pelo app na tela de login
+  if (!keeps) return <InfoRow icon="key" label="Manter conectado" sub="Desligado · para ligar, saia e entre de novo com a opção marcada" />;
+  return (
+    <InfoRow icon="key" label="Manter conectado" sub="Senha cifrada neste aparelho · o app entra de novo sozinho quando o SUAP encerra a sessão"
+      right={<Switch on onChange={() => session.forgetPassword()} label="Manter conectado" />} />
   );
 }
 

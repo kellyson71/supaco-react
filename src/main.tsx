@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client';
 import { LazyMotion, MotionConfig } from 'motion/react';
 import App from './App';
 import { applyTheme, useThemeState } from './lib/theme';
+import { registerServiceWorker } from './lib/pwa';
 import './index.css';
 
 // Limpa chaves do app antigo (tokens, caches criptografados, configurações de wallpaper etc.)
@@ -20,9 +21,7 @@ try {
   }
 } catch { /* storage indisponível */ }
 
-if ('serviceWorker' in navigator && import.meta.env.PROD) {
-  window.addEventListener('load', () => navigator.serviceWorker.register('/sw.js'));
-}
+registerServiceWorker();
 
 // Deploy novo troca os nomes dos chunks: se a aba antiga não achar um, recarrega uma vez para pegar a versão atual
 window.addEventListener('vite:preloadError', (e) => {

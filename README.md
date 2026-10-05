@@ -28,7 +28,14 @@ O Classroom usa o fluxo de token do Google Identity Services (sem client secret)
 
 ## Como os dados funcionam
 
-- Login direto na API do SUAP (`/api/token/pair`); só os tokens ficam no aparelho.
+- Login direto na API do SUAP (`/api/token/pair`); os tokens ficam no aparelho.
+- **Manter conectado** (ligado por padrão no login): a senha fica cifrada no IndexedDB do aparelho (`src/lib/vault.ts`, AES-GCM com chave não exportável). Quando o refresh token do SUAP vence, `src/lib/api.ts` entra de novo sozinho; a sessão só cai se a senha for trocada no SUAP ou a pessoa sair da conta. Desligado, nada da senha é guardado.
 - Cada consulta é salva localmente e exibida na hora; a atualização acontece em segundo plano (ao abrir, ao voltar para a aba e no botão "Atualizar").
 - Regras do IFRN em `src/lib/grades.ts`: média 60, pesos 2/3 (2 etapas) e 2/2/3/3 (4 etapas), prova final e limite de 25% de faltas.
 - Horários vêm de `minhas-turmas-virtuais` (código `3V1234`), convertidos em `src/lib/schedule.ts`.
+
+## App instalável (PWA)
+
+- `public/sw.js` guarda o app inteiro no aparelho (a lista de arquivos e a versão são preenchidas no build pelo plugin `sw-precache` do `vite.config.ts`), então ele abre na hora e sem internet em qualquer rota.
+- Deploy novo: o service worker baixa a versão em segundo plano e o app mostra "Tem versão nova do Supaco"; ela também assume sozinha na próxima vez que o app for aberto do zero.
+- Ícones em `public/icons` (gerados a partir de `public/icon.svg`) e capturas da loja em `public/screenshots`, usadas na tela de instalação do Android/desktop.

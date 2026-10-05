@@ -1,9 +1,11 @@
 import { lazy, Suspense, useEffect, useSyncExternalStore } from 'react';
 import { onSessionChange, session } from './lib/api';
 import { PeriodProvider } from './lib/data';
+import { persistStorage } from './lib/pwa';
 import { navigate, usePath } from './lib/router';
 import { Shell } from './components/Shell';
 import { Skeleton } from './components/ui';
+import { UpdatePrompt } from './components/UpdatePrompt';
 import { Today } from './pages/Today';
 
 // Telas secundárias carregam sob demanda para a primeira abertura ser leve
@@ -31,7 +33,12 @@ export default function App() {
     if (LEGACY[path]) navigate(LEGACY[path], true);
   }, [path]);
 
-  if (!loggedIn) return <Suspense fallback={null}><Login /></Suspense>;
+  // Com alguém logado, pede para o navegador não descartar o login e o cache do app
+  useEffect(() => {
+    if (loggedIn) persistStorage();
+  }, [loggedIn]);
+
+  if (!loggedIn) return <><Suspense fallback={null}><Login /></Suspense><UpdatePrompt /></>;
 
   const detail = path.match(/^\/disciplinas\/([^/]+)/);
   const page =
@@ -49,6 +56,7 @@ export default function App() {
   return (
     <PeriodProvider>
       <Shell><Suspense fallback={<Skeleton className="mt-4 h-96" />}>{page}</Suspense></Shell>
+      <UpdatePrompt />
     </PeriodProvider>
   );
 }

@@ -27,8 +27,17 @@ if (typeof window !== 'undefined') {
   window.addEventListener('appinstalled', () => { deferred = null; installSubs.forEach((f) => f()); });
 }
 
+/** Já está aberto como app instalado (sem a barra do navegador). */
+export const isStandalone = () =>
+  matchMedia('(display-mode: standalone)').matches || (navigator as Navigator & { standalone?: boolean }).standalone === true;
+
+// O iPadOS se apresenta como Mac; o toque é o que denuncia
+const isIOS = () => /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+
 export function useInstall() {
   const canInstall = useSyncExternalStore((cb) => { installSubs.add(cb); return () => { installSubs.delete(cb); }; }, () => !!deferred);
+  // O iOS não tem prompt de instalação: a pessoa precisa usar o menu Compartilhar do Safari
+  const iosHint = !canInstall && isIOS() && !isStandalone();
   const install = async () => {
     if (!deferred) return;
     await deferred.prompt();
@@ -36,7 +45,7 @@ export function useInstall() {
     deferred = null;
     installSubs.forEach((f) => f());
   };
-  return { canInstall, install };
+  return { canInstall, install, iosHint };
 }
 
 export const SITE_URL = 'https://supaco.vercel.app';
