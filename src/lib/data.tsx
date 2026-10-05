@@ -1,7 +1,7 @@
 // Hooks de dados compartilhados pelas telas + período letivo selecionado.
 import { createContext, useContext, useMemo, useState, type ReactNode } from 'react';
-import { useResource } from './store';
-import { api, aulaMatchesSubject, type Calendario, type Parcial, type Periodo, type Pessoa, type Turma } from './suap';
+import { peek, useResource } from './store';
+import { api, aulaMatchesSubject, nomeHash, type Calendario, type Parcial, type Periodo, type Pessoa, type Turma, type ViagemCampus } from './suap';
 import { isoDay, parseDay } from './dates';
 import { fetchPendingTasks } from './classroom';
 import type { Holiday } from './insights';
@@ -76,9 +76,33 @@ export const useServidor = (matricula: string | undefined) =>
 /** Cadastro e folha no Portal da Transparência. A folha muda uma vez por mês, então o cache dura uma semana. */
 export const useTransparencia = (p: Pick<Pessoa, 'nome' | 'matricula'> | undefined) =>
   useResource(p ? `transparencia:${p.matricula}` : null, () => api.transparencia(p!), 7 * 24 * 60);
-/** Viagens a serviço da pessoa nos últimos meses (Portal da Transparência). */
+/** Histórico de viagens a serviço da pessoa (arquivos gerados do Portal da Transparência); dá erro enquanto não houver arquivos. */
 export const useViagens = (p: Pick<Pessoa, 'nome' | 'matricula'> | undefined) =>
-  useResource(p ? `viagens:${p.matricula}` : null, () => api.viagens(p!.nome), 24 * 60);
+  useResource(p ? `viagens:v2:${p.matricula}` : null, () => api.viagens(p!.nome), 24 * 60);
+
+/** Viagens recentes de quem trabalha no campus: cruza os meses mais novos com a lista de servidores, pelo hash do nome. */
+export function useViagensCampus(sigla: string | undefined) {
+  const { data: servidores } = useServidores(sigla);
+  return useResource(sigla && servidores ? `viagenscampus:${sigla}` : null, async () => {
+    const byHash = new Map(servidores!.map((s) => [nomeHash(s.nome), s.matricula]));
+    const { meses, viagens } = await api.viagensRecentes();
+    if (!meses.length) throw new Error('Os arquivos de viagens ainda não foram gerados');
+    return {
+      meses,
+      viagens: viagens.flatMap(({ hash, ...v }): ViagemCampus[] => (byHash.has(hash) ? [{ ...v, matricula: byHash.get(hash)! }] : []))
+        .sort((a, b) => b.inicio.localeCompare(a.inicio)),
+    };
+  }, 24 * 60);
+}
+
+/** Evolução da folha. Só busca quando `pedido` (são várias chamadas ao Portal), ou se já estiver guardada no aparelho. */
+export function useFolhas(id: number | undefined, pedido: boolean) {
+  const key = id ? `folhas:${id}` : null;
+  const cached = !!key && peek(key) !== undefined;
+  return useResource(key && (pedido || cached) ? key : null, () => api.folhas(id!), 7 * 24 * 60);
+}
+
+export const useOrcamento = () => useResource('orcamento', api.orcamento, 24 * 60);
 
 /** Nomes dos professores das matérias atuais (para destacar projetos que eles coordenam). */
 export function useMyTeachers(codes: string[] | undefined) {

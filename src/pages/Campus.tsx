@@ -1,9 +1,12 @@
 import { useMemo, useState } from 'react';
 import { m } from 'motion/react';
-import { useCampus, useCurrentSubjects, useEstatisticas, useEu, useMyTeachers } from '../lib/data';
-import { titleCase, type Estatisticas, type Evento, type Projeto } from '../lib/suap';
-import { daysBetween, parseDay, relativeDay } from '../lib/dates';
+import { useCampus, useCurrentSubjects, useEstatisticas, useEu, useMyTeachers, useOrcamento, useServidores, useViagensCampus } from '../lib/data';
+import { shortName, titleCase, type Estatisticas, type Evento, type Projeto, type Servidor, type ViagemCampus } from '../lib/suap';
+import { daysBetween, parseDay, relativeDay, shortMonth } from '../lib/dates';
 import { downloadEventIcs } from '../lib/ics';
+import { ColumnChart } from '../components/Charts';
+import { Link } from '../components/Link';
+import { Face } from '../components/Turma';
 import { Badge, Button, Card, Chip, CountUp, cx, EMPHASIZED, Empty, ErrorNote, Icon, IconButton, Segmented, Shape, Skeleton, Stagger, Item, Tap } from '../components/ui';
 
 type Tab = 'eventos' | 'projetos' | 'numeros';
@@ -235,7 +238,141 @@ function Numbers({ stats, sigla }: { stats?: Estatisticas; sigla?: string }) {
           })}
         </ol>
       </Card>
+
+      <Budget />
+      <CampusTrips sigla={sigla} />
     </div>
+  );
+}
+
+const compact = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', notation: 'compact', maximumFractionDigits: 1 });
+const brl0 = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 });
+
+/** Execução do orçamento do IFRN (Portal da Transparência). Some se a consulta falhar. */
+function Budget() {
+  const { data, loading } = useOrcamento();
+  if (loading) return <Skeleton className="h-80 rounded-3xl xl:col-span-6" />;
+  if (!data?.length) return null;
+  const now = data[data.length - 1];
+  const paidShare = now.empenhado ? now.pago / now.empenhado : 0;
+
+  return (
+    <Card variant="filled" className="rounded-3xl p-5 xl:col-span-6">
+      <p className="mb-4 flex items-center gap-2 text-lg font-medium"><Icon name="payments" className="text-primary" fill /> Orçamento do IFRN</p>
+      <div className="flex flex-wrap items-end gap-x-8 gap-y-3 px-1">
+        <div>
+          <p className="text-[36px] leading-none font-semibold tracking-tight tabular">{compact.format(now.pago)}</p>
+          <p className="mt-1.5 text-sm text-on-surface-variant">pagos em {now.ano}, até agora</p>
+        </div>
+        <div>
+          <p className="text-lg font-medium tabular">{compact.format(now.empenhado)}</p>
+          <p className="text-sm text-on-surface-variant">empenhados (reservados para gastar)</p>
+        </div>
+      </div>
+      <div className="mt-4 h-2.5 overflow-hidden rounded-full bg-surface-container-highest" role="img" aria-label={`${Math.round(paidShare * 100)}% do empenhado já foi pago`}>
+        <m.div initial={{ scaleX: 0 }} whileInView={{ scaleX: 1 }} viewport={{ once: true }} transition={{ duration: 0.8, ease: EMPHASIZED }}
+          style={{ width: `${Math.min(paidShare, 1) * 100}%` }} className="h-full origin-left rounded-full bg-primary" />
+      </div>
+      <p className="mt-1.5 px-1 text-xs text-on-surface-variant">{Math.round(paidShare * 100)}% do empenhado em {now.ano} já foi pago.</p>
+
+      {data.length > 1 && (
+        <>
+          <p className="mt-5 mb-1 px-1 text-sm font-medium">Pago por ano</p>
+          <ColumnChart label="Valor pago pelo IFRN por ano" format={(v) => compact.format(v)}
+            points={data.map((a) => ({ x: String(a.ano), title: String(a.ano), value: a.pago, extra: [{ label: 'Empenhado', value: compact.format(a.empenhado) }] }))} />
+        </>
+      )}
+      <p className="mt-3 px-1 text-xs text-on-surface-variant">Todos os campi e a reitoria, com a folha de pagamento. Fonte: Portal da Transparência.</p>
+    </Card>
+  );
+}
+
+/** Viagens a serviço de quem trabalha no campus, nos meses mais recentes com dados. Some se não houver arquivos de viagens. */
+function CampusTrips({ sigla }: { sigla?: string }) {
+  const { data: servidores } = useServidores(sigla);
+  const { data, loading } = useViagensCampus(sigla);
+  const people = useMemo(() => new Map((servidores ?? []).map((s) => [s.matricula, s])), [servidores]);
+  if (loading && sigla) return <Skeleton className="h-80 rounded-3xl xl:col-span-6" />;
+  if (!data?.meses.length) return null;
+
+  const total = data.viagens.reduce((a, v) => a + v.total, 0);
+  const byPerson = new Map<string, { n: number; total: number }>();
+  data.viagens.forEach((v) => {
+    const e = byPerson.get(v.matricula) ?? { n: 0, total: 0 };
+    byPerson.set(v.matricula, { n: e.n + 1, total: e.total + v.total });
+  });
+  const top = [...byPerson].sort((a, b) => b[1].n - a[1].n || b[1].total - a[1].total).slice(0, 3);
+  // "jul–set 2026"; se o período atravessa o ano, cada ponta leva o seu
+  const from = shortMonth(data.meses[0]), to = shortMonth(data.meses[data.meses.length - 1]);
+  const period = from === to ? to : `${from.slice(-4) === to.slice(-4) ? from.slice(0, 3) : from}–${to}`;
+
+  return (
+    <Card variant="filled" className="rounded-3xl p-5 xl:col-span-6">
+      <div className="mb-4 flex items-center justify-between gap-3">
+        <p className="flex items-center gap-2 text-lg font-medium"><Icon name="flight_takeoff" className="text-primary" fill /> Viagens do campus</p>
+        <span className="shrink-0 text-sm text-on-surface-variant">{period}</span>
+      </div>
+      {data.viagens.length === 0 ? (
+        <p className="px-1 text-sm text-on-surface-variant">Nenhuma viagem a serviço de servidores do campus nesse período.</p>
+      ) : (
+        <>
+          <div className="flex flex-wrap items-end gap-x-8 gap-y-3 px-1">
+            <div>
+              <p className="text-[36px] leading-none font-semibold tracking-tight tabular">{data.viagens.length}</p>
+              <p className="mt-1.5 text-sm text-on-surface-variant">{data.viagens.length === 1 ? 'viagem a serviço' : 'viagens a serviço'}</p>
+            </div>
+            <div>
+              <p className="text-lg font-medium tabular">{brl0.format(total)}</p>
+              <p className="text-sm text-on-surface-variant">em diárias e passagens</p>
+            </div>
+          </div>
+
+          <p className="mt-5 mb-2 px-1 text-sm font-medium">Quem mais viajou</p>
+          <ul className="flex flex-col gap-1.5">
+            {top.map(([matricula, t]) => {
+              const s = people.get(matricula);
+              return s && <li key={matricula}><Traveler s={s} n={t.n} total={t.total} /></li>;
+            })}
+          </ul>
+
+          <p className="mt-5 mb-2 px-1 text-sm font-medium">Mais recentes</p>
+          <ul className="flex flex-col gap-1.5">
+            {data.viagens.slice(0, 4).map((v) => <li key={`${v.matricula}:${v.inicio}:${v.motivo}`}><CampusTrip v={v} s={people.get(v.matricula)} /></li>)}
+          </ul>
+        </>
+      )}
+      <p className="mt-3 px-1 text-xs text-on-surface-variant">Só servidores ativos do campus. Fonte: Portal da Transparência.</p>
+    </Card>
+  );
+}
+
+function Traveler({ s, n, total }: { s: Servidor; n: number; total: number }) {
+  return (
+    <Link to={`/servidores/${s.matricula}`} label={`Ver detalhes de ${titleCase(s.nome)}`} className="state group flex items-center gap-3 rounded-xl bg-surface-container-highest px-3 py-2.5">
+      <Face p={{ nome: s.nome, matricula: s.matricula, foto: s.foto }} size={36} />
+      <span className="min-w-0 flex-1">
+        <span className="block truncate text-sm font-medium">{titleCase(s.nome)}</span>
+        <span className="block text-xs text-on-surface-variant">{n} {n === 1 ? 'viagem' : 'viagens'}{total > 0 && ` · ${brl0.format(total)}`}</span>
+      </span>
+      <Icon name="chevron_right" size={20} className="text-on-surface-variant transition-transform duration-300 ease-emphasized group-hover:translate-x-0.5" />
+    </Link>
+  );
+}
+
+function CampusTrip({ v, s }: { v: ViagemCampus; s?: Servidor }) {
+  const start = parseDay(v.inicio);
+  return (
+    <Link to={`/servidores/${v.matricula}`} label={s ? `Ver detalhes de ${titleCase(s.nome)}` : 'Ver detalhes'} className="state flex items-start gap-3 rounded-xl bg-surface-container-highest px-3 py-2.5">
+      <span className="flex w-12 shrink-0 flex-col items-center justify-center rounded-lg bg-secondary-container py-1.5 leading-none text-on-secondary-container">
+        <span className="text-base font-semibold tabular">{start?.getDate() ?? '–'}</span>
+        <span className="mt-0.5 text-[10px] font-semibold uppercase">{start?.toLocaleDateString('pt-BR', { month: 'short' }).replace('.', '') ?? ''}</span>
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className="block truncate text-sm font-medium">{s ? shortName(s.nome) : 'Servidor do campus'}</span>
+        <span className="line-clamp-2 text-xs text-on-surface-variant">{v.motivo || 'Motivo não informado'}</span>
+      </span>
+      <span className={cx('shrink-0 text-sm tabular', v.total > 0 ? 'font-medium' : 'text-on-surface-variant')}>{v.total > 0 ? brl0.format(v.total) : 'sem custo'}</span>
+    </Link>
   );
 }
 

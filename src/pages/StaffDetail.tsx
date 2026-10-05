@@ -1,13 +1,14 @@
 import { useMemo, useState, type ReactNode } from 'react';
 import { m } from 'motion/react';
-import { useCampus, useCurrentSubjects, useEu, useServidor, useTransparencia, useTurmas, useUnidades, useViagens } from '../lib/data';
+import { useCampus, useCurrentSubjects, useEu, useFolhas, useServidor, useTransparencia, useTurmas, useUnidades, useViagens } from '../lib/data';
 import { back } from '../lib/router';
-import { semAcento, subjectTone, titleCase, type Folha, type Projeto, type Servidor, type Subject, type Transparencia, type Viagem } from '../lib/suap';
+import { semAcento, subjectTone, titleCase, type Folha, type Projeto, type Servidor, type Subject, type Transparencia, type Viagem, type Viagens } from '../lib/suap';
 import { anosDesde, campusNome, cargoLabel, categoriaLabel, fotoGrande, funcaoLabel, ocupacao, pretty } from '../lib/staff';
-import { daysBetween, longMonth, parseDay } from '../lib/dates';
+import { daysBetween, longMonth, parseDay, shortMonth } from '../lib/dates';
 import { TONES } from '../lib/tones';
 import { Link } from '../components/Link';
 import { ShapedPhoto } from '../components/Turma';
+import { LineChart } from '../components/Charts';
 import { Badge, Button, Card, CountUp, cx, EMPHASIZED, Empty, Icon, IconButton, Item, SectionHeader, Shape, Skeleton, Stagger } from '../components/ui';
 
 const money = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' });
@@ -58,6 +59,8 @@ function Profile({ s, email, shared }: { s: Servidor; email?: string; shared: Su
   const campusLabel = s.campus ? campusNome(unidades?.find((u) => u.sigla === s.campus)?.nome ?? s.campus) : '';
   const years = anosDesde(info?.ingressoOrgao);
   const portalDown = !!lookup && !!portal.error && !portal.data;
+  // Sem os arquivos de viagens gerados, o bloco nem aparece
+  const noTrips = !!trips.error && !trips.data;
 
   return (
     <Stagger className="grid grid-cols-1 gap-4 xl:grid-cols-12">
@@ -70,7 +73,7 @@ function Profile({ s, email, shared }: { s: Servidor; email?: string; shared: Su
           <Fact icon="payments" tone="bg-tertiary-container text-on-tertiary-container" shape="cookie" loading={portal.loading}
             value={info?.remuneracao ? Math.round(info.remuneracao.bruto) : null} prefix="R$" label="remuneração bruta" empty="remuneração" />
           <Fact icon="flight_takeoff" tone="bg-secondary-container text-on-secondary-container" shape="flower" loading={portal.loading || trips.loading}
-            value={trips.data ? trips.data.viagens.length : null} label={trips.data?.viagens.length === 1 ? 'viagem a serviço' : 'viagens a serviço'} empty="viagens a serviço" />
+            value={trips.data ? trips.data.viagens.length : null} label={trips.data?.viagens.length === 1 ? `viagem desde ${trips.data.desde.slice(0, 4)}` : `viagens desde ${trips.data?.desde.slice(0, 4)}`} empty="viagens a serviço" />
           <Fact icon="school" tone="bg-surface-container-highest" shape="clover"
             value={shared.length || projects.length || null} label={shared.length ? (shared.length === 1 ? 'matéria com você' : 'matérias com você') : projects.length === 1 ? 'projeto coordenado' : 'projetos coordenados'} empty="matérias com você" />
         </div>
@@ -81,8 +84,10 @@ function Profile({ s, email, shared }: { s: Servidor; email?: string; shared: Su
 
       {lookup && !portalDown && (
         <>
-          <Item className="xl:col-span-6"><Pay portal={portal.data} loading={portal.loading} /></Item>
-          <Item className="xl:col-span-6"><Trips data={trips.data} loading={portal.loading || trips.loading} failed={!!trips.error && !trips.data} hidden={!!portal.data && !info} link={info?.link} /></Item>
+          <Item className={noTrips ? 'xl:col-span-12' : 'xl:col-span-6'}><Pay portal={portal.data} loading={portal.loading} /></Item>
+          {!noTrips && (
+            <Item className="xl:col-span-6"><Trips data={trips.data} loading={portal.loading || trips.loading} hidden={!!portal.data && !info} /></Item>
+          )}
         </>
       )}
       {portalDown && (
@@ -227,12 +232,12 @@ function Pay({ portal, loading }: { portal: Transparencia | undefined; loading: 
       <SectionHeader title="Remuneração" icon="payments" action={pay && <span className="text-sm text-on-surface-variant">{longMonth(pay.mes)}</span>} />
       {loading ? <Skeleton className="h-52 rounded-xl" />
         : !pay ? <p className="px-1 text-sm text-on-surface-variant">{portal?.encontrado ? 'Nenhuma folha publicada nos últimos meses.' : 'Não achei este nome entre os servidores do IFRN no Portal da Transparência.'}</p>
-          : <PayBreakdown pay={pay} link={portal!.encontrado ? portal!.link : ''} />}
+          : <PayBreakdown pay={pay} id={portal!.encontrado ? portal!.id : undefined} link={portal!.encontrado ? portal!.link : ''} />}
     </Card>
   );
 }
 
-function PayBreakdown({ pay, link }: { pay: Folha; link: string }) {
+function PayBreakdown({ pay, id, link }: { pay: Folha; id?: number; link: string }) {
   const parts = [
     { label: 'Recebe após deduções', value: pay.liquido, color: 'bg-primary' },
     { label: 'Imposto de renda', value: pay.irrf, color: 'bg-[var(--c-orange)]' },
@@ -271,6 +276,8 @@ function PayBreakdown({ pay, link }: { pay: Folha; link: string }) {
         ))}
       </ul>
 
+      <PayHistory id={id} />
+
       <div className="mt-4 flex flex-col gap-1 border-t border-outline-variant px-1 pt-3 text-xs text-on-surface-variant">
         {extras.length > 0 && <p>Este mês inclui {extras.join(' e ')}.</p>}
         {pay.indenizacoes > 0 && <p>Mais {money.format(pay.indenizacoes)} em auxílios e indenizações, pagos à parte.</p>}
@@ -282,47 +289,65 @@ function PayBreakdown({ pay, link }: { pay: Folha; link: string }) {
   );
 }
 
+/** Evolução da remuneração bruta nos últimos 12 meses. Só consulta o Portal quando a pessoa pede. */
+function PayHistory({ id }: { id?: number }) {
+  const [asked, setAsked] = useState(false);
+  const { data, loading, error } = useFolhas(id, asked);
+  if (!id) return null;
+
+  if (!data) {
+    return (
+      <div className="mt-4 flex flex-wrap items-center gap-x-3 gap-y-1 px-1">
+        <Button variant="tonal" size="sm" icon="monitoring" disabled={loading} onClick={() => setAsked(true)}>{loading ? 'Buscando as folhas…' : 'Ver evolução em 12 meses'}</Button>
+        {error && !loading && <span className="text-xs text-on-surface-variant">O Portal da Transparência não respondeu agora.</span>}
+      </div>
+    );
+  }
+  if (data.length < 2) return null;
+
+  const first = data[0], last = data[data.length - 1];
+  const change = ((last.bruto - first.bruto) / first.bruto) * 100;
+  const summary = Math.abs(change) < 0.05 ? 'A remuneração bruta não mudou' : `A remuneração bruta ${change > 0 ? 'subiu' : 'caiu'} ${Math.abs(change).toLocaleString('pt-BR', { maximumFractionDigits: 1 })}%`;
+  return (
+    <m.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3, ease: EMPHASIZED }} className="mt-5">
+      <p className="mb-1 px-1 text-sm font-medium">Remuneração bruta, mês a mês</p>
+      <p className="mb-2 px-1 text-xs text-on-surface-variant">{summary} de {shortMonth(first.mes)} a {shortMonth(last.mes)}.</p>
+      <LineChart label="Remuneração bruta, mês a mês" format={(v) => money.format(v)} axisFormat={(v) => money0.format(v)}
+        points={data.map((f) => ({
+          x: f.mes.endsWith('-01') ? shortMonth(f.mes) : shortMonth(f.mes).slice(0, 3),
+          title: longMonth(f.mes), value: f.bruto, extra: [{ label: 'Após deduções', value: money.format(f.liquido) }],
+        }))} />
+    </m.div>
+  );
+}
+
 // ---------- Viagens ----------
 
-function Trips({ data, loading, failed, hidden, link }: { data: { meses: string[]; viagens: Viagem[] } | undefined; loading: boolean; failed: boolean; hidden: boolean; link?: string }) {
+function Trips({ data, loading, hidden }: { data: Viagens | undefined; loading: boolean; hidden: boolean }) {
   const [all, setAll] = useState(false);
   const list = data?.viagens ?? [];
   const total = list.reduce((a, v) => a + v.total, 0);
-  const months = data?.meses.length ?? 0;
-  const since = months ? longMonth(data!.meses[months - 1]) : '';
 
   return (
     <Card variant="filled" className="h-full rounded-2xl p-5">
-      <SectionHeader title="Viagens a serviço" icon="flight_takeoff" action={months > 0 && <span className="shrink-0 text-sm text-on-surface-variant">últimos {plural(months, 'mês', 'meses')}</span>} />
+      <SectionHeader title="Viagens a serviço" icon="flight_takeoff" action={data && <span className="shrink-0 text-sm text-on-surface-variant">desde {data.desde.slice(0, 4)}</span>} />
       {hidden ? <p className="px-1 text-sm text-on-surface-variant">Sem o cadastro no Portal da Transparência não dá para ligar viagens a esta pessoa.</p>
-        : loading ? (
-          <>
-            <Skeleton className="h-40 rounded-xl" />
-            <p className="mt-2 px-1 text-xs text-on-surface-variant">Conferindo mês a mês no Portal da Transparência…</p>
-          </>
-        ) : failed ? <p className="px-1 text-sm text-on-surface-variant">O Portal da Transparência não respondeu agora. Tente de novo mais tarde.</p>
+        : loading || !data ? <Skeleton className="h-40 rounded-xl" />
           : (
             <>
               <p className="mb-3 px-1 text-sm text-on-surface-variant">
-                {list.length === 0 ? `Nenhuma viagem a serviço paga pelo IFRN desde ${since}.`
-                  : <>{plural(list.length, 'viagem', 'viagens')} desde {since}{total > 0 ? <>, <span className="font-medium text-on-surface tabular">{money.format(total)}</span> em diárias e passagens.</> : ', sem custo registrado para o IFRN.'}</>}
+                {list.length === 0 ? `Nenhuma viagem a serviço paga pelo IFRN desde ${longMonth(data.desde)}.`
+                  : <>{plural(list.length, 'viagem', 'viagens')}{total > 0 ? <>, <span className="font-medium text-on-surface tabular">{money.format(total)}</span> em diárias e passagens.</> : ', sem custo registrado para o IFRN.'}</>}
               </p>
               {list.length > 0 && (
                 <ul className="flex flex-col gap-1.5">
-                  {(all ? list : list.slice(0, 4)).map((v) => <Trip key={v.id} v={v} />)}
+                  {(all ? list : list.slice(0, 4)).map((v) => <Trip key={`${v.inicio}:${v.motivo}`} v={v} />)}
                 </ul>
               )}
               {list.length > 4 && (
                 <Button variant="text" size="sm" icon={all ? undefined : 'expand_more'} onClick={() => setAll(!all)} className="mt-2">{all ? 'Mostrar menos' : `Ver as ${list.length} viagens`}</Button>
               )}
-              {link && (
-                <p className="mt-3 border-t border-outline-variant px-1 pt-3 text-xs text-on-surface-variant">
-                  Aqui só entram os últimos {plural(months, 'mês', 'meses')}.{' '}
-                  <a href={link} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 font-medium text-primary hover:underline">
-                    Histórico completo no Portal da Transparência<Icon name="open_in_new" size={14} />
-                  </a>
-                </p>
-              )}
+              <p className="mt-3 px-1 text-xs text-on-surface-variant">Viagens registradas no Portal da Transparência até {longMonth(data.ate)}.</p>
             </>
           )}
     </Card>
@@ -339,7 +364,7 @@ function Trip({ v }: { v: Viagem }) {
       <button onClick={() => setOpen(!open)} aria-expanded={open} className="state flex w-full items-start gap-3 rounded-xl bg-surface-container-highest px-3.5 py-3 text-left">
         <span className="flex w-14 shrink-0 flex-col items-center justify-center rounded-lg bg-secondary-container py-1.5 leading-none text-on-secondary-container">
           <span className="text-lg font-semibold tabular">{start?.getDate() ?? '–'}</span>
-          <span className="mt-0.5 text-[10px] font-semibold uppercase">{start?.toLocaleDateString('pt-BR', { month: 'short' }).replace('.', '') ?? ''}</span>
+          <span className="mt-0.5 text-[10px] font-semibold uppercase">{start ? `${start.toLocaleDateString('pt-BR', { month: 'short' }).replace('.', '')} ${String(start.getFullYear()).slice(2)}` : ''}</span>
         </span>
         <span className="min-w-0 flex-1">
           <span className={cx('text-sm', open ? 'block' : 'line-clamp-2')}>{v.motivo || 'Motivo não informado'}</span>

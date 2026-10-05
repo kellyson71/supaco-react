@@ -157,6 +157,7 @@ export async function GET(request: Request) {
     const funcao = found.fichasFuncao?.[0];
     return json({
       encontrado: true,
+      id,
       link: `https://portaldatransparencia.gov.br/servidores/${id}`,
       cargo: text(ficha?.cargo),
       classe: [text(ficha?.classeCargo), text(ficha?.padraoCargo)].filter(Boolean).join(' ') || null,
@@ -178,7 +179,7 @@ export async function GET(request: Request) {
     }, 7 * DAY);
   } catch (e) {
     // Limite da chave estourado: o app tenta de novo depois
-    const status = e instanceof Upstream && e.status === 429 ? 429 : 502;
+    const status = e instanceof Upstream && (e.status === 429 || e.status === 401) ? 429 : 502;
     return Response.json({ detail: 'Falha ao consultar o Portal da Transparência' }, { status, headers: { 'Cache-Control': 'no-store' } });
   }
 }

@@ -30,6 +30,9 @@ export const longDate = (d = new Date()) => `${DOW_LONG[d.getDay()]}, ${d.getDat
 /** "2026-08" → "agosto de 2026" */
 export const longMonth = (ym: string) => `${MONTHS_LONG[+ym.slice(5, 7) - 1]} de ${ym.slice(0, 4)}`;
 
+/** "2026-08" → "ago 2026" */
+export const shortMonth = (ym: string) => `${MONTHS[+ym.slice(5, 7) - 1]} ${ym.slice(0, 4)}`;
+
 export const shortDate = (d: Date) => `${DOW[d.getDay()]}, ${d.getDate()} ${MONTHS[d.getMonth()]}`;
 
 /** "hoje", "amanhã", "em 3 dias", "ontem", "há 2 dias" */

@@ -158,7 +158,7 @@ export type Folha = {
 export type Transparencia =
   | { encontrado: false }
   | {
-    encontrado: true; link: string;
+    encontrado: true; id: number; link: string;
     cargo: string | null; classe: string | null; nivel: string | null; jornada: string | null; regime: string | null; situacao: string | null;
     lotacao: string | null; exercicio: string | null;
     ingressoOrgao: string | null; ingressoServico: string | null; ingressoCargo: string | null;
@@ -167,13 +167,20 @@ export type Transparencia =
     remuneracao: Folha | null;
   };
 
-/** Viagem a serviço paga pelo IFRN (função /api/viagens). */
-export type Viagem = {
-  id: number; nome: string; cargo: string; motivo: string; inicio: string; fim: string;
-  diarias: number; passagens: number; total: number; internacional: boolean; situacao: string;
-};
-/** Viagens de uma pessoa nos meses consultados; `meses` são os que o Portal respondeu. */
-export type Viagens = { meses: string[]; viagens: Viagem[] };
+/** Viagem a serviço paga pelo IFRN, dos arquivos gerados por scripts/viagens.mjs. */
+export type Viagem = { inicio: string; fim: string; total: number; diarias: number; passagens: number; internacional: boolean; motivo: string };
+/** Como a viagem vem nos arquivos: [início, fim, total, diárias, passagens, internacional, motivo]. */
+type ViagemRow = [string, string, number, number, number, 0 | 1, string];
+type ViagensIndex = { atualizado: string; meses: string[]; recentes: string[] };
+/** Histórico de viagens de uma pessoa; `desde` e `ate` são os meses ("aaaa-mm") que o histórico cobre. */
+export type Viagens = { desde: string; ate: string; viagens: Viagem[] };
+/** Viagem de alguém do campus, já ligada à pessoa pela matrícula. */
+export type ViagemCampus = Viagem & { matricula: string };
+
+/** Folha resumida de um mês, para o gráfico de evolução. */
+export type FolhaMes = { mes: string; bruto: number; liquido: number };
+/** Execução do orçamento do IFRN em um ano. */
+export type Orcamento = { ano: number; empenhado: number; liquidado: number; pago: number };
 
 type CH = { ch_esperada: number; ch_cumprida: number; ch_pendente: number };
 export type Requisitos = { percentual_cumprida: number; totais: CH } & Record<string, CH | number>;
@@ -222,10 +229,32 @@ const num = (v: unknown): number | null => {
 /** "José  da Silva" → "JOSE DA SILVA": o formato dos nomes no Portal da Transparência. */
 export const semAcento = (s: string) => s.normalize('NFD').replace(/\p{M}/gu, '').toUpperCase().replace(/\s+/g, ' ').trim();
 
-/** Funções do próprio app (/api): dado público, sem o token do SUAP. */
+/**
+ * Identificador de uma pessoa nos arquivos de viagens: um hash do nome (cyrb53, 14 dígitos hexadecimais).
+ * Tem de ser idêntico ao de scripts/viagens.mjs.
+ */
+export function nomeHash(nome: string) {
+  const s = semAcento(nome);
+  let h1 = 0xdeadbeef, h2 = 0x41c6ce57;
+  for (let i = 0; i < s.length; i++) {
+    const c = s.charCodeAt(i);
+    h1 = Math.imul(h1 ^ c, 2654435761);
+    h2 = Math.imul(h2 ^ c, 1597334677);
+  }
+  h1 = Math.imul(h1 ^ (h1 >>> 16), 2246822507) ^ Math.imul(h2 ^ (h2 >>> 13), 3266489909);
+  h2 = Math.imul(h2 ^ (h2 >>> 16), 2246822507) ^ Math.imul(h1 ^ (h1 >>> 13), 3266489909);
+  return (4294967296 * (2097151 & h2) + (h1 >>> 0)).toString(16).padStart(14, '0');
+}
+
+const viagem = ([inicio, fim, total, diarias, passagens, internacional, motivo]: ViagemRow): Viagem =>
+  ({ inicio, fim, total, diarias, passagens, internacional: !!internacional, motivo });
+
+/** Funções (/api) e arquivos (/dados) do próprio app: dado público, sem o token do SUAP. */
 async function publicGet<T>(path: string): Promise<T> {
   const res = await fetch(path);
   if (!res.ok) throw new ApiError(res.status, `${path.split('?')[0]} respondeu ${res.status}`);
+  // Caminho que não existe cai no index.html do app (200 em HTML)
+  if (!(res.headers.get('content-type') ?? '').includes('json')) throw new ApiError(404, `${path.split('?')[0]} não existe`);
   return res.json();
 }
 
@@ -332,30 +361,29 @@ export const api = {
   transparencia: (p: Pick<Pessoa, 'nome' | 'matricula'>) =>
     publicGet<Transparencia>(`/api/servidor?${new URLSearchParams({ nome: p.nome, matricula: p.matricula })}`),
 
-  /**
-   * Viagens a serviço de uma pessoa nos últimos meses. O Portal só lista por órgão e mês, então busca
-   * cada mês do IFRN (um de cada vez, por causa do limite de requisições da chave) e filtra pelo nome.
-   */
-  viagens: async (nome: string, meses = 6): Promise<Viagens> => {
-    const alvo = semAcento(nome);
-    const out: Viagens = { meses: [], viagens: [] };
-    const d = new Date();
-    for (let i = 0; i < meses; i++) {
-      d.setDate(1);
-      d.setMonth(d.getMonth() - 1);
-      const mes = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-      try {
-        const page = await publicGet<{ viagens: Viagem[] }>(`/api/viagens?mes=${mes}`);
-        out.meses.push(mes);
-        out.viagens.push(...page.viagens.filter((v) => semAcento(v.nome) === alvo));
-      } catch (e) {
-        // Sem nenhum mês não há o que mostrar; com alguns, mostra o que veio
-        if (!out.meses.length) throw e;
-        break;
-      }
-    }
-    out.viagens.sort((a, b) => b.inicio.localeCompare(a.inicio));
-    return out;
+  /** Últimas folhas publicadas do servidor (o `id` vem de `transparencia`). Custa várias chamadas ao Portal: só a pedido. */
+  folhas: async (id: number) => (await publicGet<{ folhas: FolhaMes[] }>(`/api/folhas?id=${id}`)).folhas,
+  /** Quanto o IFRN empenhou, liquidou e pagou nos últimos anos. */
+  orcamento: async () => (await publicGet<{ anos: Orcamento[] }>('/api/orcamento')).anos,
+
+  /** Histórico de viagens a serviço de uma pessoa. Falha (sem ir para o cache) enquanto os arquivos não forem gerados. */
+  viagens: async (nome: string): Promise<Viagens> => {
+    const index = await publicGet<ViagensIndex>('/dados/viagens/index.json');
+    if (!index.meses.length) throw new ApiError(404, 'Os arquivos de viagens ainda não foram gerados');
+    const hash = nomeHash(nome);
+    // Arquivo que não existe é só um começo de hash sem ninguém
+    const bucket = await publicGet<Record<string, ViagemRow[]>>(`/dados/viagens/p/${hash.slice(0, 2)}.json`).catch((e) => {
+      if (e instanceof ApiError && e.status === 404) return {} as Record<string, ViagemRow[]>;
+      throw e;
+    });
+    return { desde: index.meses[0], ate: index.meses[index.meses.length - 1], viagens: (bucket[hash] ?? []).map(viagem) };
+  },
+  /** Viagens do IFRN inteiro nos `n` meses mais recentes com dados, cada uma com o hash do nome de quem viajou. */
+  viagensRecentes: async (n = 3) => {
+    const index = await publicGet<ViagensIndex>('/dados/viagens/index.json');
+    const meses = index.recentes.slice(-n);
+    const pages = await Promise.all(meses.map((mes) => publicGet<[string, ...ViagemRow][]>(`/dados/viagens/m/${mes}.json`)));
+    return { meses, viagens: pages.flat().map(([hash, ...row]) => ({ hash, ...viagem(row) })) };
   },
 
   avaliacoes: () => getAll<Avaliacao>('/api/ensino/minhas-proximas-avaliacoes/'),

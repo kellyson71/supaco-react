@@ -117,6 +117,9 @@ export function useResource<T>(key: string | null, fn: () => Promise<T>, ttlMin 
 
 const EMPTY: Entry = {};
 
+/** Valor em cache agora, sem assinar nem disparar busca. */
+export const peek = <T>(key: string) => read(key).value as T | undefined;
+
 /** Atualização otimista local (ex.: marcar mensagem como lida). */
 export function mutate<T>(key: string, fn: (v: T | undefined) => T) {
   const e = read(key);
