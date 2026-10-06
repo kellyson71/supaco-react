@@ -1,6 +1,6 @@
 // Hooks de dados compartilhados pelas telas + período letivo selecionado.
 import { createContext, useContext, useMemo, useState, type ReactNode } from 'react';
-import { peek, useResource } from './store';
+import { useResource } from './store';
 import { api, aulaMatchesSubject, nomeHash, type Calendario, type Parcial, type Periodo, type Pessoa, type Turma, type ViagemCampus } from './suap';
 import { isoDay, parseDay } from './dates';
 import { fetchPendingTasks } from './classroom';
@@ -73,9 +73,9 @@ export const useServidores = (campus: string | undefined) =>
   useResource(campus ? `servidores:${campus}` : null, () => api.servidores(campus!), 24 * 60);
 export const useServidor = (matricula: string | undefined) =>
   useResource(matricula ? `servidor:${matricula}` : null, () => api.servidor(matricula!), 7 * 24 * 60);
-/** Cadastro e folha no Portal da Transparência. A folha muda uma vez por mês, então o cache dura uma semana. */
+/** Cadastro e folhas no Portal da Transparência (arquivos baixados por scripts/portal.mjs, atualizados no máximo uma vez por semana). */
 export const useTransparencia = (p: Pick<Pessoa, 'nome' | 'matricula'> | undefined) =>
-  useResource(p ? `transparencia:${p.matricula}` : null, () => api.transparencia(p!), 7 * 24 * 60);
+  useResource(p ? `transparencia:v2:${p.matricula}` : null, () => api.transparencia(p!), 24 * 60);
 /** Histórico de viagens a serviço da pessoa (arquivos gerados do Portal da Transparência); dá erro enquanto não houver arquivos. */
 export const useViagens = (p: Pick<Pessoa, 'nome' | 'matricula'> | undefined) =>
   useResource(p ? `viagens:v2:${p.matricula}` : null, () => api.viagens(p!.nome), 24 * 60);
@@ -93,13 +93,6 @@ export function useViagensCampus(sigla: string | undefined) {
         .sort((a, b) => b.inicio.localeCompare(a.inicio)),
     };
   }, 24 * 60);
-}
-
-/** Evolução da folha. Só busca quando `pedido` (são várias chamadas ao Portal), ou se já estiver guardada no aparelho. */
-export function useFolhas(id: number | undefined, pedido: boolean) {
-  const key = id ? `folhas:${id}` : null;
-  const cached = !!key && peek(key) !== undefined;
-  return useResource(key && (pedido || cached) ? key : null, () => api.folhas(id!), 7 * 24 * 60);
 }
 
 export const useOrcamento = () => useResource('orcamento', api.orcamento, 24 * 60);

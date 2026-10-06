@@ -1,8 +1,8 @@
 import { useMemo, useState, type ReactNode } from 'react';
 import { m } from 'motion/react';
-import { useCampus, useCurrentSubjects, useEu, useFolhas, useServidor, useTransparencia, useTurmas, useUnidades, useViagens } from '../lib/data';
+import { useCampus, useCurrentSubjects, useEu, useServidor, useTransparencia, useTurmas, useUnidades, useViagens } from '../lib/data';
 import { back } from '../lib/router';
-import { semAcento, subjectTone, titleCase, type Folha, type Projeto, type Servidor, type Subject, type Transparencia, type Viagem, type Viagens } from '../lib/suap';
+import { semAcento, subjectTone, titleCase, type Folha, type FolhaMes, type Projeto, type Servidor, type Subject, type Transparencia, type Viagem, type Viagens } from '../lib/suap';
 import { anosDesde, campusNome, cargoLabel, categoriaLabel, fotoGrande, funcaoLabel, ocupacao, pretty } from '../lib/staff';
 import { daysBetween, longMonth, parseDay, shortMonth } from '../lib/dates';
 import { TONES } from '../lib/tones';
@@ -93,7 +93,7 @@ function Profile({ s, email, shared }: { s: Servidor; email?: string; shared: Su
       {portalDown && (
         <Item className="xl:col-span-12">
           <p className="flex items-center gap-2 rounded-2xl bg-surface-container px-4 py-3 text-sm text-on-surface-variant">
-            <Icon name="cloud_off" size={20} />Remuneração e viagens vêm do Portal da Transparência, que não respondeu agora.
+            <Icon name="cloud_off" size={20} />Remuneração e viagens vêm do Portal da Transparência, e esses dados ainda não foram baixados.
           </p>
         </Item>
       )}
@@ -232,12 +232,12 @@ function Pay({ portal, loading }: { portal: Transparencia | undefined; loading: 
       <SectionHeader title="Remuneração" icon="payments" action={pay && <span className="text-sm text-on-surface-variant">{longMonth(pay.mes)}</span>} />
       {loading ? <Skeleton className="h-52 rounded-xl" />
         : !pay ? <p className="px-1 text-sm text-on-surface-variant">{portal?.encontrado ? 'Nenhuma folha publicada nos últimos meses.' : 'Não achei este nome entre os servidores do IFRN no Portal da Transparência.'}</p>
-          : <PayBreakdown pay={pay} id={portal!.encontrado ? portal!.id : undefined} link={portal!.encontrado ? portal!.link : ''} />}
+          : <PayBreakdown pay={pay} folhas={portal!.encontrado ? portal!.folhas : []} link={portal!.encontrado ? portal!.link : ''} atualizado={portal!.encontrado ? portal!.atualizado : ''} />}
     </Card>
   );
 }
 
-function PayBreakdown({ pay, id, link }: { pay: Folha; id?: number; link: string }) {
+function PayBreakdown({ pay, folhas, link, atualizado }: { pay: Folha; folhas: FolhaMes[]; link: string; atualizado: string }) {
   const parts = [
     { label: 'Recebe após deduções', value: pay.liquido, color: 'bg-primary' },
     { label: 'Imposto de renda', value: pay.irrf, color: 'bg-[var(--c-orange)]' },
@@ -276,7 +276,7 @@ function PayBreakdown({ pay, id, link }: { pay: Folha; id?: number; link: string
         ))}
       </ul>
 
-      <PayHistory id={id} />
+      <PayHistory folhas={folhas} />
 
       <div className="mt-4 flex flex-col gap-1 border-t border-outline-variant px-1 pt-3 text-xs text-on-surface-variant">
         {extras.length > 0 && <p>Este mês inclui {extras.join(' e ')}.</p>}
@@ -284,40 +284,29 @@ function PayBreakdown({ pay, id, link }: { pay: Folha; id?: number; link: string
         <a href={link} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 self-start font-medium text-primary hover:underline">
           Fonte: Portal da Transparência<Icon name="open_in_new" size={14} />
         </a>
+        {atualizado && <p>Dados baixados em {parseDay(atualizado)?.toLocaleDateString('pt-BR', { day: 'numeric', month: 'long', year: 'numeric' })}.</p>}
       </div>
     </>
   );
 }
 
-/** Evolução da remuneração bruta nos últimos 12 meses. Só consulta o Portal quando a pessoa pede. */
-function PayHistory({ id }: { id?: number }) {
-  const [asked, setAsked] = useState(false);
-  const { data, loading, error } = useFolhas(id, asked);
-  if (!id) return null;
+/** Evolução da remuneração bruta nos meses guardados (até 12). */
+function PayHistory({ folhas }: { folhas: FolhaMes[] }) {
+  if (folhas.length < 2) return null;
 
-  if (!data) {
-    return (
-      <div className="mt-4 flex flex-wrap items-center gap-x-3 gap-y-1 px-1">
-        <Button variant="tonal" size="sm" icon="monitoring" disabled={loading} onClick={() => setAsked(true)}>{loading ? 'Buscando as folhas…' : 'Ver evolução em 12 meses'}</Button>
-        {error && !loading && <span className="text-xs text-on-surface-variant">O Portal da Transparência não respondeu agora.</span>}
-      </div>
-    );
-  }
-  if (data.length < 2) return null;
-
-  const first = data[0], last = data[data.length - 1];
+  const first = folhas[0], last = folhas[folhas.length - 1];
   const change = ((last.bruto - first.bruto) / first.bruto) * 100;
   const summary = Math.abs(change) < 0.05 ? 'A remuneração bruta não mudou' : `A remuneração bruta ${change > 0 ? 'subiu' : 'caiu'} ${Math.abs(change).toLocaleString('pt-BR', { maximumFractionDigits: 1 })}%`;
   return (
-    <m.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3, ease: EMPHASIZED }} className="mt-5">
+    <div className="mt-5">
       <p className="mb-1 px-1 text-sm font-medium">Remuneração bruta, mês a mês</p>
       <p className="mb-2 px-1 text-xs text-on-surface-variant">{summary} de {shortMonth(first.mes)} a {shortMonth(last.mes)}.</p>
       <LineChart label="Remuneração bruta, mês a mês" format={(v) => money.format(v)} axisFormat={(v) => money0.format(v)}
-        points={data.map((f) => ({
-          x: f.mes.endsWith('-01') ? shortMonth(f.mes) : shortMonth(f.mes).slice(0, 3),
+        points={folhas.map((f, i) => ({
+          x: i === 0 || f.mes.endsWith('-01') ? shortMonth(f.mes) : shortMonth(f.mes).slice(0, 3),
           title: longMonth(f.mes), value: f.bruto, extra: [{ label: 'Após deduções', value: money.format(f.liquido) }],
         }))} />
-    </m.div>
+    </div>
   );
 }
 

@@ -154,18 +154,27 @@ export type Folha = {
   mes: string; bruto: number; liquido: number; irrf: number; previdencia: number; outrosDescontos: number;
   ferias: number; natalina: number; eventuais: number; indenizacoes: number;
 };
-/** Cadastro e remuneração de um servidor no Portal da Transparência (função /api/servidor). Datas em "aaaa-mm-dd", `mes` em "aaaa-mm". */
+/** Folha resumida de um mês, para o gráfico de evolução. */
+export type FolhaMes = { mes: string; bruto: number; liquido: number };
+/**
+ * Cadastro e remuneração de um servidor no Portal da Transparência, dos arquivos gerados por scripts/portal.mjs.
+ * Datas em "aaaa-mm-dd", `mes` em "aaaa-mm". `folhas` vai do mês mais antigo ao mais novo; `atualizado` é o dia do download.
+ */
 export type Transparencia =
   | { encontrado: false }
   | {
-    encontrado: true; id: number; link: string;
+    encontrado: true; id: number; link: string; atualizado: string;
     cargo: string | null; classe: string | null; nivel: string | null; jornada: string | null; regime: string | null; situacao: string | null;
     lotacao: string | null; exercicio: string | null;
     ingressoOrgao: string | null; ingressoServico: string | null; ingressoCargo: string | null;
     funcao: { nome: string | null; atividade: string | null; unidade: string | null; desde: string | null } | null;
     afastado: boolean; afastamentos: string[];
-    remuneracao: Folha | null;
+    remuneracao: Folha | null; folhas: FolhaMes[];
   };
+
+/** Como o servidor vem nos arquivos. `f` guarda a folha de cada mês como [bruto, após deduções, IR, previdência, outros descontos, férias, 13º, eventuais, indenizações], ou 0 se não há. */
+type ServidorArquivo = Omit<Extract<Transparencia, { encontrado: true }>, 'encontrado' | 'link' | 'atualizado' | 'remuneracao' | 'folhas'> & { mat: string; f: Record<string, number[] | 0> };
+type ServidoresIndex = { atualizado: string; pessoas: number };
 
 /** Viagem a serviço paga pelo IFRN, dos arquivos gerados por scripts/viagens.mjs. */
 export type Viagem = { inicio: string; fim: string; total: number; diarias: number; passagens: number; internacional: boolean; motivo: string };
@@ -177,8 +186,6 @@ export type Viagens = { desde: string; ate: string; viagens: Viagem[] };
 /** Viagem de alguém do campus, já ligada à pessoa pela matrícula. */
 export type ViagemCampus = Viagem & { matricula: string };
 
-/** Folha resumida de um mês, para o gráfico de evolução. */
-export type FolhaMes = { mes: string; bruto: number; liquido: number };
 /** Execução do orçamento do IFRN em um ano. */
 export type Orcamento = { ano: number; empenhado: number; liquidado: number; pago: number };
 
@@ -248,6 +255,14 @@ export function nomeHash(nome: string) {
 
 const viagem = ([inicio, fim, total, diarias, passagens, internacional, motivo]: ViagemRow): Viagem =>
   ({ inicio, fim, total, diarias, passagens, internacional: !!internacional, motivo });
+
+/** O Portal mascara a matrícula ("123****"): confere só os dígitos que ele deixa à mostra (no mínimo 3). */
+function sameMatricula(masked: string, matricula: string) {
+  const m = masked.replace(/[^\d*]/g, '');
+  const digits = matricula.replace(/\D/g, '');
+  if (!digits || m.length !== digits.length) return false;
+  return [...m].filter((c) => c !== '*').length >= 3 && [...m].every((c, i) => c === '*' || c === digits[i]);
+}
 
 /** Funções (/api) e arquivos (/dados) do próprio app: dado público, sem o token do SUAP. */
 async function publicGet<T>(path: string): Promise<T> {
@@ -357,14 +372,39 @@ export const api = {
   unidades: async (): Promise<Unidade[]> =>
     (await getAll<Unidade>('/api/rh/unidades-organizacionais/')).map((u) => ({ sigla: u.sigla, nome: u.nome })).sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR')),
 
-  /** Cadastro e folha no Portal da Transparência. É dado público: vai sem o token do SUAP, para a CDN poder guardar a resposta. */
-  transparencia: (p: Pick<Pessoa, 'nome' | 'matricula'>) =>
-    publicGet<Transparencia>(`/api/servidor?${new URLSearchParams({ nome: p.nome, matricula: p.matricula })}`),
+  /**
+   * Cadastro e folhas do servidor no Portal da Transparência, dos arquivos gerados por scripts/portal.mjs (o Portal
+   * não é consultado daqui). Falha, sem ir para o cache, enquanto os arquivos não forem gerados.
+   */
+  transparencia: async (p: Pick<Pessoa, 'nome' | 'matricula'>): Promise<Transparencia> => {
+    const index = await publicGet<ServidoresIndex>('/dados/servidores/index.json');
+    if (!index.pessoas) throw new ApiError(404, 'Os arquivos do Portal da Transparência ainda não foram gerados');
+    const hash = nomeHash(p.nome);
+    const bucket = await publicGet<Record<string, ServidorArquivo[]>>(`/dados/servidores/p/${hash.slice(0, 2)}.json`).catch((e) => {
+      if (e instanceof ApiError && e.status === 404) return {} as Record<string, ServidorArquivo[]>;
+      throw e;
+    });
+    // Só aceita nome idêntico (o hash); entre homônimos, a matrícula mascarada desempata. Na dúvida, ninguém.
+    const same = bucket[hash] ?? [];
+    const found = same.length === 1 ? same[0] : (() => { const m = same.filter((e) => sameMatricula(e.mat, p.matricula)); return m.length === 1 ? m[0] : null; })();
+    if (!found) return { encontrado: false };
 
-  /** Últimas folhas publicadas do servidor (o `id` vem de `transparencia`). Custa várias chamadas ao Portal: só a pedido. */
-  folhas: async (id: number) => (await publicGet<{ folhas: FolhaMes[] }>(`/api/folhas?id=${id}`)).folhas,
-  /** Quanto o IFRN empenhou, liquidou e pagou nos últimos anos. */
-  orcamento: async () => (await publicGet<{ anos: Orcamento[] }>('/api/orcamento')).anos,
+    const { mat: _mat, f, ...rest } = found;
+    void _mat;
+    const rows = Object.entries(f).filter((e): e is [string, number[]] => !!e[1]).sort(([a], [b]) => a.localeCompare(b));
+    const folha = ([mes, r]: [string, number[]]): Folha => ({
+      mes, bruto: r[0], liquido: r[1], irrf: r[2], previdencia: r[3], outrosDescontos: r[4], ferias: r[5], natalina: r[6], eventuais: r[7], indenizacoes: r[8],
+    });
+    return {
+      encontrado: true, ...rest, atualizado: index.atualizado,
+      link: `https://portaldatransparencia.gov.br/servidores/${found.id}`,
+      remuneracao: rows.length ? folha(rows[rows.length - 1]) : null,
+      folhas: rows.map(([mes, r]) => ({ mes, bruto: r[0], liquido: r[1] })),
+    };
+  },
+
+  /** Quanto o IFRN empenhou, liquidou e pagou nos últimos anos (arquivo gerado por scripts/portal.mjs). */
+  orcamento: async () => (await publicGet<{ anos: Orcamento[] }>('/dados/orcamento.json')).anos,
 
   /** Histórico de viagens a serviço de uma pessoa. Falha (sem ir para o cache) enquanto os arquivos não forem gerados. */
   viagens: async (nome: string): Promise<Viagens> => {

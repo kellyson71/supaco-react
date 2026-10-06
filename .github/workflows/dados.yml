@@ -1,0 +1,54 @@
+# Mantém em dia os dados do Portal da Transparência (public/dados): cadastro e folhas dos servidores do IFRN,
+# orçamento e viagens. Roda toda semana de madrugada (fora do horário de pico do Portal); com tudo em dia gasta
+# poucas chamadas, e no começo, ou quando sai folha nova, continua de onde parou a cada execução.
+# Precisa do segredo PORTAL_TRANSPARENCIA_KEY (Settings → Secrets and variables → Actions).
+name: Atualizar dados do Portal da Transparência
+
+on:
+  schedule:
+    - cron: '0 6 * * 1' # segunda, 03:00 em Brasília
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: dados-portal
+  cancel-in-progress: false
+
+jobs:
+  atualizar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 200
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      # Cada passo guarda o que já baixou e para na primeira recusa da chave; o commit abaixo roda mesmo se eles falharem
+      - name: Servidores e orçamento
+        timeout-minutes: 85
+        continue-on-error: true
+        run: npm run portal -- --lote 6000
+        env:
+          PORTAL_TRANSPARENCIA_KEY: ${{ secrets.PORTAL_TRANSPARENCIA_KEY }}
+
+      - name: Viagens
+        timeout-minutes: 85
+        continue-on-error: true
+        run: npm run viagens
+        env:
+          PORTAL_TRANSPARENCIA_KEY: ${{ secrets.PORTAL_TRANSPARENCIA_KEY }}
+
+      - name: Publicar os arquivos
+        if: always()
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add public/dados
+          if git diff --cached --quiet; then echo "Nada novo."; else
+            git commit -m "chore(dados): atualiza os dados do Portal da Transparência"
+            git pull --rebase origin main
+            git push origin main
+          fi
