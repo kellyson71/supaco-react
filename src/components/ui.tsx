@@ -177,6 +177,72 @@ export function Segmented<T extends string>({ value, options, onChange, classNam
   );
 }
 
+/**
+ * Seletor com menu próprio (no lugar do <select> nativo, que o navegador desenha fora do tema).
+ * Teclado: setas, Home/End, Enter/Espaço escolhem, Esc fecha. O botão mostra o ícone e o rótulo da opção atual.
+ */
+export function Select<T extends string>({ value, options, onChange, icon, label, className, menuClassName }: {
+  value: T; options: { value: T; label: string; hint?: string }[]; onChange: (v: T) => void; icon?: string; label: string; className?: string; menuClassName?: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const [active, setActive] = useState(0);
+  const root = useRef<HTMLDivElement>(null);
+  const list = useRef<HTMLUListElement>(null);
+  const id = useId();
+  const current = options.find((o) => o.value === value);
+
+  const show = () => { setActive(Math.max(0, options.findIndex((o) => o.value === value))); setOpen(true); };
+  const pick = (v: T) => { onChange(v); setOpen(false); root.current?.querySelector('button')?.focus(); };
+
+  useEffect(() => {
+    if (!open) return;
+    const out = (e: PointerEvent) => { if (!root.current?.contains(e.target as Node)) setOpen(false); };
+    document.addEventListener('pointerdown', out);
+    return () => document.removeEventListener('pointerdown', out);
+  }, [open]);
+  useEffect(() => { if (open) list.current?.children[active]?.scrollIntoView({ block: 'nearest' }); }, [open, active]);
+
+  const onKey = (e: React.KeyboardEvent) => {
+    if (!open) {
+      if (['ArrowDown', 'ArrowUp'].includes(e.key)) { e.preventDefault(); show(); }
+      return;
+    }
+    const last = options.length - 1;
+    if (e.key === 'Escape') { e.preventDefault(); setOpen(false); }
+    else if (e.key === 'ArrowDown') { e.preventDefault(); setActive((a) => Math.min(last, a + 1)); }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); setActive((a) => Math.max(0, a - 1)); }
+    else if (e.key === 'Home') { e.preventDefault(); setActive(0); }
+    else if (e.key === 'End') { e.preventDefault(); setActive(last); }
+    else if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); pick(options[active].value); }
+    else if (e.key === 'Tab') setOpen(false);
+  };
+
+  return (
+    <div ref={root} className={cx('relative', className)} onKeyDown={onKey}>
+      <button type="button" role="combobox" aria-label={label} aria-expanded={open} aria-haspopup="listbox" aria-controls={`${id}-list`}
+        aria-activedescendant={open ? `${id}-${active}` : undefined} onClick={() => (open ? setOpen(false) : show())}
+        className="state relative inline-flex h-12 w-full items-center gap-2 rounded-full border border-outline-variant pr-2 pl-4 text-sm font-medium text-on-surface">
+        {icon && <Icon name={icon} size={20} className="text-primary" />}
+        <span className="min-w-0 flex-1 truncate text-left">{current?.label ?? label}</span>
+        <Icon name="arrow_drop_down" size={20} className={cx('transition-transform duration-200', open && 'rotate-180')} />
+      </button>
+      {open && (
+        <ul ref={list} id={`${id}-list`} role="listbox" aria-label={label}
+          className={cx('no-scrollbar absolute top-full left-0 z-30 mt-1 max-h-72 min-w-full w-max max-w-[min(20rem,calc(100vw-2rem))] overflow-y-auto rounded-2xl bg-surface-container-high py-2 shadow-[0_8px_28px_rgb(0_0_0/0.28)]', menuClassName)}>
+          {options.map((o, i) => (
+            <li key={o.value} id={`${id}-${i}`} role="option" aria-selected={o.value === value} onPointerEnter={() => setActive(i)} onClick={() => pick(o.value)}
+              className={cx('flex cursor-pointer items-center gap-2 px-4 py-2.5 text-sm', i === active && 'bg-on-surface/8', o.value === value ? 'font-medium text-primary' : 'text-on-surface')}>
+              <span className="w-[18px] shrink-0">{o.value === value && <Icon name="check" size={18} />}</span>
+              <span className="min-w-0 flex-1 truncate">{o.label}</span>
+              {o.hint && <span className="shrink-0 text-xs text-on-surface-variant">{o.hint}</span>}
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
 /** Switch do M3: o polegar cresce e ganha ✓ quando ligado. */
 export function Switch({ on, onChange, label }: { on: boolean; onChange: (v: boolean) => void; label: string }) {
   return (
