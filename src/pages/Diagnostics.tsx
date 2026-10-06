@@ -24,6 +24,8 @@ export function Diagnostics() {
   const now = new Date();
   const p = current;
   const paths = [
+    // Primeiro o que mostra a hora de cada aula registrada
+    `/api/ensino/minhas-aulas/${now.getFullYear()}/${now.getMonth() + 1}/`,
     '/api/rh/eu/',
     '/api/ensino/meus-dados-aluno/',
     '/api/ensino/meus-periodos-letivos/',
@@ -35,7 +37,6 @@ export function Diagnostics() {
       `/api/ensino/disciplinas/${p.ano}.${p.periodo}/`,
       `/api/ensino/disciplinas/${p.ano}${p.periodo}/`,
     ] : []),
-    `/api/ensino/minhas-aulas/${now.getFullYear()}/${now.getMonth() + 1}/`,
     '/api/ensino/minhas-proximas-avaliacoes/',
     '/api/ensino/requisitos-conclusao/',
   ];
@@ -43,10 +44,14 @@ export function Diagnostics() {
   const run = async () => {
     setRunning(true);
     setResults([]);
-    for (const path of paths) {
+    const queue = [...paths];
+    for (let path = queue.shift(); path; path = queue.shift()) {
       const t0 = performance.now();
       try {
         const body = await get<unknown>(path);
+        // Do primeiro diário: a aula bruta (com o que o SUAP tiver de hora), o diário e as etapas
+        const first = path.includes('minhas-turmas-virtuais') ? (body as { results?: { id: string }[] }).results?.[0]?.id : undefined;
+        if (first) queue.push(`/api/ensino/diarios/${first}/`, `/api/ensino/diarios/${first}/aulas/`);
         setResults((r) => [...r, { path, status: 'ok', ms: Math.round(performance.now() - t0), body: JSON.stringify(mask(body), null, 2) }]);
       } catch (e) {
         setResults((r) => [...r, { path, status: 'erro', ms: Math.round(performance.now() - t0), body: (e as Error).message }]);
@@ -56,7 +61,7 @@ export function Diagnostics() {
   };
 
   const copy = async () => {
-    await navigator.clipboard.writeText(results.map((r) => `## ${r.path} (${r.status}, ${r.ms}ms)\n${r.body.slice(0, 4000)}`).join('\n\n'));
+    await navigator.clipboard.writeText(results.map((r) => `## ${r.path} (${r.status}, ${r.ms}ms)\n${r.body.slice(0, 2500)}`).join('\n\n'));
     setCopied(true);
     setTimeout(() => setCopied(false), 2500);
   };

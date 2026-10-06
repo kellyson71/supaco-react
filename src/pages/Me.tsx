@@ -8,7 +8,7 @@ import { SUAP_URL } from '../lib/suap';
 import { classroom, connectClassroom } from '../lib/classroom';
 import { onSessionChange, session } from '../lib/api';
 import { clearCache, refreshAll } from '../lib/store';
-import { DEFAULT_PREFS, resetTheme, SEEDS, seedHex, setMode, setPref, setSeed, STYLES, swatch, useThemeState, type Mode, type Prefs } from '../lib/theme';
+import { CLASSICS, DEFAULT_PREFS, resetTheme, SEEDS, seedHex, setMode, setPref, setSeed, STYLES, swatch, useThemeState, type Mode, type Prefs } from '../lib/theme';
 import { setVibe, useVibe } from '../lib/vibe';
 import { shareSite, SITE_URL, useInstall } from '../lib/hooks';
 import { Badge, Button, Card, CountUp, cx, EMPHASIZED, Icon, Item, Ring, SectionHeader, Segmented, Shape, Skeleton, spring, Stagger, Switch, Tap, WavyProgress } from '../components/ui';
@@ -187,6 +187,15 @@ function Appearance() {
   const custom = seed.startsWith('#');
   const seeds = useMemo(() => SEEDS.map((s) => ({ ...s, colors: swatch(s.id, dark, prefs.style) })), [dark, prefs.style]);
   const styles = useMemo(() => STYLES.map((st) => ({ ...st, colors: swatch(seed, dark, st.id) })), [seed, dark]);
+  const fixedTheme = CLASSICS.some((c) => c.id === prefs.theme);
+  const themes = useMemo(() => {
+    const dyn = swatch(seed, dark, prefs.style);
+    return [
+      { id: 'dinamico' as const, label: 'Dinâmico', bg: dark ? '#14181a' : '#f6f8f4', fg: dark ? '#e0e8db' : '#2d342c', dots: [dyn.primary, dyn.secondary, dyn.tertiary] },
+      { id: 'preto' as const, label: 'Preto (OLED)', bg: '#000000', fg: '#ffffff', dots: [dyn.primary, dyn.secondary, dyn.tertiary] },
+      ...CLASSICS.map((c) => ({ id: c.id, label: c.label, bg: c.bg, fg: c.fg, dots: [...c.accents] as string[] })),
+    ];
+  }, [seed, dark, prefs.style]);
   const changed = seed !== SEEDS[0].id || (Object.keys(DEFAULT_PREFS) as (keyof Prefs)[]).some((k) => prefs[k] !== DEFAULT_PREFS[k]);
   // As cores principais, mais a escolhida se ela estiver só no avançado
   const main = seeds.filter((s, i) => i < MAIN_SEEDS || s.id === seed);
@@ -195,12 +204,30 @@ function Appearance() {
     <>
       <SectionHeader title="Aparência" icon="palette" />
       <Card variant="filled" className="rounded-2xl p-5">
-        <p className="mb-2 text-sm font-medium text-on-surface-variant">Modo</p>
-        <Segmented<Mode> value={mode} onChange={setMode} className="w-full"
+        <p className="mb-3 text-sm font-medium text-on-surface-variant">Tema</p>
+        <div className="grid grid-cols-[repeat(auto-fill,minmax(104px,1fr))] gap-2">
+          {themes.map((t) => {
+            const on = prefs.theme === t.id;
+            return (
+              <button key={t.id} onClick={() => setPref('theme', t.id)} aria-pressed={on}
+                className={cx('state flex flex-col gap-2 rounded-xl border p-2 text-left', on ? 'border-primary ring-1 ring-primary' : 'border-outline-variant')}>
+                <span className="relative flex h-14 items-end gap-1 overflow-hidden rounded-lg p-2" style={{ background: t.bg }}>
+                  {t.dots.map((c, i) => <span key={i} className="size-3.5 rounded-full" style={{ background: c }} />)}
+                  <span className="absolute top-2 right-2 h-1.5 w-8 rounded-full" style={{ background: t.fg, opacity: 0.55 }} />
+                  {on && <span className="absolute top-1.5 left-1.5 flex size-5 items-center justify-center rounded-full bg-primary text-on-primary"><Icon name="check" size={14} weight={700} /></span>}
+                </span>
+                <span className="px-0.5 text-xs leading-4 font-medium">{t.label}</span>
+              </button>
+            );
+          })}
+        </div>
+
+        <p className="mt-5 mb-2 text-sm font-medium text-on-surface-variant">Modo{fixedTheme && ' (o tema escolhido já define)'}</p>
+        <Segmented<Mode> value={mode} onChange={setMode} className={cx('w-full', fixedTheme && 'pointer-events-none opacity-45')}
           options={[{ value: 'dark', label: 'Escuro', icon: 'dark_mode' }, { value: 'light', label: 'Claro', icon: 'light_mode' }, { value: 'system', label: 'Sistema', icon: 'brightness_auto' }]} />
 
-        <p className="mt-5 mb-3 text-sm font-medium text-on-surface-variant">Cor do tema</p>
-        <div className="grid grid-cols-[repeat(auto-fill,minmax(64px,1fr))] gap-x-2 gap-y-3">
+        <p className="mt-5 mb-3 text-sm font-medium text-on-surface-variant">Cor do tema{fixedTheme && ' (disponível nos temas Dinâmico e Preto)'}</p>
+        <div className={cx('grid grid-cols-[repeat(auto-fill,minmax(64px,1fr))] gap-x-2 gap-y-3', fixedTheme && 'pointer-events-none opacity-45')}>
           {main.map((s) => <SeedButton key={s.id} s={s} on={seed === s.id} />)}
         </div>
 

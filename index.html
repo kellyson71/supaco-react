@@ -26,9 +26,11 @@
         var mode = localStorage.getItem('supaco:mode') || 'dark';
         var saved = JSON.parse(localStorage.getItem('supaco:themevars') || 'null');
         var dark = mode === 'dark' || (mode === 'system' && matchMedia('(prefers-color-scheme: dark)').matches);
+        // Tema fixo (Dracula, Solarized…) decide sozinho se é claro ou escuro
+        if (saved && saved.forced) dark = saved.dark;
         var root = document.documentElement;
         if (dark) root.classList.add('dark');
-        if (saved && saved.dark === dark) for (var k in saved.vars) root.style.setProperty(k, saved.vars[k]);
+        if (saved && (saved.forced || saved.dark === dark)) for (var k in saved.vars) root.style.setProperty(k, saved.vars[k]);
       } catch (e) {}
     </script>
   </head>
