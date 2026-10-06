@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type KeyboardEvent, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { AnimatePresence, m } from 'motion/react';
-import { useAulas, useAvaliacoes, useCampus, useCurrentSubjects, useEu, useHolidays, useMensagens, usePeriod, useTasks, useTurmas } from '../lib/data';
+import { useAulas, useAvaliacoes, useCampus, useCurrentSubjects, useEu, useHolidays, useMensagens, usePeriod, useServidores, useTasks, useTurmas } from '../lib/data';
 import { buildDeadlines } from '../lib/agenda';
 import { classroom } from '../lib/classroom';
 import { session } from '../lib/api';
@@ -11,7 +11,8 @@ import { daysBetween, longDate, parseDay, relativeDay, shortDate } from '../lib/
 import { navigate } from '../lib/router';
 import { refreshAll } from '../lib/store';
 import { toggleDark } from '../lib/theme';
-import { aulaMatchesSubject, shortName, subjectTone, titleCase, type Aula, type Pessoa, type Subject } from '../lib/suap';
+import { api, aulaMatchesSubject, shortName, subjectTone, titleCase, type Aula, type Pessoa, type Servidor, type Subject } from '../lib/suap';
+import { CATEGORIAS, ocupacao } from '../lib/staff';
 import { buildIndex, completion, GROUP_LABEL, loadRecent, matchRanges, pushRecent, search, type SearchGroup, type SearchItem } from '../lib/search';
 import { TONES } from '../lib/tones';
 import { cx, EMPHASIZED, Icon, spring } from './ui';
@@ -105,7 +106,36 @@ const Kbd = ({ children }: { children: ReactNode }) => (
 const stripHtml = (s: string) => s.replace(/<[^>]+>/g, ' ').replace(/&nbsp;/g, ' ').replace(/\s+/g, ' ').trim();
 const clip = (s: string, n: number) => (s.length > n ? `${s.slice(0, n - 1)}…` : s);
 
-function useItems(): { items: SearchItem[]; now: SearchItem | null } {
+// Buscas por nome em todo o IFRN: ficam em memória enquanto o app está aberto
+const staffMemo = new Map<string, Promise<Servidor[]>>();
+function staffSearch(term: string) {
+  const key = term.toLowerCase();
+  let pending = staffMemo.get(key);
+  if (!pending) {
+    pending = api.buscarServidores(term).then((r) => r.lista);
+    staffMemo.set(key, pending);
+    pending.catch(() => staffMemo.delete(key));
+  }
+  return pending;
+}
+
+/**
+ * Servidores de qualquer campus cujo nome bate com o que foi digitado. O SUAP faz essa busca,
+ * então ela só sai a partir de três letras e depois de a pessoa parar de digitar.
+ */
+function useRemoteStaff(query: string) {
+  const [found, setFound] = useState<Servidor[]>([]);
+  const term = query.trim();
+  useEffect(() => {
+    if (term.length < 3) { setFound([]); return; }
+    let alive = true;
+    const id = setTimeout(() => { staffSearch(term).then((list) => { if (alive) setFound(list); }, () => { /* sem rede: ficam os do campus */ }); }, 350);
+    return () => { alive = false; clearTimeout(id); };
+  }, [term]);
+  return found;
+}
+
+function useItems(remote: Servidor[]): { items: SearchItem[]; now: SearchItem | null } {
   const { current } = usePeriod();
   const { data: subjects } = useCurrentSubjects();
   const { data: aulas } = useAulas(current);
@@ -116,6 +146,7 @@ function useItems(): { items: SearchItem[]; now: SearchItem | null } {
   const { data: eu } = useEu();
   const { data: campus } = useCampus(eu?.campus);
   const { data: holidays } = useHolidays();
+  const { data: campusStaff } = useServidores(eu?.campus);
 
   return useMemo(() => {
     const today = new Date();
@@ -239,6 +270,27 @@ function useItems(): { items: SearchItem[]; now: SearchItem | null } {
       });
     }
 
+    // Servidores: os do campus (já em cache) e os de qualquer campus que o SUAP achou pelo nome. Docentes primeiro.
+    const known = new Set(items.map((i) => i.id));
+    [...(campusStaff ?? []), ...remote].forEach((sv) => {
+      const id = `u:${sv.matricula}`;
+      if (known.has(id) || sv.matricula === session.user) return;
+      known.add(id);
+      const docente = sv.categoria === 'docente';
+      items.push({
+        id, group: 'pessoas', title: titleCase(sv.nome), keywords: `${sv.matricula} ${sv.cargo} ${sv.setor} ${docente ? 'professor docente' : 'servidor técnico'}`,
+        sub: [ocupacao(sv), sv.campus && sv.campus !== eu?.campus ? `campus ${sv.campus}` : sv.setor].filter(Boolean).join(' · '),
+        icon: CATEGORIAS[sv.categoria]?.icon ?? 'badge', photo: sv.foto || undefined, to: `/servidores/${sv.matricula}`, boost: docente ? 3 : 0,
+        preview: {
+          rows: [
+            { icon: 'badge', label: 'Cargo', value: ocupacao(sv) },
+            ...(sv.setor ? [{ icon: 'apartment', label: 'Setor', value: sv.setor }] : []),
+            ...(sv.jornada ? [{ icon: 'schedule', label: 'Jornada', value: sv.jornada.toLowerCase() }] : []),
+          ],
+        },
+      });
+    });
+
     // Mensagens
     (msgs ?? []).forEach((x) => {
       const d = parseDay(x.data_envio);
@@ -284,7 +336,7 @@ function useItems(): { items: SearchItem[]; now: SearchItem | null } {
       }
     }
     return { items, now };
-  }, [subjects, aulas, turmas, msgs, avaliacoes, tasks, campus, holidays]);
+  }, [subjects, aulas, turmas, msgs, avaliacoes, tasks, campus, holidays, campusStaff, remote, eu?.campus]);
 }
 
 // ---------- Paleta ----------
@@ -331,8 +383,8 @@ const META = { error: 'text-error', warning: 'text-warning', success: 'text-succ
  */
 export function SearchPanel({ variant }: { variant: 'dock' | 'mobile' }) {
   const dock = variant === 'dock';
-  const { items, now } = useItems();
   const [query, setQuery] = useState('');
+  const { items, now } = useItems(useRemoteStaff(query));
   const [scope, setScope] = useState<SearchGroup | 'tudo'>('tudo');
   const [active, setActive] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);

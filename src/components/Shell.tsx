@@ -108,8 +108,9 @@ export function Shell({ children }: { children: ReactNode }) {
               </Link>
               <span className="flex-1" />
               <IconButton icon="search" label="Buscar" onClick={openSearch} />
+              {/* O tema fica em Você › Aparência; aqui o lugar é dos servidores, que não cabem na barra de baixo */}
+              <Link to="/servidores" label="Servidores do IFRN" className="state flex size-10 shrink-0 items-center justify-center rounded-full text-on-surface-variant"><Icon name="badge" size={22} fill={path.startsWith('/servidores')} /></Link>
               <SyncButton />
-              <ThemeButton />
               <Avatar size={32} />
             </>
           )}

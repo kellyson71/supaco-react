@@ -1,13 +1,13 @@
 import { useState } from 'react';
 import { AnimatePresence, m } from 'motion/react';
-import { useCalendario, useDisciplinas, usePeriod } from '../lib/data';
-import { classesOn, nowMin, toMin, WEEKDAYS, WEEKDAYS_SHORT, type ClassItem } from '../lib/schedule';
+import { useCalendario, useDisciplinas, usePeriod, useTurma } from '../lib/data';
+import { classesOn, formatDuration, nowMin, toMin, WEEKDAYS, WEEKDAYS_SHORT, type ClassItem } from '../lib/schedule';
 import { useNow } from '../lib/hooks';
-import { subjectTone } from '../lib/suap';
+import { shortName, subjectTone } from '../lib/suap';
 import { TONES, toneFor, type Tone } from '../lib/tones';
 import { downloadIcs } from '../lib/ics';
 import { parseDay } from '../lib/dates';
-import { Badge, Button, Card, cx, EMPHASIZED, Empty, ErrorNote, Icon, Segmented, Skeleton, spring, Tap, TopTitle } from '../components/ui';
+import { Button, Card, cx, EMPHASIZED, Empty, ErrorNote, Icon, IconButton, Skeleton, spring, Tap, TopTitle } from '../components/ui';
 import { PeriodSelect } from '../components/PeriodSelect';
 import { ShiftNotice } from '../components/ShiftNotice';
 
@@ -40,7 +40,12 @@ export function Schedule() {
       <TopTitle title="Horário" sub={data && !empty ? `${totalLessons} aulas por semana` : 'Sua semana de aulas'}
         right={<>
           <PeriodSelect />
-          {data && !empty && <Button variant="tonal" icon="calendar_add_on" onClick={exportIcs}>Exportar para agenda</Button>}
+          {data && !empty && (
+            <>
+              <span className="md:hidden"><IconButton icon="calendar_add_on" variant="tonal" label="Exportar para a agenda do celular" onClick={exportIcs} /></span>
+              <span className="max-md:hidden"><Button variant="tonal" icon="calendar_add_on" onClick={exportIcs}>Exportar para agenda</Button></span>
+            </>
+          )}
         </>} />
       {isCurrent && <ShiftNotice all />}
       {error && !data && <ErrorNote error={error} onRetry={refresh} />}
@@ -50,19 +55,10 @@ export function Schedule() {
       {data && !empty && (
         <>
           <div className="lg:hidden">
-            <Segmented value={sel} onChange={setSel} className="mb-4 w-full"
-              options={days.map(({ d }) => ({ value: String(d), label: WEEKDAYS_SHORT[d] }))} />
+            <WeekStrip days={days} sel={String(selected.d)} onSel={setSel} today={isCurrent ? today : -1} now={now} toneOf={toneOf} />
             <AnimatePresence mode="wait" initial={false}>
-              <m.div key={selected.d} initial={{ opacity: 0, x: 30 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -30 }} transition={{ duration: 0.25, ease: EMPHASIZED }}>
-                {selected.items.length === 0 ? (
-                  <Card className="rounded-2xl"><Empty icon="weekend" title={`${WEEKDAYS[selected.d]} livre`}>Nenhuma aula nesse dia.</Empty></Card>
-                ) : (
-                  <div className="flex flex-col gap-2">
-                    {selected.items.map((c) => (
-                      <ClassRow key={c.code + c.start} c={c} tone={toneOf(c.code)} live={isCurrent && selected.d === today && isLive(c, now)} past={isCurrent && selected.d === today && toMin(c.end) <= nowMin(now)} />
-                    ))}
-                  </div>
-                )}
+              <m.div key={selected.d} initial={{ opacity: 0, x: 24 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -24 }} transition={{ duration: 0.22, ease: EMPHASIZED }}>
+                <DayTimeline day={selected} isToday={isCurrent && selected.d === today} now={now} toneOf={toneOf} />
               </m.div>
             </AnimatePresence>
           </div>
@@ -75,24 +71,94 @@ export function Schedule() {
 
 const isLive = (c: ClassItem, now: Date) => toMin(c.start) <= nowMin(now) && nowMin(now) < toMin(c.end);
 
-function ClassRow({ c, tone, live, past }: { c: ClassItem; tone: Tone; live?: boolean; past?: boolean }) {
-  const t = TONES[tone];
+/** A semana em uma faixa: o dia do mês (na semana atual), e um ponto colorido para cada aula do dia. */
+function WeekStrip({ days, sel, onSel, today, now, toneOf }: { days: { d: number; items: ClassItem[] }[]; sel: string; onSel: (d: string) => void; today: number; now: Date; toneOf: (c: string) => Tone }) {
+  // Dia do mês de cada dia desta semana (só faz sentido no período atual)
+  const dateOf = (d: number) => { const x = new Date(now); x.setDate(now.getDate() + (d - now.getDay())); return x.getDate(); };
   return (
-    <Tap to={`/disciplinas/${c.code}`} className={cx('flex items-stretch gap-4 rounded-xl p-4', t.container, t.onContainer, past && 'opacity-60')}>
-      <div className="w-14 shrink-0 text-sm leading-tight tabular">
-        <p className="text-base font-semibold">{c.start}</p>
-        <p className="opacity-75">{c.end}</p>
+    <div role="tablist" aria-label="Dia da semana" className="mb-4 grid gap-1.5" style={{ gridTemplateColumns: `repeat(${days.length}, minmax(0, 1fr))` }}>
+      {days.map(({ d, items }) => {
+        const on = String(d) === sel;
+        return (
+          <button key={d} role="tab" aria-selected={on} aria-label={`${WEEKDAYS[d]}, ${items.length} ${items.length === 1 ? 'matéria' : 'matérias'}`} onClick={() => onSel(String(d))}
+            className={cx('state relative flex flex-col items-center gap-1 rounded-2xl pt-2 pb-2.5 transition-colors duration-200', on ? 'bg-primary text-on-primary' : 'bg-surface-container text-on-surface-variant')}>
+            <span className={cx('text-[11px] font-medium tracking-wide uppercase', d === today && !on && 'text-primary')}>{WEEKDAYS_SHORT[d]}</span>
+            {today >= 0 && <span className={cx('text-lg leading-6 font-semibold tabular', !on && 'text-on-surface')}>{dateOf(d)}</span>}
+            <span className="flex h-1.5 items-center gap-0.5" aria-hidden>
+              {items.length === 0 ? <span className="h-px w-3 bg-current opacity-40" />
+                : items.slice(0, 5).map((c) => <span key={c.code + c.start} className={cx('size-1.5 rounded-full', on ? 'bg-on-primary' : TONES[toneOf(c.code)].color)} />)}
+            </span>
+            {d === today && <span className={cx('absolute top-1.5 right-1.5 size-1.5 rounded-full', on ? 'bg-on-primary' : 'bg-primary')} title="hoje" />}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+/** As aulas de um dia numa linha do tempo, com os intervalos entre elas e o que está rolando agora. */
+function DayTimeline({ day, isToday, now, toneOf }: { day: { d: number; items: ClassItem[] }; isToday: boolean; now: Date; toneOf: (c: string) => Tone }) {
+  const { d, items } = day;
+  if (!items.length) return <Card className="rounded-2xl"><Empty icon="weekend" title={`${WEEKDAYS[d]} livre`}>Nenhuma aula nesse dia.</Empty></Card>;
+  const lessons = items.reduce((a, c) => a + c.lessons, 0);
+  return (
+    <>
+      <p className="mb-3 px-1 text-sm text-on-surface-variant">
+        <b className="font-medium text-on-surface">{WEEKDAYS[d]}{isToday && ', hoje'}</b> · {lessons} aulas, das {items[0].start} às {items[items.length - 1].end}
+      </p>
+      <ol className="flex flex-col">
+        {items.map((c, i) => {
+          const gap = i > 0 ? toMin(c.start) - toMin(items[i - 1].end) : 0;
+          return (
+            <li key={c.code + c.start}>
+              {gap >= 10 && (
+                <p className="grid grid-cols-[3.25rem_minmax(0,1fr)] items-center gap-3 py-1.5 text-xs text-on-surface-variant">
+                  <span />
+                  <span className="flex items-center gap-2"><span className="h-px w-4 bg-outline-variant" />{gap <= 30 ? 'intervalo' : 'janela'} de {formatDuration(gap)}<span className="h-px flex-1 bg-outline-variant" /></span>
+                </p>
+              )}
+              {gap > 0 && gap < 10 && <span className="block h-2" />}
+              <ClassRow c={c} tone={toneOf(c.code)} now={isToday ? now : null} />
+            </li>
+          );
+        })}
+      </ol>
+    </>
+  );
+}
+
+function ClassRow({ c, tone, now }: { c: ClassItem; tone: Tone; now: Date | null }) {
+  const t = TONES[tone];
+  const { data: turma } = useTurma(c.code);
+  const prof = turma?.professores[0];
+  const mm = now ? nowMin(now) : -1;
+  const live = now ? isLive(c, now) : false;
+  const past = mm >= 0 && toMin(c.end) <= mm;
+  const progress = live ? (mm - toMin(c.start)) / (toMin(c.end) - toMin(c.start)) : 0;
+  return (
+    <div className={cx('grid grid-cols-[3.25rem_minmax(0,1fr)] gap-3', past && 'opacity-55')}>
+      <div className="pt-3 text-right leading-tight tabular">
+        <p className={cx('text-base font-semibold', live && 'text-primary')}>{c.start}</p>
+        <p className="text-xs text-on-surface-variant">{c.end}</p>
       </div>
-      <span className={cx('w-1 shrink-0 rounded-full', t.color)} />
-      <div className="min-w-0 flex-1">
-        <p className="text-lg leading-6 font-medium">{c.subject}</p>
-        <p className="mt-1 flex flex-wrap items-center gap-x-3 text-sm opacity-80">
+      <Tap to={`/disciplinas/${c.code}`} className={cx('rounded-2xl px-4 py-3', t.container, t.onContainer)}>
+        <div className="flex items-start gap-2">
+          <p className="min-w-0 flex-1 text-[17px] leading-6 font-medium">{c.subject}</p>
+          {live && <span className="mt-0.5 flex shrink-0 items-center gap-1.5 rounded-full bg-white/50 px-2 py-0.5 text-xs font-medium dark:bg-black/25"><span className="size-1.5 animate-pulse rounded-full bg-current" />agora</span>}
+        </div>
+        <p className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-sm opacity-85">
           {c.room && <span className="flex items-center gap-1"><Icon name="location_on" size={16} />{c.room}</span>}
+          {prof && <span className="flex items-center gap-1"><Icon name="person" size={16} />{shortName(prof.nome)}</span>}
           <span>{c.lessons} {c.lessons === 1 ? 'aula' : 'aulas'}</span>
         </p>
-      </div>
-      {live && <Badge tone="primary" className="self-start">agora</Badge>}
-    </Tap>
+        {live && (
+          <div className="mt-2.5 flex items-center gap-2 text-xs font-medium">
+            <span className="h-1 flex-1 overflow-hidden rounded-full bg-black/15 dark:bg-white/20"><span className="block h-full rounded-full bg-current" style={{ width: `${Math.round(progress * 100)}%` }} /></span>
+            faltam {formatDuration(toMin(c.end) - mm)}
+          </div>
+        )}
+      </Tap>
+    </div>
   );
 }
 

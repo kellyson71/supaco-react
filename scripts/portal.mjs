@@ -14,7 +14,7 @@
 // Passos: 1) cadastro de todos os servidores, 2) orçamento do órgão, 3) folha mês a mês de cada servidor, do mês mais
 // novo para o mais antigo (assim a folha atual de todo mundo fica pronta antes do histórico).
 //
-// Arquivos: public/dados/servidores/p/<2 hex>.json (por pessoa, agrupadas pelo começo do hash do nome),
+// Arquivos: public/dados/servidores/p/<2 hex>.json (por pessoa, agrupadas pelos dois últimos dígitos do hash do nome),
 // public/dados/servidores/index.json e public/dados/orcamento.json.
 // A chave vem de PORTAL_TRANSPARENCIA_KEY (ambiente ou .env.local).
 
@@ -118,9 +118,9 @@ function save() {
   mkdirSync(join(DIR, 'p'), { recursive: true });
   const buckets = new Map();
   for (const { h, ...person } of people.values()) {
-    const b = buckets.get(h.slice(0, 2)) ?? {};
+    const b = buckets.get(h.slice(-2)) ?? {};
     (b[h] ??= []).push(person);
-    buckets.set(h.slice(0, 2), b);
+    buckets.set(h.slice(-2), b);
   }
   // Apaga só os arquivos que ficaram sem ninguém (o resto é reescrito)
   for (const file of readdirSync(join(DIR, 'p'))) if (!buckets.has(file.slice(0, 2))) writeFileSync(join(DIR, 'p', file), '{}');

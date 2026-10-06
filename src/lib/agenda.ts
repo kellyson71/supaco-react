@@ -13,9 +13,13 @@ export type Deadline = {
   link?: string;
   late?: boolean;
   detail?: string;
+  /** O que é, em uma palavra ("Prova", "Trabalho", "Tarefa", "Evento"). */
+  kind: string;
+  icon: string;
 };
 
 const TIPO: Record<string, string> = { P: 'Prova', T: 'Trabalho', S: 'Seminário', A: 'Avaliação' };
+const TIPO_ICON: Record<string, string> = { P: 'fact_check', T: 'edit_note', S: 'slideshow' };
 
 const at = (day: string, hm: string | null) => {
   const d = parseDay(day);
@@ -32,6 +36,8 @@ export function buildDeadlines(avaliacoes: Avaliacao[] = [], tasks: Task[] = [],
     date: a.data ? parseDay(a.data) : null,
     hasTime: false,
     detail: [a.sigla, a.etapa && `${a.etapa}ª etapa`, a.peso ? `peso ${a.peso}` : null].filter(Boolean).join(' · '),
+    kind: TIPO[a.tipo] ?? 'Avaliação',
+    icon: TIPO_ICON[a.tipo] ?? 'fact_check',
   }));
   const gc = tasks.map((t): Deadline => ({
     id: `gc-${t.id}`,
@@ -42,16 +48,18 @@ export function buildDeadlines(avaliacoes: Avaliacao[] = [], tasks: Task[] = [],
     hasTime: true,
     link: t.link,
     late: t.late,
+    kind: 'Tarefa',
+    icon: 'assignment',
   }));
   const campus = eventos.flatMap((e): Deadline[] => {
     const closing = e.inscricoes.map((i) => i.ate).sort()[0];
     return [
       // Evento em andamento (começou antes e ainda não acabou) fica em "hoje", não em atrasados
       e.inicio < isoDay()
-        ? { id: `ev-${e.id}`, source: 'campus', title: e.nome, subject: `Acontecendo até ${parseDay(e.fim)?.toLocaleDateString('pt-BR', { day: 'numeric', month: 'short' })}`, date: new Date(), hasTime: false, link: e.link }
-        : { id: `ev-${e.id}`, source: 'campus', title: e.nome, subject: e.local ? `Campus · ${e.local}` : 'Evento no campus', date: at(e.inicio, e.horaInicio), hasTime: !!e.horaInicio, link: e.link },
+        ? { id: `ev-${e.id}`, kind: 'Evento', icon: 'apartment', source: 'campus', title: e.nome, subject: `Acontecendo até ${parseDay(e.fim)?.toLocaleDateString('pt-BR', { day: 'numeric', month: 'short' })}`, date: new Date(), hasTime: false, link: e.link }
+        : { id: `ev-${e.id}`, kind: 'Evento', icon: 'apartment', source: 'campus', title: e.nome, subject: e.local ? `Campus · ${e.local}` : 'Evento no campus', date: at(e.inicio, e.horaInicio), hasTime: !!e.horaInicio, link: e.link },
       // O fim das inscrições também é um prazo
-      ...(closing && closing < e.inicio ? [{ id: `ev-insc-${e.id}`, source: 'campus' as const, title: `Inscrições: ${e.nome}`, subject: 'Último dia para se inscrever', date: parseDay(closing), hasTime: false, link: e.link }] : []),
+      ...(closing && closing < e.inicio ? [{ id: `ev-insc-${e.id}`, kind: 'Inscrição', icon: 'how_to_reg', source: 'campus' as const, title: `Inscrições: ${e.nome}`, subject: 'Último dia para se inscrever', date: parseDay(closing), hasTime: false, link: e.link }] : []),
     ];
   });
   return [...suap, ...gc, ...campus].sort((a, b) => (a.date?.getTime() ?? Infinity) - (b.date?.getTime() ?? Infinity));

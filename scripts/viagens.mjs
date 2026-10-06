@@ -124,12 +124,12 @@ function save(byMonth) {
   const meses = [...byMonth.keys()].sort();
   const all = meses.flatMap((ym) => byMonth.get(ym)).sort((a, b) => b[1].localeCompare(a[1]));
 
-  // Por pessoa: um arquivo para cada começo de hash, com o histórico inteiro de quem cai nele
+  // Por pessoa: um arquivo para cada final de hash (256 ao todo; o começo quase não varia), com o histórico de quem cai nele
   const buckets = new Map();
   for (const [hash, ...rest] of all) {
-    const b = buckets.get(hash.slice(0, 2)) ?? {};
+    const b = buckets.get(hash.slice(-2)) ?? {};
     (b[hash] ??= []).push(rest);
-    buckets.set(hash.slice(0, 2), b);
+    buckets.set(hash.slice(-2), b);
   }
   rmSync(join(OUT, 'p'), { recursive: true, force: true });
   rmSync(join(OUT, 'm'), { recursive: true, force: true });
@@ -165,17 +165,27 @@ console.log(`Cerca de ${Math.ceil(todo.length * 15 * PAUSE_MS / 60_000)} minutos
 let interrupted = false;
 process.on('SIGINT', () => { interrupted = true; console.log('\nInterrompendo depois deste mês…'); });
 
-let done = 0;
-try {
-  for (const ym of todo) {
-    if (interrupted) break;
-    const rows = await mes(ym);
-    byMonth.set(ym, rows);
-    done++;
-    const rate = Math.round(calls / ((Date.now() - started) / 60_000));
-    console.log(`${ym}: ${String(rows.length).padStart(3)} viagens   (${done}/${todo.length}, ${calls} chamadas, ${rate}/min)`);
-    if (done % SAVE_EVERY === 0) save(byMonth);
+let done = 0, next = 0, failure = null;
+/** Meses em paralelo: cada um é uma sequência de páginas, então 2 meses ao mesmo tempo dão perto de 70 chamadas por minuto. */
+const PARALLEL = Number(process.env.PORTAL_PARALELO ?? 2);
+const worker = async () => {
+  while (next < todo.length && !interrupted && !failure) {
+    const ym = todo[next++];
+    try {
+      const rows = await mes(ym);
+      byMonth.set(ym, rows);
+      done++;
+      const rate = Math.round(calls / ((Date.now() - started) / 60_000));
+      console.log(`${ym}: ${String(rows.length).padStart(3)} viagens   (${done}/${todo.length}, ${calls} chamadas, ${rate}/min)`);
+      if (done % SAVE_EVERY === 0) save(byMonth);
+    } catch (e) {
+      failure ??= e;
+    }
   }
+};
+try {
+  await Promise.all(Array.from({ length: PARALLEL }, worker));
+  if (failure) throw failure;
 } catch (e) {
   if (e instanceof Blocked) console.error(`\nA chave está bloqueada ou foi recusada pelo Portal: ${e.message}\nO desbloqueio é pelo e-mail cadastrado. O que já foi conferido fica salvo.`);
   else console.error(`\nParei por um erro: ${e.message}\nO que já foi conferido fica salvo; rode de novo para continuar.`);

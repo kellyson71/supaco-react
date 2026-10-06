@@ -161,6 +161,8 @@ export function SkipHero({ subjects, now, holiday }: { subjects: Subject[]; now:
   const [alt, setAlt] = useState(0);
   const [plans, setPlans] = useState(loadPlans);
   const [debug, setDebug] = useState(false);
+  /** No celular os motivos e a lista por matéria ficam recolhidos até a pessoa pedir. */
+  const [more, setMore] = useState(false);
   const [forced, setForced] = useState<{ reason: Reason; line: number; facts?: Facts } | null>(null);
 
   const groups = useMemo(() => dayGroups(subjects, now, holiday), [subjects, now, holiday]);
@@ -213,8 +215,10 @@ export function SkipHero({ subjects, now, holiday }: { subjects: Subject[]; now:
     setAlt((n) => (n + 1) % (others.length + 1));
   };
 
+  const fold = !more && 'max-sm:hidden';
+
   return (
-    <div className="mb-4">
+    <div>
       {/* Qual dia, e o dia inteiro ou uma matéria só */}
       <div className="no-scrollbar -mx-4 mb-2 flex items-center gap-2 overflow-x-auto px-4 md:mx-0 md:px-0">
         {groups.length > 1 && groups.map((g, i) => (
@@ -224,18 +228,19 @@ export function SkipHero({ subjects, now, holiday }: { subjects: Subject[]; now:
         <ScopeMenu day={day} sel={sel} onPick={pickScope} />
       </div>
 
-      <div className={cx('flex flex-col overflow-hidden rounded-2xl sm:flex-row', h.box)} onContextMenu={explore}>
+      {/* No celular: miniatura do meme ao lado da resposta, e o resto embaixo. Em telas maiores, meme à esquerda e texto à direita. */}
+      <div className={cx('grid gap-x-3 gap-y-2 overflow-hidden rounded-2xl p-3 sm:flex sm:flex-row sm:gap-0 sm:p-0', memes ? 'grid-cols-[6.5rem_minmax(0,1fr)]' : 'grid-cols-1', h.box)} onContextMenu={explore}>
         {memes && (
-          <button onClick={another} aria-label="Outra resposta" className="relative shrink-0 bg-black sm:w-[42%] sm:max-w-80">
+          <button onClick={another} aria-label="Outra resposta" className="relative row-span-2 size-[6.5rem] shrink-0 overflow-hidden rounded-xl bg-black sm:size-auto sm:w-[42%] sm:max-w-80 sm:rounded-none">
             <AnimatePresence mode="popLayout" initial={false}>
               <m.img key={said.meme + sel + dayI} src={memeSrc(said.meme)} alt={MEMES[said.meme]} decoding="async"
                 initial={{ opacity: 0, scale: 1.1, rotate: 2 }} animate={{ opacity: 1, scale: 1, rotate: 0 }} exit={{ opacity: 0 }} transition={spring}
-                className="max-h-40 w-full object-contain min-[420px]:max-h-52 sm:h-full sm:max-h-80" />
+                className="size-full object-cover sm:h-full sm:max-h-80 sm:object-contain" />
             </AnimatePresence>
           </button>
         )}
-        <div className="flex min-w-0 flex-1 flex-col gap-2.5 p-4 sm:gap-3 sm:p-5 md:p-6">
-          <div className="flex items-center gap-2 text-sm font-medium">
+        <div className="max-sm:contents sm:flex sm:min-w-0 sm:flex-1 sm:flex-col sm:gap-3 sm:p-5 md:p-6">
+          <div className="flex min-w-0 items-center gap-2 self-end text-sm font-medium sm:self-auto">
             <span className="rounded-full bg-white/50 px-2.5 py-0.5 dark:bg-black/25">{forced ? 'prévia' : altFactor ? 'outro motivo' : h.tag}</span>
             <span className="min-w-0 truncate opacity-80">
               {forced ? `situação: ${forced.reason}` : single ? `gazear ${single.target.subject.name}, ${when} às ${single.target.item.start}?` : `faltar ${when} inteiro?`}
@@ -244,13 +249,13 @@ export function SkipHero({ subjects, now, holiday }: { subjects: Subject[]; now:
 
           <AnimatePresence mode="wait" initial={false}>
             <m.p key={said.line + String(plan) + alt} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} transition={{ duration: 0.2, ease: EMPHASIZED }}
-              className="text-[22px] leading-7 font-semibold tracking-tight sm:text-[24px] sm:leading-8 md:text-[30px] md:leading-9">
+              className="self-start text-[19px] leading-6 font-semibold tracking-tight sm:self-auto sm:text-[24px] sm:leading-8 md:text-[30px] md:leading-9">
               {plan && !view ? reply(plan, verdict, keys[0]) : said.line}
             </m.p>
           </AnimatePresence>
 
           {altFactor && (
-            <p className="flex flex-wrap items-center gap-x-2 gap-y-1 rounded-xl bg-white/45 px-3 py-2 text-sm dark:bg-black/25">
+            <p className="col-span-full flex flex-wrap items-center gap-x-2 gap-y-1 rounded-xl bg-white/45 px-3 py-2 text-sm dark:bg-black/25">
               <Icon name="troubleshoot" size={18} />
               <span>motivo {alt} de {others.length}: <b className="font-semibold">{altFactor.label}</b></span>
               <span className="tabular opacity-75">peso {altFactor.weight > 0 ? '+' : ''}{altFactor.weight}{decision.main === altFactor.reason ? ' · foi o escolhido' : ' · não foi o escolhido'}</span>
@@ -261,22 +266,21 @@ export function SkipHero({ subjects, now, holiday }: { subjects: Subject[]; now:
           {!forced && !altFactor && (single || day.decisions.length === 1 ? (
             <>
               {/* Os motivos de verdade por trás da resposta */}
-              <ul className="flex flex-wrap gap-1.5">
-                {decision.factors.slice(0, 6).map((f, i) => (
-                  // No celular só os três motivos que mais pesam
-                  <li key={f.reason} className={cx('flex items-center gap-1 rounded-full bg-white/45 px-2.5 py-1 text-xs font-medium dark:bg-black/25', i >= 3 && 'max-sm:hidden')}>
+              <ul className={cx('col-span-full flex flex-wrap gap-1.5', fold)}>
+                {decision.factors.slice(0, 6).map((f) => (
+                  <li key={f.reason} className="flex items-center gap-1 rounded-full bg-white/45 px-2.5 py-1 text-xs font-medium dark:bg-black/25">
                     {f.weight !== 0 && <Icon name={f.weight > 0 ? 'check' : 'priority_high'} size={14} weight={600} />}{f.label}
                   </li>
                 ))}
               </ul>
-              <p className="text-sm opacity-80 tabular">
+              <p className={cx('col-span-full text-sm opacity-80 tabular', fold)}>
                 {facts.used} de {facts.limit} faltas usadas
                 {decision.verdict !== 'estourou' && <> · faltando essa ({facts.cost} {facts.cost === 1 ? 'aula' : 'aulas'}) {facts.after < 0 ? `estoura em ${-facts.after}` : `sobram ${facts.after}`}</>}
               </p>
             </>
           ) : (
             // Dia todo: o veredito de cada matéria, com o motivo que mais pesa em cada uma
-            <ul className="flex flex-col gap-1.5">
+            <ul className={cx('col-span-full flex flex-col gap-1.5', fold)}>
               {day.decisions.map((d, i) => (
                 <li key={planKey(d.target)}>
                   <button onClick={() => pickScope(i)} className="state flex w-full items-center gap-2.5 rounded-xl bg-white/45 px-3 py-2 text-left text-sm dark:bg-black/25">
@@ -289,7 +293,7 @@ export function SkipHero({ subjects, now, holiday }: { subjects: Subject[]; now:
             </ul>
           ))}
 
-          <div className="mt-auto flex flex-wrap items-center gap-2 pt-1">
+          <div className="col-span-full mt-auto flex flex-wrap items-center gap-2 sm:pt-1">
             {forced || altFactor ? (
               <Button size="sm" variant="tonal" icon="close" onClick={reset}>voltar à resposta</Button>
             ) : plan ? (
@@ -303,12 +307,18 @@ export function SkipHero({ subjects, now, holiday }: { subjects: Subject[]; now:
               <>
                 <Button size="sm" icon="weekend" onClick={() => choose('faltar')}>vou faltar</Button>
                 <Button size="sm" variant="tonal" icon="school" onClick={() => choose('aula')}>vou pra aula</Button>
-                <Button size="sm" variant="text" icon="refresh" onClick={another} className="!text-current">outra</Button>
+                {/* No celular, tocar no meme já troca a resposta */}
+                <Button size="sm" variant="text" icon="refresh" onClick={another} className={cx('!text-current', memes && 'max-sm:hidden')}>outra</Button>
               </>
             )}
             <span className="flex-1" />
-            <button onClick={() => setDebug(true)} aria-label="Ver como a decisão foi tomada" title="Ver como a decisão foi tomada. Botão direito na resposta mostra os outros motivos." className="state flex size-9 items-center justify-center rounded-full"><Icon name="troubleshoot" size={20} /></button>
-            <Link to={`/disciplinas/${decision.target.subject.code}`} label={`Abrir ${decision.target.subject.name}`} className="state flex size-9 items-center justify-center rounded-full"><Icon name="arrow_outward" size={20} /></Link>
+            {!forced && !altFactor && (
+              <button onClick={() => setMore(!more)} aria-expanded={more} aria-label={more ? 'Esconder os motivos' : 'Ver os motivos'} className="state flex size-9 items-center justify-center rounded-full sm:hidden">
+                <Icon name="expand_more" size={22} className={cx('transition-transform duration-300 ease-emphasized', more && 'rotate-180')} />
+              </button>
+            )}
+            <button onClick={() => setDebug(true)} aria-label="Ver como a decisão foi tomada" title="Ver como a decisão foi tomada. Botão direito na resposta mostra os outros motivos." className={cx('state flex size-9 items-center justify-center rounded-full', fold)}><Icon name="troubleshoot" size={20} /></button>
+            <Link to={`/disciplinas/${decision.target.subject.code}`} label={`Abrir ${decision.target.subject.name}`} className={cx('state flex size-9 items-center justify-center rounded-full', fold)}><Icon name="arrow_outward" size={20} /></Link>
           </div>
         </div>
       </div>

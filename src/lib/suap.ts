@@ -380,7 +380,7 @@ export const api = {
     const index = await publicGet<ServidoresIndex>('/dados/servidores/index.json');
     if (!index.pessoas) throw new ApiError(404, 'Os arquivos do Portal da Transparência ainda não foram gerados');
     const hash = nomeHash(p.nome);
-    const bucket = await publicGet<Record<string, ServidorArquivo[]>>(`/dados/servidores/p/${hash.slice(0, 2)}.json`).catch((e) => {
+    const bucket = await publicGet<Record<string, ServidorArquivo[]>>(`/dados/servidores/p/${hash.slice(-2)}.json`).catch((e) => {
       if (e instanceof ApiError && e.status === 404) return {} as Record<string, ServidorArquivo[]>;
       throw e;
     });
@@ -411,8 +411,8 @@ export const api = {
     const index = await publicGet<ViagensIndex>('/dados/viagens/index.json');
     if (!index.meses.length) throw new ApiError(404, 'Os arquivos de viagens ainda não foram gerados');
     const hash = nomeHash(nome);
-    // Arquivo que não existe é só um começo de hash sem ninguém
-    const bucket = await publicGet<Record<string, ViagemRow[]>>(`/dados/viagens/p/${hash.slice(0, 2)}.json`).catch((e) => {
+    // Arquivo que não existe é só um final de hash sem ninguém
+    const bucket = await publicGet<Record<string, ViagemRow[]>>(`/dados/viagens/p/${hash.slice(-2)}.json`).catch((e) => {
       if (e instanceof ApiError && e.status === 404) return {} as Record<string, ViagemRow[]>;
       throw e;
     });

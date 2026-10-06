@@ -18,6 +18,7 @@ import { Avatar } from '../components/Avatar';
 import { Highlights } from '../components/Highlights';
 import { SkipHero, VibePrompt } from '../components/Memes';
 import { ShiftNotice } from '../components/ShiftNotice';
+import { ClassroomGlyph } from '../components/Brand';
 import { useVibe } from '../lib/vibe';
 
 const greeting = (h: number) => (h < 5 ? 'Boa noite' : h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite');
@@ -41,10 +42,10 @@ export function Today() {
 
   return (
     <>
-      <header className="mt-2 mb-6 flex items-center gap-4 md:mt-0">
+      <header className="mt-1 mb-4 flex items-center gap-4 md:mt-0 md:mb-6">
         <div className="min-w-0 flex-1">
           <p className="text-sm font-medium text-on-surface-variant first-letter:uppercase">{longDate(now)}</p>
-          <h1 className="mt-1 text-[32px] leading-10 font-semibold tracking-tight md:text-[45px] md:leading-[52px]">
+          <h1 className="text-[26px] leading-8 font-semibold tracking-tight md:mt-1 md:text-[45px] md:leading-[52px]">
             {(zueira ? greetingZueira : greeting)(now.getHours())}{first && <>, <span className="text-primary">{first}</span></>}
           </h1>
         </div>
@@ -55,20 +56,31 @@ export function Today() {
 
       <VibePrompt />
       <ShiftNotice />
-      {subjects && <SkipHero subjects={subjects} now={now} holiday={!!holiday} />}
       {subjects && <News subjects={subjects} />}
 
+      {/*
+        No celular a ordem é a do que importa primeiro: a aula de agora, se dá para faltar, os prazos, o que exige
+        atenção e só então os números. Em telas maiores vale a ordem do código, numa grade.
+      */}
       <Stagger className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-12">
-        <Item className="md:col-span-2 xl:col-span-7 xl:row-span-2">
-          {subjects ? <NowCard subjects={subjects} now={now} holiday={holiday?.name} /> : <Skeleton className="h-80" />}
+        {zueira && subjects && (
+          <Item className="order-2 md:order-none md:col-span-2 xl:col-span-12">
+            <div id="posso-faltar" className="scroll-mt-20"><SkipHero subjects={subjects} now={now} holiday={!!holiday} /></div>
+          </Item>
+        )}
+        <Item className={cx('order-1 md:order-none md:col-span-2 xl:col-span-7', !zueira && 'xl:row-span-2')}>
+          {subjects ? <NowCard subjects={subjects} now={now} holiday={holiday?.name} /> : <Skeleton className="h-64 md:h-80" />}
         </Item>
-        <Item className="md:col-span-1 xl:col-span-5">
-          <div id="posso-faltar" className="h-full scroll-mt-20">{subjects ? <SkipCard subjects={subjects} now={now} /> : <Skeleton className="h-72" />}</div>
-        </Item>
-        <Item className="md:col-span-1 xl:col-span-5"><Stats subjects={subjects} now={now} /></Item>
-        <Item className="xl:col-span-4">{subjects && <DayList subjects={subjects} now={now} />}</Item>
-        <Item className="xl:col-span-4">{subjects && <Attention subjects={subjects} />}</Item>
-        <Item className="md:col-span-2 xl:col-span-4"><Deadlines /></Item>
+        {!zueira && (
+          <Item className="order-2 md:order-none md:col-span-1 xl:col-span-5">
+            <div id="posso-faltar" className="h-full scroll-mt-20">{subjects ? <SkipCard subjects={subjects} now={now} /> : <Skeleton className="h-72" />}</div>
+          </Item>
+        )}
+        <Item className={cx('order-6 md:order-none xl:col-span-5', zueira ? 'md:col-span-2' : 'md:col-span-1')}><Stats subjects={subjects} now={now} wide={zueira} /></Item>
+        {/* No celular o dia já aparece na linha do tempo do cartão da aula */}
+        <Item className="max-md:hidden xl:col-span-4">{subjects && <DayList subjects={subjects} now={now} />}</Item>
+        <Item className="order-4 md:order-none xl:col-span-4">{subjects && <Attention subjects={subjects} />}</Item>
+        <Item className="order-3 md:order-none md:col-span-2 xl:col-span-4"><Deadlines /></Item>
       </Stagger>
 
       {subjects && <div className="mt-6"><Highlights subjects={subjects} /></div>}
@@ -121,6 +133,7 @@ function NowCard({ subjects, now, holiday }: { subjects: Subject[]; now: Date; h
         <Dial progress={p} center={formatDuration(toMin(current.end) - mm)} caption="para acabar" />
         <LiveStatus item={current} subject={byCode.get(current.code)} now={now} />
         <History subjects={subjects} now={now} />
+        <DayRail today={today} now={now} />
         {next && <NextUp item={next} />}
       </ClassHero>
     );
@@ -130,11 +143,12 @@ function NowCard({ subjects, now, holiday }: { subjects: Subject[]; now: Date; h
     const after = today.find((c) => toMin(c.start) > toMin(next.start));
     return (
       <ClassHero item={next} tone={toneOf(next)} label={wait <= 120 ? `Começa em ${formatDuration(wait)}` : `Próxima aula às ${next.start}`}>
-        <div className="mt-8 flex items-end gap-3">
-          <span className="text-[64px] leading-none font-semibold tracking-tight tabular">{wait <= 120 ? formatDuration(wait) : next.start}</span>
-          <span className="mb-2 text-sm font-medium opacity-80">{wait <= 120 ? 'até começar' : 'é a próxima'}</span>
+        <div className="mt-4 flex items-end gap-3 md:mt-8">
+          <span className="text-[44px] leading-none font-semibold tracking-tight tabular md:text-[64px]">{wait <= 120 ? formatDuration(wait) : next.start}</span>
+          <span className="mb-1 text-sm font-medium opacity-80 md:mb-2">{wait <= 120 ? 'até começar' : 'é a próxima'}</span>
         </div>
         <History subjects={subjects} now={now} />
+        <DayRail today={today} now={now} />
         {after && <NextUp item={after} />}
       </ClassHero>
     );
@@ -354,9 +368,36 @@ function LessonBadge({ state, faltas }: { state: LessonState; faltas: number }) 
   return <Badge tone="warning"><Icon name="help" size={14} /><span className="hidden sm:inline">sem registro</span></Badge>;
 }
 
+/**
+ * O dia inteiro numa linha (só no celular, onde a lista "Aulas de hoje" não aparece): cada aula é um ponto na
+ * hora em que começa; as que já passaram ficam apagadas e a de agora, cheia.
+ */
+function DayRail({ today, now }: { today: ClassItem[]; now: Date }) {
+  if (today.length < 2) return null;
+  const mm = nowMin(now);
+  return (
+    <ol className="relative mt-auto flex gap-2 rounded-2xl bg-black/10 px-3 py-2.5 md:hidden dark:bg-white/10" aria-label="Aulas de hoje">
+      {today.map((c) => {
+        const past = toMin(c.end) <= mm;
+        const live = toMin(c.start) <= mm && mm < toMin(c.end);
+        return (
+          <li key={c.code + c.start} className={cx('min-w-0 flex-1', past && 'opacity-55')}>
+            <span className="flex items-center gap-1.5">
+              <span className={cx('size-2 shrink-0 rounded-full', live ? 'bg-current ring-2 ring-current/30' : past ? 'bg-current' : 'border-[1.5px] border-current')} />
+              <span className="text-xs font-semibold tabular">{c.start}</span>
+              <span className="h-px min-w-0 flex-1 bg-current opacity-25" />
+            </span>
+            <span className="mt-0.5 block truncate text-xs opacity-85">{c.subject}</span>
+          </li>
+        );
+      })}
+    </ol>
+  );
+}
+
 function NextUp({ item }: { item: ClassItem }) {
   return (
-    <div className="mt-auto flex items-center gap-3 rounded-full bg-black/10 py-2 pr-4 pl-2 dark:bg-white/10">
+    <div className="mt-auto flex items-center gap-3 rounded-full bg-black/10 py-2 pr-4 pl-2 max-md:hidden dark:bg-white/10">
       <span className="flex size-9 items-center justify-center rounded-full bg-white/40 dark:bg-black/20"><Icon name="skip_next" size={20} fill /></span>
       <span className="min-w-0 flex-1 truncate text-sm">Depois: <b className="font-semibold">{item.subject}</b></span>
       <span className="text-sm font-medium tabular">{item.start}</span>
@@ -367,7 +408,7 @@ function NextUp({ item }: { item: ClassItem }) {
 function ClassHero({ item, tone, label, live, children }: { item: ClassItem; tone: Tone; label: string; live?: boolean; children: ReactNode }) {
   const t = TONES[tone];
   return (
-    <Tap to={`/disciplinas/${item.code}`} className={cx('flex h-full min-h-80 flex-col rounded-2xl p-6', t.container, t.onContainer)}>
+    <Tap to={`/disciplinas/${item.code}`} className={cx('flex h-full flex-col rounded-2xl p-5 md:min-h-80 md:p-6', t.container, t.onContainer)}>
       <Shape shape="cookie" size={300} spin className="pointer-events-none absolute -right-20 -bottom-24 opacity-15" />
       <div className="relative flex items-start justify-between gap-3">
         <Badge className="bg-white/50 !text-current dark:bg-black/25">
@@ -376,13 +417,13 @@ function ClassHero({ item, tone, label, live, children }: { item: ClassItem; ton
         </Badge>
         <Icon name="arrow_outward" />
       </div>
-      <p className="relative mt-3 text-[32px] leading-10 font-semibold tracking-tight md:text-[40px] md:leading-[48px]">{item.subject}</p>
+      <p className="relative mt-3 text-[26px] leading-8 font-semibold tracking-tight md:text-[40px] md:leading-[48px]">{item.subject}</p>
       <div className="relative mt-2 flex flex-wrap gap-x-4 gap-y-1 text-sm font-medium opacity-90">
         <span className="flex items-center gap-1"><Icon name="schedule" size={18} />{item.start} – {item.end}</span>
         {item.room && <span className="flex items-center gap-1"><Icon name="location_on" size={18} />{item.room}</span>}
       </div>
       <Teacher code={item.code} />
-      <div className="relative flex flex-1 flex-col gap-4">{children}</div>
+      <div className="relative flex flex-1 flex-col gap-3 md:gap-4">{children}</div>
     </Tap>
   );
 }
@@ -504,7 +545,7 @@ function SkipCard({ subjects, now }: { subjects: Subject[]; now: Date }) {
 
 // ---------- Números ----------
 
-function Stats({ subjects, now }: { subjects?: Subject[]; now: Date }) {
+function Stats({ subjects, now, wide }: { subjects?: Subject[]; now: Date; wide?: boolean }) {
   const { current } = usePeriod();
   const { data: freq } = useFrequencia(current);
   const { data: cal } = useCalendario(current);
@@ -515,25 +556,25 @@ function Stats({ subjects, now }: { subjects?: Subject[]; now: Date }) {
   const hol = nextHoliday(holidays, now);
 
   return (
-    <div className="grid h-full grid-cols-2 gap-3">
+    <div className={cx('grid h-full grid-cols-2 gap-2 md:gap-3', wide && 'md:grid-cols-4 xl:grid-cols-2')}>
       <StatTile icon="grade" label="Média geral" hint={avg !== null && avg < PASS ? 'abaixo de 60' : estimated ? 'até agora, com parciais' : 'até agora'}>
         <Ring value={(avg ?? 0) / 100} size={56} stroke={6} color={avg !== null && avg < PASS ? 'var(--c-warning)' : 'var(--md-primary)'}>
           <span className="flex items-baseline text-lg font-semibold">{estimated && avg !== null && <span className="text-sm opacity-70">~</span>}<CountUp value={avg !== null ? Math.round(avg) : null} /></span>
         </Ring>
       </StatTile>
-      <StatTile icon="how_to_reg" label="Frequência" hint={freq ? `${freq.total_faltas} faltas no período` : ' '}>
+      <StatTile icon="how_to_reg" label="Frequência" hint={freq ? `${freq.total_faltas} faltas` : ' '}>
         <Ring value={(freq?.percentual_frequencia ?? 0) / 100} size={56} stroke={6} color={freq && freq.percentual_frequencia < 75 ? 'var(--md-error)' : 'var(--c-success)'}>
           <CountUp value={freq?.percentual_frequencia ?? null} className="text-base font-semibold" suffix="%" />
         </Ring>
       </StatTile>
-      <StatTile icon="flag" label={stage ? `${stage.n}ª etapa` : 'Etapa'} hint={stage?.end ? `termina ${stage.end.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })}` : stage ? 'em andamento' : 'sem calendário'}>
-        <p className="text-[32px] leading-none font-semibold tracking-tight tabular">
-          {stage?.daysLeft !== null && stage?.daysLeft !== undefined ? <><CountUp value={stage.daysLeft} /><span className="text-base font-medium text-on-surface-variant"> dias</span></> : stage ? `${stage.n}ª` : '–'}
+      <StatTile icon="flag" label={stage ? `${stage.n}ª etapa` : 'Etapa'} hint={stage?.end ? `até ${stage.end.toLocaleDateString('pt-BR', { day: 'numeric', month: 'short' }).replace('.', '')}` : stage ? 'em andamento' : 'sem calendário'}>
+        <p className="text-[26px] leading-none font-semibold tracking-tight whitespace-nowrap tabular md:text-[32px]">
+          {stage?.daysLeft !== null && stage?.daysLeft !== undefined ? <><CountUp value={stage.daysLeft} /><span className="text-sm font-medium text-on-surface-variant md:text-base"> d<span className="max-md:hidden">ias</span></span></> : stage ? `${stage.n}ª` : '–'}
         </p>
       </StatTile>
-      <StatTile icon="celebration" label="Próximo feriado" hint={hol ? hol.name : 'nenhum no ano'}>
-        <p className="text-[32px] leading-none font-semibold tracking-tight tabular">
-          {hol ? hol.days === 0 ? 'Hoje' : <><CountUp value={hol.days} /><span className="text-base font-medium text-on-surface-variant"> dias</span></> : '–'}
+      <StatTile icon="celebration" label="Feriado" hint={hol ? hol.name : 'nenhum no ano'}>
+        <p className="text-[26px] leading-none font-semibold tracking-tight whitespace-nowrap tabular md:text-[32px]">
+          {hol ? hol.days === 0 ? 'Hoje' : <><CountUp value={hol.days} /><span className="text-sm font-medium text-on-surface-variant md:text-base"> d<span className="max-md:hidden">ias</span></span></> : '–'}
         </p>
       </StatTile>
     </div>
@@ -542,10 +583,10 @@ function Stats({ subjects, now }: { subjects?: Subject[]; now: Date }) {
 
 function StatTile({ icon, label, hint, children }: { icon: string; label: string; hint: string; children: ReactNode }) {
   return (
-    <Card variant="filled" className="flex min-h-36 flex-col justify-between gap-3 rounded-2xl p-4">
-      <p className="flex items-center gap-1.5 text-sm font-medium text-on-surface-variant"><Icon name={icon} size={18} className="text-primary" fill />{label}</p>
-      <div className="flex items-center">{children}</div>
-      <p className="truncate text-xs text-on-surface-variant">{hint}</p>
+    <Card variant="filled" className="grid grid-cols-[auto_minmax(0,1fr)] items-center gap-x-3 rounded-2xl p-3 md:flex md:min-h-36 md:flex-col md:items-stretch md:justify-between md:gap-3 md:p-4">
+      <p className="flex min-w-0 items-center gap-1.5 self-end text-sm font-medium text-on-surface-variant max-md:col-start-2 max-md:row-start-1 md:self-auto"><span className="shrink-0 max-md:hidden"><Icon name={icon} size={18} className="text-primary" fill /></span><span className="truncate">{label}</span></p>
+      <div className="flex items-center max-md:col-start-1 max-md:row-span-2 max-md:row-start-1 max-md:min-w-14 max-md:justify-center">{children}</div>
+      <p className="truncate self-start text-xs text-on-surface-variant max-md:col-start-2 max-md:row-start-2 md:self-auto">{hint}</p>
     </Card>
   );
 }
@@ -625,8 +666,8 @@ function Attention({ subjects }: { subjects: Subject[] }) {
     <section className="h-full">
       <SectionHeader title="Fique de olho" icon="visibility" action={<Button variant="text" size="sm" to="/disciplinas">Matérias</Button>} />
       {items.length === 0 ? (
-        <Card variant="filled" className="flex items-center gap-4 rounded-2xl p-5">
-          <Shape shape="flower" size={52} className="text-success"><Icon name="verified" className="text-on-success" fill /></Shape>
+        <Card variant="filled" className="flex items-center gap-3 rounded-2xl p-4 md:gap-4 md:p-5">
+          <Shape shape="flower" size={40} className="text-success"><Icon name="verified" size={20} className="text-on-success" fill /></Shape>
           <p className="text-sm">Tudo sob controle: nenhuma matéria perto do limite de faltas ou abaixo da média.</p>
         </Card>
       ) : (
@@ -743,12 +784,16 @@ function Deadlines() {
   );
 }
 
+/**
+ * Um prazo: o dia em destaque, o título e de onde ele vem. Tarefa do Google Sala de Aula leva a marca do
+ * Classroom; avaliação do SUAP diz se é prova, trabalho ou seminário.
+ */
 export function DeadlineRow({ d }: { d: Deadline }) {
   const now = new Date();
   const n = d.date ? daysBetween(now, d.date) : null;
   const urgent = d.late || (n !== null && n <= 1);
   const body = (
-    <div className="flex items-center gap-3 rounded-sm bg-surface-container px-4 py-3">
+    <div className="flex items-center gap-3 rounded-sm bg-surface-container px-3.5 py-3 md:px-4">
       <div className={cx('flex size-12 shrink-0 flex-col items-center justify-center rounded-lg leading-none', d.late ? 'bg-error-container text-on-error-container' : urgent ? 'bg-warning-container text-on-warning-container' : 'bg-secondary-container text-on-secondary-container')}>
         {d.date ? (
           <>
@@ -758,16 +803,16 @@ export function DeadlineRow({ d }: { d: Deadline }) {
         ) : <Icon name="event_busy" />}
       </div>
       <div className="min-w-0 flex-1">
-        <p className="truncate font-medium">{d.title}</p>
-        <p className="truncate text-xs text-on-surface-variant">
-          {d.source === 'classroom' && <Icon name="assignment" size={12} className="mr-1 align-[-1px]" />}
-          {d.source === 'campus' && <Icon name="apartment" size={12} className="mr-1 align-[-1px]" />}
-          {d.subject}
+        <p className="line-clamp-2 leading-5 font-medium">{d.title}</p>
+        <p className="mt-1 flex min-w-0 items-center gap-1.5 text-xs text-on-surface-variant">
+          {d.source === 'classroom' ? <ClassroomGlyph size={15} className="shrink-0" /> : <Icon name={d.icon} size={15} className="shrink-0" />}
+          <span className="truncate">{d.source === 'suap' && <b className="font-medium text-on-surface">{d.kind} · </b>}{d.subject}</span>
         </p>
       </div>
       <div className="shrink-0 text-right text-xs">
-        <p className={cx('font-medium', d.late ? 'text-error' : urgent ? 'text-warning' : 'text-on-surface-variant')}>{d.date ? relativeDay(d.date, now) : 'sem data'}</p>
-        {d.hasTime && d.date && <p className="text-on-surface-variant tabular">{time(d.date)}</p>}
+        <p className={cx('font-medium', d.late ? 'text-error' : urgent ? 'text-warning' : 'text-on-surface-variant')}>{d.late ? 'atrasada' : d.date ? relativeDay(d.date, now) : 'sem data'}</p>
+        {d.hasTime && d.date && !d.late && <p className="text-on-surface-variant tabular">{time(d.date)}</p>}
+        {d.late && d.date && <p className="text-on-surface-variant">{relativeDay(d.date, now)}</p>}
       </div>
     </div>
   );
