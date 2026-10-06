@@ -269,6 +269,8 @@ function sameMatricula(masked: string, matricula: string) {
   return [...m].filter((c) => c !== '*').length >= 3 && [...m].every((c, i) => c === '*' || c === digits[i]);
 }
 
+const hexPairs = () => Array.from({ length: 256 }, (_, i) => i.toString(16).padStart(2, '0'));
+
 /** Funções (/api) e arquivos (/dados) do próprio app: dado público, sem o token do SUAP. */
 async function publicGet<T>(path: string): Promise<T> {
   const res = await fetch(path);
@@ -440,6 +442,43 @@ export const api = {
       remuneracao: rows.length ? folha(rows[rows.length - 1]) : null,
       folhas: rows.map(([mes, r]) => ({ mes, bruto: r[0], liquido: r[1] })),
     };
+  },
+
+  /**
+   * Folha mais recente e ingresso de todo mundo nos arquivos do Portal, para ordenar listas. Baixa os 256 arquivos
+   * (cerca de 3 MB), então só é chamada quando alguém pede essa ordem. Por nome: homônimos ficam com mais de um item.
+   */
+  folhasRecentes: async () => {
+    const index = await publicGet<ServidoresIndex>('/dados/servidores/index.json');
+    if (!index.pessoas) throw new ApiError(404, 'Os arquivos do Portal da Transparência ainda não foram gerados');
+    const out = new Map<string, { mat: string; bruto: number; liquido: number; ingresso: string | null }[]>();
+    await Promise.all(hexPairs().map(async (h) => {
+      const bucket = await publicGet<Record<string, ServidorArquivo[]>>(`/dados/servidores/p/${h}.json`).catch((e) => {
+        if (e instanceof ApiError && e.status === 404) return {} as Record<string, ServidorArquivo[]>;
+        throw e;
+      });
+      for (const [hash, list] of Object.entries(bucket)) {
+        out.set(hash, list.map((e) => {
+          const last = Object.entries(e.f).filter((x): x is [string, number[]] => !!x[1]).sort(([a], [b]) => a.localeCompare(b)).pop()?.[1];
+          return { mat: e.mat, bruto: last?.[0] ?? 0, liquido: last?.[1] ?? 0, ingresso: e.ingressoServico };
+        }));
+      }
+    }));
+    return out;
+  },
+  /** Número de viagens e total gasto de cada pessoa em todo o histórico, por hash do nome. Baixa os 256 arquivos (cerca de 6 MB). */
+  viagensPorPessoa: async () => {
+    const index = await publicGet<ViagensIndex>('/dados/viagens/index.json');
+    if (!index.meses.length) throw new ApiError(404, 'Os arquivos de viagens ainda não foram gerados');
+    const out = new Map<string, { n: number; total: number }>();
+    await Promise.all(hexPairs().map(async (h) => {
+      const bucket = await publicGet<Record<string, ViagemRow[]>>(`/dados/viagens/p/${h}.json`).catch((e) => {
+        if (e instanceof ApiError && e.status === 404) return {} as Record<string, ViagemRow[]>;
+        throw e;
+      });
+      for (const [hash, rows] of Object.entries(bucket)) out.set(hash, { n: rows.length, total: rows.reduce((t, r) => t + r[2], 0) });
+    }));
+    return out;
   },
 
   /** Quanto o IFRN empenhou, liquidou e pagou nos últimos anos (arquivo gerado por scripts/portal.mjs). */

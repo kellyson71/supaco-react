@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useEu, useServidores, useUnidades } from '../lib/data';
-import { api, semAcento, titleCase, type Servidor } from '../lib/suap';
+import { api, nomeHash, semAcento, titleCase, type Servidor } from '../lib/suap';
 import { campusNome, CATEGORIAS, funcaoLabel, ocupacao } from '../lib/staff';
 import { Link } from './Link';
 import { Face, SeeDetails } from './Turma';
@@ -8,6 +8,12 @@ import { Badge, Button, Card, Chip, Empty, ErrorNote, Icon, Skeleton } from './u
 
 const PAGE = 60;
 const ALL = '*';
+
+type Sort = 'nome' | 'salario' | 'liquido' | 'viagens' | 'gasto' | 'casa';
+const SORTS: Record<Sort, string> = {
+  nome: 'Nome (A–Z)', salario: 'Maior salário bruto', liquido: 'Maior salário líquido', viagens: 'Mais viagens', gasto: 'Mais gasto em viagens', casa: 'Mais tempo de casa',
+};
+const brl = (n: number) => n.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 
 type Filter = 'todos' | 'docente' | 'tecnico_administrativo' | 'estagiario' | 'gestao';
 
@@ -49,6 +55,7 @@ export function StaffDirectory() {
   const [picked, setPicked] = useState<string | null>(null);
   const [q, setQ] = useState('');
   const [filter, setFilter] = useState<Filter>('todos');
+  const [sort, setSort] = useState<Sort>('nome');
   const [shown, setShown] = useState(PAGE);
 
   const mine = eu?.campus;
@@ -74,12 +81,46 @@ export function StaffDirectory() {
     return c;
   }, [base]);
 
+  // Os arquivos de folha e de viagens são grandes: só baixam quando alguém escolhe uma ordem que precisa deles
+  const folhas = useSession(sort === 'salario' || sort === 'liquido' || sort === 'casa' ? 'rank:folhas' : null, () => api.folhasRecentes());
+  const viagens = useSession(sort === 'viagens' || sort === 'gasto' ? 'rank:viagens' : null, () => api.viagensPorPessoa());
+  const ranking = sort === 'nome' ? undefined : sort === 'viagens' || sort === 'gasto' ? viagens : folhas;
+
+  /** Valor pelo qual `s` é ordenado (e mostrado no cartão); undefined quando o Portal não tem a pessoa. */
+  const metric = useMemo(() => {
+    if (sort === 'nome') return null;
+    return (s: Servidor): { value: number; label: string } | undefined => {
+      const hash = nomeHash(s.nome);
+      if (sort === 'viagens' || sort === 'gasto') {
+        const v = viagens.data?.get(hash);
+        if (!v) return undefined;
+        return sort === 'viagens' ? { value: v.n, label: `${v.n} ${v.n === 1 ? 'viagem' : 'viagens'}` } : { value: v.total, label: brl(v.total) };
+      }
+      const all = folhas.data?.get(hash) ?? [];
+      const d = s.matricula.replace(/\D/g, '');
+      const f = all.length === 1 ? all[0] : all.find((e) => { const m = e.mat.replace(/[^\d*]/g, ''); return m.length === d.length && [...m].every((c, i) => c === '*' || c === d[i]); });
+      if (!f) return undefined;
+      if (sort === 'salario') return { value: f.bruto, label: brl(f.bruto) };
+      if (sort === 'liquido') return { value: f.liquido, label: brl(f.liquido) };
+      if (!f.ingresso) return undefined;
+      const anos = Math.floor((Date.now() - Date.parse(f.ingresso)) / 31557600000);
+      return { value: -Date.parse(f.ingresso), label: anos < 1 ? 'menos de 1 ano' : `${anos} ${anos === 1 ? 'ano' : 'anos'} de casa` };
+    };
+  }, [sort, folhas.data, viagens.data]);
+
   const list = useMemo(() => (base ?? []).filter((s) =>
     (filter === 'todos' || (filter === 'gestao' ? s.funcoes.length > 0 : s.categoria === filter))
     // Em "todos os campi" a busca já foi feita pelo SUAP
     && (everywhere || !term || haystack.get(s.matricula)!.includes(term))), [base, filter, term, everywhere, haystack]);
 
-  useEffect(() => setShown(PAGE), [campus, filter, term]);
+  const sorted = useMemo(() => {
+    if (!metric || !ranking?.data) return list.map((s) => ({ s, m: undefined }));
+    const rows = list.map((s) => ({ s, m: metric(s) }));
+    // Quem não aparece nos arquivos vai para o fim
+    return rows.sort((a, b) => (b.m?.value ?? -Infinity) - (a.m?.value ?? -Infinity));
+  }, [list, metric, ranking?.data]);
+
+  useEffect(() => setShown(PAGE), [campus, filter, term, sort]);
 
   const campi = useMemo(() => (unidades ?? []).filter((u) => !/^(conselho|col[eé]gio)/i.test(u.nome)), [unidades]);
   const campusLabel = everywhere ? 'todo o IFRN' : campusNome(campi.find((u) => u.sigla === campus)?.nome ?? campus);
@@ -101,6 +142,15 @@ export function StaffDirectory() {
             {!campi.some((u) => u.sigla === campus) && !everywhere && <option value={campus}>{campus || 'Campus'}</option>}
             {campi.map((u) => <option key={u.sigla} value={u.sigla}>{campusNome(u.nome)}{u.sigla === mine ? ' (seu campus)' : ''}</option>)}
             <option value={ALL}>Todo o IFRN</option>
+          </select>
+          <Icon name="arrow_drop_down" size={20} className="pointer-events-none absolute right-2" />
+        </label>
+        <label className="state relative inline-flex h-12 items-center gap-2 self-start rounded-full border border-outline-variant pr-3 pl-4 text-sm font-medium md:self-auto">
+          <Icon name="sort" size={20} className="text-primary" />
+          <span className="sr-only">Ordenar por</span>
+          <select value={sort} onChange={(e) => setSort(e.target.value as Sort)}
+            className="max-w-64 cursor-pointer appearance-none truncate bg-transparent pr-6 text-on-surface outline-none">
+            {(Object.keys(SORTS) as Sort[]).map((k) => <option key={k} value={k}>{SORTS[k]}</option>)}
           </select>
           <Icon name="arrow_drop_down" size={20} className="pointer-events-none absolute right-2" />
         </label>
@@ -130,8 +180,10 @@ export function StaffDirectory() {
             {list.length} {list.length === 1 ? 'pessoa' : 'pessoas'} em {campusLabel}
             {everywhere && search.data && search.data.total > list.length && ` (de ${search.data.total}: refine a busca para ver o resto)`}
           </p>
+          {ranking?.loading && <p className="px-1 text-sm text-on-surface-variant">Carregando dados para ordenar…</p>}
+          {ranking?.error && <ErrorNote error={ranking.error} />}
           <ul className="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-3">
-            {list.slice(0, shown).map((s) => <li key={s.matricula}><StaffCard s={s} showCampus={everywhere} /></li>)}
+            {sorted.slice(0, shown).map(({ s, m }) => <li key={s.matricula}><StaffCard s={s} showCampus={everywhere} extra={m?.label} /></li>)}
           </ul>
           {list.length > shown && (
             <Button variant="tonal" icon="expand_more" onClick={() => setShown(shown + PAGE)} className="self-center">Mostrar mais {Math.min(PAGE, list.length - shown)}</Button>
@@ -143,7 +195,7 @@ export function StaffDirectory() {
 }
 
 /** Cartão de uma pessoa do diretório: o cartão inteiro leva à página dela, com o "Ver detalhes" surgindo no hover. */
-export function StaffCard({ s, showCampus }: { s: Servidor; showCampus?: boolean }) {
+export function StaffCard({ s, showCampus, extra }: { s: Servidor; showCampus?: boolean; extra?: string }) {
   const funcao = s.funcoes[0] ? funcaoLabel(s.funcoes[0]) : null;
   return (
     <Link to={`/servidores/${s.matricula}`} label={`Ver detalhes de ${titleCase(s.nome)}`}
@@ -154,10 +206,11 @@ export function StaffCard({ s, showCampus }: { s: Servidor; showCampus?: boolean
       <span className="min-w-0 flex-1">
         <span className="block truncate font-medium">{titleCase(s.nome)}</span>
         <span className="block truncate text-sm text-on-surface-variant">{ocupacao(s)}</span>
-        {(s.setor || funcao || showCampus) && (
+        {(s.setor || funcao || showCampus || extra) && (
           <span className="mt-1.5 flex flex-wrap items-center gap-1.5">
             {showCampus && s.campus && <Badge>{s.campus}</Badge>}
             {s.setor && !showCampus && <Badge className="tabular">{s.setor}</Badge>}
+            {extra && <Badge tone="primary" className="tabular">{extra}</Badge>}
             {funcao && <Badge tone="primary"><Icon name="workspace_premium" size={13} fill />{funcao.tipo}</Badge>}
           </span>
         )}

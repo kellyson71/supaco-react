@@ -79,6 +79,8 @@ body {
 
 :focus-visible { outline: 3px solid var(--md-primary); outline-offset: 2px; }
 input:focus-visible, select:focus-visible { outline: none; }
+/* O menu aberto de um select é desenhado pelo navegador: sem cor própria, herda o texto do tema sobre fundo claro */
+select option { background-color: var(--md-surface-container-high); color: var(--md-on-surface); }
 .tabular { font-variant-numeric: tabular-nums; }
 
 /* Material Symbols */
