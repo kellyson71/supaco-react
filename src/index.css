@@ -64,7 +64,8 @@
 html { font-size: calc(16px * var(--text-scale, 1)); }
 html, body { background: var(--md-surface); color: var(--md-on-surface); }
 body {
-  font-family: var(--font-sans);
+  /* --app-font vem da preferência de fonte em theme.ts */
+  font-family: var(--app-font, var(--font-sans));
   font-optical-sizing: auto;
   -webkit-font-smoothing: antialiased;
   -webkit-tap-highlight-color: transparent;

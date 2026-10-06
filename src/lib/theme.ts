@@ -39,46 +39,91 @@ const SCHEMES: Record<Style, new (source: Hct, dark: boolean, contrast: number, 
   tonal: SchemeTonalSpot, vibrant: SchemeVibrant, expressive: SchemeExpressive, fidelity: SchemeFidelity, neutral: SchemeNeutral, mono: SchemeMonochrome,
 };
 
-/**
- * Temas prontos. "dinamico" gera tudo da cor escolhida (claro/escuro pelo modo); "preto" é o dinâmico escuro com fundo preto
- * de verdade; os demais são paletas tradicionais fixas, que decidem sozinhas se são claras ou escuras.
- */
-export type Classic = { id: string; label: string; dark: boolean; bg: string; fg: string; accents: [string, string, string]; error: string };
-export const CLASSICS: Classic[] = [
-  { id: 'github-dark', label: 'GitHub Escuro', dark: true, bg: '#0d1117', fg: '#e6edf3', accents: ['#58a6ff', '#bc8cff', '#3fb950'], error: '#f85149' },
-  { id: 'dracula', label: 'Dracula', dark: true, bg: '#282a36', fg: '#f8f8f2', accents: ['#bd93f9', '#ff79c6', '#8be9fd'], error: '#ff5555' },
-  { id: 'nord', label: 'Nord', dark: true, bg: '#2e3440', fg: '#eceff4', accents: ['#88c0d0', '#81a1c1', '#b48ead'], error: '#bf616a' },
-  { id: 'monokai', label: 'Monokai', dark: true, bg: '#272822', fg: '#f8f8f2', accents: ['#a6e22e', '#66d9ef', '#fd971f'], error: '#f92672' },
-  { id: 'gruvbox-dark', label: 'Gruvbox Escuro', dark: true, bg: '#282828', fg: '#ebdbb2', accents: ['#fabd2f', '#8ec07c', '#d3869b'], error: '#fb4934' },
-  { id: 'solarized-dark', label: 'Solarized Escuro', dark: true, bg: '#002b36', fg: '#93a1a1', accents: ['#268bd2', '#2aa198', '#b58900'], error: '#dc322f' },
-  { id: 'github-light', label: 'GitHub Claro', dark: false, bg: '#ffffff', fg: '#1f2328', accents: ['#0969da', '#8250df', '#1a7f37'], error: '#cf222e' },
-  { id: 'solarized-light', label: 'Solarized Claro', dark: false, bg: '#fdf6e3', fg: '#586e75', accents: ['#268bd2', '#2aa198', '#b58900'], error: '#dc322f' },
-  { id: 'gruvbox-light', label: 'Gruvbox Claro', dark: false, bg: '#fbf1c7', fg: '#3c3836', accents: ['#b57614', '#427b58', '#8f3f71'], error: '#cc241d' },
+/** Cores de um tema pronto num dos modos: fundo, texto, três destaques e a cor de erro. */
+export type Palette = { bg: string; fg: string; accents: [string, string, string]; error: string };
+/** Tema pronto tradicional, com a versão escura e a clara: quem escolhe entre as duas é o modo. */
+export type Family = { id: string; label: string; dark: Palette; light: Palette };
+export const FAMILIES: Family[] = [
+  { id: 'github', label: 'GitHub',
+    dark: { bg: '#0d1117', fg: '#e6edf3', accents: ['#58a6ff', '#bc8cff', '#3fb950'], error: '#f85149' },
+    light: { bg: '#ffffff', fg: '#1f2328', accents: ['#0969da', '#8250df', '#1a7f37'], error: '#cf222e' } },
+  { id: 'catppuccin', label: 'Catppuccin',
+    dark: { bg: '#1e1e2e', fg: '#cdd6f4', accents: ['#cba6f7', '#89b4fa', '#a6e3a1'], error: '#f38ba8' },
+    light: { bg: '#eff1f5', fg: '#4c4f69', accents: ['#8839ef', '#1e66f5', '#40a02b'], error: '#d20f39' } },
+  { id: 'dracula', label: 'Dracula',
+    dark: { bg: '#282a36', fg: '#f8f8f2', accents: ['#bd93f9', '#ff79c6', '#8be9fd'], error: '#ff5555' },
+    light: { bg: '#fffbeb', fg: '#1f1f1f', accents: ['#644ac9', '#a3144d', '#036a96'], error: '#cb3a2a' } },
+  { id: 'tokyo', label: 'Tokyo Night',
+    dark: { bg: '#1a1b26', fg: '#c0caf5', accents: ['#7aa2f7', '#bb9af7', '#9ece6a'], error: '#f7768e' },
+    light: { bg: '#e1e2e7', fg: '#343b58', accents: ['#2e7de9', '#9854f1', '#587539'], error: '#c64343' } },
+  { id: 'nord', label: 'Nord',
+    dark: { bg: '#2e3440', fg: '#eceff4', accents: ['#88c0d0', '#81a1c1', '#b48ead'], error: '#bf616a' },
+    light: { bg: '#eceff4', fg: '#2e3440', accents: ['#5e81ac', '#4f7f8f', '#8a5f86'], error: '#b04a55' } },
+  { id: 'gruvbox', label: 'Gruvbox',
+    dark: { bg: '#282828', fg: '#ebdbb2', accents: ['#fabd2f', '#8ec07c', '#d3869b'], error: '#fb4934' },
+    light: { bg: '#fbf1c7', fg: '#3c3836', accents: ['#b57614', '#427b58', '#8f3f71'], error: '#cc241d' } },
+  { id: 'solarized', label: 'Solarized',
+    dark: { bg: '#002b36', fg: '#93a1a1', accents: ['#268bd2', '#2aa198', '#b58900'], error: '#dc322f' },
+    light: { bg: '#fdf6e3', fg: '#586e75', accents: ['#268bd2', '#2aa198', '#b58900'], error: '#dc322f' } },
+  { id: 'rosepine', label: 'Rosé Pine',
+    dark: { bg: '#191724', fg: '#e0def4', accents: ['#c4a7e7', '#ebbcba', '#9ccfd8'], error: '#eb6f92' },
+    light: { bg: '#faf4ed', fg: '#575279', accents: ['#907aa9', '#d7827e', '#56949f'], error: '#b4637a' } },
+  { id: 'monokai', label: 'Monokai',
+    dark: { bg: '#272822', fg: '#f8f8f2', accents: ['#a6e22e', '#66d9ef', '#fd971f'], error: '#f92672' },
+    light: { bg: '#fafafa', fg: '#272822', accents: ['#4f8a00', '#0089b3', '#c96a00'], error: '#e0145a' } },
 ];
-export type ThemeId = 'dinamico' | 'preto' | (typeof CLASSICS)[number]['id'];
-const classicOf = (id: string) => CLASSICS.find((c) => c.id === id);
-const isTheme = (id: unknown): id is ThemeId => id === 'dinamico' || id === 'preto' || !!classicOf(id as string);
+
+/** Ponto de partida do "Seu tema", em que a pessoa escolhe cada cor. */
+const CUSTOM_DEFAULT: { dark: Palette; light: Palette } = {
+  dark: { bg: '#101014', fg: '#ececf1', accents: ['#8ab4f8', '#c58af9', '#81c995'], error: '#f2777a' },
+  light: { bg: '#ffffff', fg: '#1f1f1f', accents: ['#1a73e8', '#9334e6', '#188038'], error: '#c5221f' },
+};
+
+/** Fontes: a do app, a do aparelho, uma com serifa e uma de largura fixa. */
+export const FONTS = {
+  padrao: "'Google Sans Flex', 'Google Sans', system-ui, sans-serif",
+  sistema: "system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif",
+  serifa: "Georgia, 'Iowan Old Style', 'Times New Roman', serif",
+  mono: "ui-monospace, 'JetBrains Mono', 'Cascadia Code', 'SF Mono', Menlo, Consolas, monospace",
+};
 
 export type Prefs = {
-  theme: ThemeId;
+  /** "dinamico" (tudo sai de uma cor), "custom" (a pessoa escolhe cada cor) ou o id de um tema pronto de FAMILIES. */
+  theme: string;
   style: Style;
   /** 0 = padrão · 1 = médio · 2 = alto */
   contrast: 0 | 1 | 2;
-  /** Fundo preto de verdade no modo escuro (telas OLED). */
-  amoled: boolean;
+  /** Fundo: com um toque da cor do tema, cinza neutro, ou puro (preto no escuro, branco no claro). */
+  bg: 'tinted' | 'neutral' | 'pure';
   shape: 'round' | 'soft' | 'sharp';
   text: 'sm' | 'md' | 'lg';
-  /** Saturação das cores das matérias. */
-  subjects: 'soft' | 'normal' | 'vivid';
+  font: keyof typeof FONTS;
+  /** Saturação das cores das matérias; "none" deixa todas em cinza. */
+  subjects: 'none' | 'soft' | 'normal' | 'vivid';
   reduceMotion: boolean;
+  custom: { dark: Palette; light: Palette };
 };
 
-export const DEFAULT_PREFS: Prefs = { theme: 'dinamico', style: 'tonal', contrast: 0, amoled: false, shape: 'round', text: 'md', subjects: 'normal', reduceMotion: false };
+export const DEFAULT_PREFS: Prefs = {
+  theme: 'dinamico', style: 'tonal', contrast: 0, bg: 'tinted', shape: 'round', text: 'md', font: 'padrao', subjects: 'normal', reduceMotion: false, custom: CUSTOM_DEFAULT,
+};
+
+/** A paleta fixa em uso (tema pronto ou "Seu tema"), ou null no tema dinâmico. */
+export function paletteOf(prefs: Prefs, dark: boolean): Palette | null {
+  if (prefs.theme === 'custom') return prefs.custom[dark ? 'dark' : 'light'];
+  return FAMILIES.find((f) => f.id === prefs.theme)?.[dark ? 'dark' : 'light'] ?? null;
+}
 
 const SHAPE = { round: 1, soft: 0.6, sharp: 0.22 };
 const TEXT = { sm: 0.94, md: 1, lg: 1.08 };
 /** Teto de saturação das cores das matérias: [claro, escuro]. */
 const CHROMA = { soft: [28, 20], normal: [48, 32], vivid: [72, 48] };
+/** Sem cor, as matérias se distinguem pelo tom de cinza: [cor, contêiner] de cada uma, no claro e no escuro. */
+const GRAYS = {
+  light: [[25, 92], [35, 88], [45, 84], [30, 90], [40, 86], [50, 82]],
+  dark: [[92, 36], [82, 30], [72, 24], [87, 33], [77, 27], [67, 21]],
+};
+const STATUS = ['success', 'warning'];
 
 /** Cores das matérias e de status, harmonizadas com a semente (M3 "custom colors"). */
 const CUSTOM: Record<string, string> = {
@@ -109,17 +154,18 @@ const luma = (hex: string) => { const [r, g, b] = rgb(hex).map((v) => { const c 
 /** Texto legível (preto ou branco) sobre a cor dada. */
 const onColor = (hex: string) => (luma(hex) > 0.4 ? '#000000' : '#ffffff');
 
-/** Papéis de cor do M3 a partir do fundo, do texto e de três destaques de uma paleta tradicional. */
-function classicVars(c: Classic): Record<string, string> {
-  const { bg, fg, dark } = c;
+/** Papéis de cor do M3 a partir do fundo, do texto e de três destaques de uma paleta fixa. */
+function paletteVars(c: Palette, dark: boolean, pure: boolean): Record<string, string> {
   const black = '#000000', white = '#ffffff';
+  const bg = pure ? (dark ? black : white) : c.bg;
+  const fg = c.fg;
   const accent = (name: string, hex: string) => ({
     [`--md-${name}`]: hex,
     [`--md-on-${name}`]: onColor(hex),
     [`--md-${name}-container`]: mix(bg, hex, dark ? 0.32 : 0.2),
     [`--md-on-${name}-container`]: dark ? mix(hex, white, 0.55) : mix(hex, black, 0.55),
   });
-  const ladder = dark ? [0.03, 0.06, 0.09, 0.13] : [0.025, 0.05, 0.08, 0.11];
+  const ladder = dark ? [0.04, 0.07, 0.1, 0.14] : [0.025, 0.05, 0.08, 0.11];
   return {
     ...accent('primary', c.accents[0]), ...accent('secondary', c.accents[1]), ...accent('tertiary', c.accents[2]), ...accent('error', c.error),
     '--md-surface': bg, '--md-on-surface': fg, '--md-on-surface-variant': mix(fg, bg, 0.28),
@@ -132,50 +178,76 @@ function classicVars(c: Classic): Record<string, string> {
   };
 }
 
+/** Papéis que formam o fundo e o texto neutro: são os que o ajuste "Fundo" mexe. */
+const NEUTRALS = ['surface', 'surface-dim', 'surface-bright', 'surface-container-lowest', 'surface-container-low', 'surface-container', 'surface-container-high',
+  'surface-container-highest', 'on-surface', 'on-surface-variant', 'outline', 'outline-variant', 'inverse-surface', 'inverse-on-surface'];
+
 export const seedHex = (seed: string) => (seed.startsWith('#') ? seed : SEEDS.find((s) => s.id === seed)?.hex ?? SEEDS[0].hex);
 
 export function buildVars(seedHexValue: string, dark: boolean, prefs: Prefs = DEFAULT_PREFS): Record<string, string> {
-  const classic = classicOf(prefs.theme);
-  if (classic) { seedHexValue = classic.accents[0]; dark = classic.dark; }
-  const source = argbFromHex(seedHexValue);
-  const scheme = new SCHEMES[prefs.style](Hct.fromInt(source), dark, prefs.contrast / 2, '2025');
+  const pal = paletteOf(prefs, dark);
+  const mono = !pal && prefs.style === 'mono';
+  const source = argbFromHex(pal ? pal.accents[0] : seedHexValue);
+  const scheme = new SCHEMES[pal ? 'tonal' : prefs.style](Hct.fromInt(source), dark, prefs.contrast / 2, '2025');
   const vars: Record<string, string> = {};
   for (const [name, role] of Object.entries(ROLES)) vars[`--md-${name}`] = hexFromArgb(role.getArgb(scheme));
 
   if (dark) {
-    // O M3 faz o contêiner terciário pastel mesmo no escuro; ele destoa dos demais, que são escuros
-    const t = scheme.tertiaryPalette;
-    vars['--md-tertiary-container'] = hexFromArgb(t.tone(prefs.contrast ? 24 : 30));
-    vars['--md-on-tertiary-container'] = hexFromArgb(t.tone(90));
+    // O M3 de 2025 deixa alguns contêineres claros mesmo no escuro (o terciário, e os outros conforme o estilo e o contraste):
+    // viram blocos pastel no meio da tela escura. Aqui todos descem para um tom escuro da própria cor.
+    const palettes = { primary: scheme.primaryPalette, secondary: scheme.secondaryPalette, tertiary: scheme.tertiaryPalette, error: scheme.errorPalette };
+    for (const [name, p] of Object.entries(palettes)) {
+      if (Hct.fromInt(argbFromHex(vars[`--md-${name}-container`])).tone <= 50) continue;
+      vars[`--md-${name}-container`] = hexFromArgb(p.tone(prefs.contrast ? 24 : 30));
+      vars[`--md-on-${name}-container`] = hexFromArgb(p.tone(prefs.contrast ? 95 : 90));
+    }
   }
 
-  if (dark && (prefs.amoled || prefs.theme === 'preto')) {
-    // Preto puro no fundo; os contêineres sobem em degraus curtos para ainda dar relevo
+  if (pal) Object.assign(vars, paletteVars(pal, dark, prefs.bg === 'pure' && prefs.theme !== 'custom'));
+  else if (prefs.bg === 'neutral') {
+    // Mesmos tons, sem o toque de cor do tema
+    for (const name of NEUTRALS) {
+      const h = Hct.fromInt(argbFromHex(vars[`--md-${name}`]));
+      vars[`--md-${name}`] = hexFromArgb(Hct.from(h.hue, 0, h.tone).toInt());
+    }
+  } else if (prefs.bg === 'pure') {
+    // Preto (ou branco) puro no fundo; os contêineres sobem em degraus curtos para ainda dar relevo
     const n = scheme.neutralPalette;
+    const steps = dark ? [0, 4, 7, 10, 14] : [100, 97.5, 95.5, 93.5, 91];
+    const [base, ...rest] = steps.map((t) => hexFromArgb(n.tone(t)));
     Object.assign(vars, {
-      '--md-surface': '#000000', '--md-surface-dim': '#000000', '--md-surface-container-lowest': '#000000',
-      '--md-surface-container-low': hexFromArgb(n.tone(4)), '--md-surface-container': hexFromArgb(n.tone(7)),
-      '--md-surface-container-high': hexFromArgb(n.tone(10)), '--md-surface-container-highest': hexFromArgb(n.tone(14)),
+      '--md-surface': base, '--md-surface-container-lowest': base, [dark ? '--md-surface-dim' : '--md-surface-bright']: base,
+      '--md-surface-container-low': rest[0], '--md-surface-container': rest[1], '--md-surface-container-high': rest[2], '--md-surface-container-highest': rest[3],
     });
   }
 
-  if (classic) Object.assign(vars, classicVars(classic));
-
-  const cap = CHROMA[prefs.subjects][dark ? 1 : 0];
+  // No monocromático nada tem cor: matérias e status ficam em cinza (só o erro continua vermelho)
+  const subjects = mono ? 'none' : prefs.subjects;
+  const gray = TonalPalette.fromHueAndChroma(0, 0);
   // Com mais contraste, as cores das matérias também se afastam do fundo
   const shift = prefs.contrast * 4;
-  for (const [name, hex] of Object.entries(CUSTOM)) {
-    const hct = Hct.fromInt(Blend.harmonize(argbFromHex(hex), source));
-    // Saturação limitada para as cores não brigarem com o tema (mais contida no escuro)
-    const p = TonalPalette.fromHueAndChroma(hct.hue, Math.min(hct.chroma, cap));
-    vars[`--c-${name}`] = hexFromArgb(p.tone(dark ? 80 + shift / 2 : 45 - shift));
+  Object.entries(CUSTOM).forEach(([name, hex], i) => {
+    const status = STATUS.includes(name);
+    let p: TonalPalette, color: number, container: number;
+    if (status ? mono : subjects === 'none') {
+      p = gray;
+      [color, container] = status ? (dark ? [name === 'success' ? 90 : 70, name === 'success' ? 32 : 24] : [name === 'success' ? 30 : 50, name === 'success' ? 90 : 84]) : GRAYS[dark ? 'dark' : 'light'][i];
+    } else {
+      const hct = Hct.fromInt(Blend.harmonize(argbFromHex(hex), source));
+      // Saturação limitada para as cores não brigarem com o tema (mais contida no escuro)
+      const cap = CHROMA[status || subjects === 'none' ? 'normal' : subjects][dark ? 1 : 0];
+      p = TonalPalette.fromHueAndChroma(hct.hue, Math.min(hct.chroma, cap));
+      [color, container] = dark ? [80 + shift / 2, 30] : [45 - shift, 90];
+    }
+    vars[`--c-${name}`] = hexFromArgb(p.tone(color));
     vars[`--c-${name}-on`] = hexFromArgb(p.tone(dark ? 20 : 100));
-    vars[`--c-${name}-container`] = hexFromArgb(p.tone(dark ? 30 : 90));
+    vars[`--c-${name}-container`] = hexFromArgb(p.tone(container));
     vars[`--c-${name}-on-container`] = hexFromArgb(p.tone(dark ? 90 + shift / 2 : 10));
-  }
+  });
 
   vars['--shape'] = String(SHAPE[prefs.shape]);
   vars['--text-scale'] = String(TEXT[prefs.text]);
+  vars['--app-font'] = FONTS[prefs.font];
   return vars;
 }
 
@@ -191,8 +263,27 @@ const K = { mode: 'supaco:mode', seed: 'supaco:seed', prefs: 'supaco:prefs', var
 const media = typeof window !== 'undefined' ? matchMedia('(prefers-color-scheme: dark)') : null;
 
 type State = { mode: Mode; seed: string; dark: boolean; prefs: Prefs };
+migrate();
 let state: State = read();
 const subs = new Set<() => void>();
+
+/** Converte o que versões antigas salvaram: "Preto puro", o tema Preto e os temas presos a um modo ("github-dark"). */
+function migrate() {
+  try {
+    const raw = JSON.parse(localStorage.getItem(K.prefs) || 'null');
+    if (!raw || 'font' in raw) return;
+    const fixed = /^(.+)-(dark|light)$/.exec(raw.theme ?? '');
+    let mode: Mode | undefined;
+    if (raw.theme === 'preto') { raw.theme = 'dinamico'; raw.bg = 'pure'; mode = 'dark'; }
+    else if (fixed) { raw.theme = fixed[1]; mode = fixed[2] as Mode; }
+    else if (['dracula', 'nord', 'monokai'].includes(raw.theme)) mode = 'dark';
+    if (raw.amoled) raw.bg = 'pure';
+    delete raw.amoled;
+    raw.font = DEFAULT_PREFS.font;
+    localStorage.setItem(K.prefs, JSON.stringify(raw));
+    if (mode) localStorage.setItem(K.mode, mode);
+  } catch { /* storage bloqueado */ }
+}
 
 function read(): State {
   let mode: Mode = 'dark', seed: string = SEEDS[0].id, prefs = DEFAULT_PREFS;
@@ -200,12 +291,16 @@ function read(): State {
     // Sem escolha salva, o app abre no escuro
     mode = (localStorage.getItem(K.mode) as Mode) || 'dark';
     seed = localStorage.getItem(K.seed) || SEEDS[0].id;
-    prefs = { ...DEFAULT_PREFS, ...JSON.parse(localStorage.getItem(K.prefs) || '{}') };
+    const raw = JSON.parse(localStorage.getItem(K.prefs) || '{}');
+    prefs = { ...DEFAULT_PREFS, ...raw, custom: { dark: { ...CUSTOM_DEFAULT.dark, ...raw.custom?.dark }, light: { ...CUSTOM_DEFAULT.light, ...raw.custom?.light } } };
   } catch { /* storage bloqueado */ }
+  // Valor que não existe mais (versão antiga ou armazenamento mexido) volta ao padrão
   if (!SCHEMES[prefs.style]) prefs = { ...prefs, style: 'tonal' };
-  if (!isTheme(prefs.theme)) prefs = { ...prefs, theme: 'dinamico' };
-  const forced = classicOf(prefs.theme)?.dark ?? (prefs.theme === 'preto' ? true : undefined);
-  const dark = forced ?? (mode === 'dark' || (mode === 'system' && !!media?.matches));
+  if (!FONTS[prefs.font]) prefs = { ...prefs, font: 'padrao' };
+  if (!['tinted', 'neutral', 'pure'].includes(prefs.bg)) prefs = { ...prefs, bg: 'tinted' };
+  if (!['none', 'soft', 'normal', 'vivid'].includes(prefs.subjects)) prefs = { ...prefs, subjects: 'normal' };
+  if (prefs.theme !== 'dinamico' && prefs.theme !== 'custom' && !FAMILIES.some((f) => f.id === prefs.theme)) prefs = { ...prefs, theme: 'dinamico' };
+  const dark = mode === 'dark' || (mode === 'system' && !!media?.matches);
   return { mode, seed, dark, prefs };
 }
 
@@ -218,7 +313,7 @@ export function applyTheme() {
   root.classList.toggle('reduce-motion', state.prefs.reduceMotion);
   root.style.colorScheme = state.dark ? 'dark' : 'light';
   document.querySelectorAll('meta[name="theme-color"]').forEach((m) => m.setAttribute('content', vars['--md-surface']));
-  try { localStorage.setItem(K.vars, JSON.stringify({ dark: state.dark, forced: state.prefs.theme !== 'dinamico', vars })); } catch { /* quota */ }
+  try { localStorage.setItem(K.vars, JSON.stringify({ dark: state.dark, vars })); } catch { /* quota */ }
   subs.forEach((fn) => fn());
 }
 
@@ -237,11 +332,14 @@ export const setPref = <P extends keyof Prefs>(key: P, value: Prefs[P]) => set(K
 /** Volta cor, estilo e ajustes ao padrão (o modo claro/escuro fica como está). */
 export const resetTheme = () => { try { localStorage.removeItem(K.seed); } catch { /* ok */ } set(K.prefs, JSON.stringify(DEFAULT_PREFS)); };
 /** Alterna claro/escuro com um toque (sai do modo "sistema"). */
-export const toggleDark = () => {
-  // Num tema fixo o modo não manda: volta ao dinâmico e inverte o que se está vendo
-  if (state.prefs.theme !== 'dinamico') { try { localStorage.setItem(K.prefs, JSON.stringify({ ...state.prefs, theme: 'dinamico' })); } catch { /* ok */ } }
-  setMode(state.dark ? 'light' : 'dark');
-};
+export const toggleDark = () => setMode(state.dark ? 'light' : 'dark');
+/** Troca uma cor do "Seu tema" no modo dado; `accent` é a posição entre os três destaques. */
+export function setCustomColor(dark: boolean, key: 'bg' | 'fg' | 'error' | 0 | 1 | 2, hex: string) {
+  const k = dark ? 'dark' : 'light';
+  const cur = state.prefs.custom[k];
+  const next: Palette = typeof key === 'number' ? { ...cur, accents: cur.accents.map((c, i) => (i === key ? hex : c)) as Palette['accents'] } : { ...cur, [key]: hex };
+  setPref('custom', { ...state.prefs.custom, [k]: next });
+}
 
 media?.addEventListener('change', () => { if (state.mode === 'system') applyTheme(); });
 

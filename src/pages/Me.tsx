@@ -8,10 +8,10 @@ import { SUAP_URL } from '../lib/suap';
 import { classroom, connectClassroom } from '../lib/classroom';
 import { onSessionChange, session } from '../lib/api';
 import { clearCache, refreshAll } from '../lib/store';
-import { CLASSICS, DEFAULT_PREFS, resetTheme, SEEDS, seedHex, setMode, setPref, setSeed, STYLES, swatch, useThemeState, type Mode, type Prefs } from '../lib/theme';
+import { buildVars, DEFAULT_PREFS, FAMILIES, resetTheme, SEEDS, seedHex, setCustomColor, setMode, setPref, setSeed, STYLES, swatch, useThemeState, type Mode, type Palette, type Prefs } from '../lib/theme';
 import { setVibe, useVibe } from '../lib/vibe';
 import { shareSite, SITE_URL, useInstall } from '../lib/hooks';
-import { Badge, Button, Card, CountUp, cx, EMPHASIZED, Icon, Item, Ring, SectionHeader, Segmented, Shape, Skeleton, spring, Stagger, Switch, Tap, WavyProgress } from '../components/ui';
+import { Badge, Button, Card, Chip, CountUp, cx, EMPHASIZED, Icon, Item, Ring, SectionHeader, Segmented, Shape, Skeleton, spring, Stagger, Switch, Tap, WavyProgress } from '../components/ui';
 import { Avatar } from '../components/Avatar';
 
 const REQ_LABELS: Record<string, string> = {
@@ -148,192 +148,297 @@ function Swatch({ colors, size = 56 }: { colors: { primary: string; secondary: s
   );
 }
 
-function Setting({ label, hint, children }: { label: string; hint?: string; children: ReactNode }) {
+function Setting({ icon, label, hint, stack, off, children }: { icon?: string; label: string; hint?: string; stack?: boolean; off?: boolean; children: ReactNode }) {
   return (
-    <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 py-3">
-      <div className="min-w-40 flex-1">
-        <p className="font-medium">{label}</p>
-        {hint && <p className="text-sm text-on-surface-variant">{hint}</p>}
+    <div className={cx('flex gap-x-4 gap-y-2.5 py-3', stack ? 'flex-col' : 'flex-wrap items-center justify-between', off && 'pointer-events-none opacity-45')}>
+      <div className="flex min-w-40 flex-1 items-center gap-3">
+        {icon && <Icon name={icon} size={20} className="shrink-0 text-on-surface-variant" />}
+        <div className="min-w-0">
+          <p className="font-medium">{label}</p>
+          {hint && <p className="text-sm text-on-surface-variant">{hint}</p>}
+        </div>
       </div>
-      {children}
+      {/* O controle não encolhe: sem espaço ao lado do rótulo, desce para a linha de baixo */}
+      {stack ? children : <div className="max-w-full shrink-0">{children}</div>}
     </div>
+  );
+}
+
+/** Título de um bloco da aparência, com o valor atual à direita. */
+function BlockLabel({ icon, children, aside }: { icon: string; children: ReactNode; aside?: ReactNode }) {
+  return (
+    <div className="mb-2.5 flex items-center gap-2 text-sm font-medium text-on-surface-variant">
+      <Icon name={icon} size={18} className="text-primary" />
+      <span className="flex-1">{children}</span>
+      {aside && <span className="font-normal">{aside}</span>}
+    </div>
+  );
+}
+
+/** Grupo de ajustes que abre e fecha; fechado, o resumo mostra como cada ajuste está. */
+function Group({ icon, title, summary, open, onToggle, children }: { icon: string; title: string; summary: string; open: boolean; onToggle: () => void; children: ReactNode }) {
+  return (
+    <div className="border-t border-outline-variant/60">
+      <button onClick={onToggle} aria-expanded={open} className="state flex w-full items-center gap-3 rounded-xl px-1 py-3 text-left">
+        <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-secondary-container text-on-secondary-container"><Icon name={icon} size={22} /></span>
+        <span className="min-w-0 flex-1">
+          <span className="block font-medium">{title}</span>
+          <span className="block truncate text-sm text-on-surface-variant first-letter:uppercase">{summary}</span>
+        </span>
+        <m.span animate={{ rotate: open ? 180 : 0 }} transition={spring} className="inline-flex text-on-surface-variant"><Icon name="expand_more" /></m.span>
+      </button>
+      <AnimatePresence initial={false}>
+        {open && (
+          <m.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.3, ease: EMPHASIZED }} className="overflow-hidden">
+            <div className="divide-y divide-outline-variant/40 px-1 pb-2">{children}</div>
+          </m.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+
+/** Miniatura de um tema: fundo, uma linha de texto e os três destaques. */
+function ThemeTile({ label, icon, pal, on, onClick }: { label: string; icon?: string; pal: { bg: string; fg: string; dots: string[] }; on: boolean; onClick: () => void }) {
+  return (
+    <button onClick={onClick} aria-pressed={on} className={cx('state flex flex-col gap-1.5 rounded-xl border p-1.5 text-left', on ? 'border-primary ring-1 ring-primary' : 'border-outline-variant')}>
+      <span className="relative flex h-14 flex-col justify-between overflow-hidden rounded-lg p-2 ring-1 ring-black/10 dark:ring-white/10" style={{ background: pal.bg }}>
+        <span className="flex gap-1">
+          <span className="h-1.5 w-7 rounded-full" style={{ background: pal.fg }} />
+          <span className="h-1.5 w-3 rounded-full opacity-45" style={{ background: pal.fg }} />
+        </span>
+        <span className="flex gap-1">{pal.dots.map((c, i) => <span key={i} className="size-3.5 rounded-full" style={{ background: c }} />)}</span>
+        {on && <span className="absolute top-1.5 right-1.5 flex size-5 items-center justify-center rounded-full bg-primary text-on-primary"><Icon name="check" size={14} weight={700} /></span>}
+      </span>
+      <span className="flex items-center gap-1 px-0.5 text-xs leading-4 font-medium">{icon && <Icon name={icon} size={14} className="text-on-surface-variant" />}<span className="truncate">{label}</span></span>
+    </button>
   );
 }
 
 /** Botão de uma cor pronta do tema. */
 function SeedButton({ s, on }: { s: { id: string; label: string; colors: { primary: string; secondary: string; tertiary: string } }; on: boolean }) {
   return (
-    <button onClick={() => setSeed(s.id)} aria-label={s.label} title={s.label} aria-pressed={on} className="flex flex-col items-center gap-1.5">
+    <button onClick={() => setSeed(s.id)} aria-label={s.label} title={s.label} aria-pressed={on}>
       <m.span whileTap={{ scale: 0.9 }} transition={spring} className={cx('relative flex items-center justify-center rounded-full p-1 ring-2 transition-shadow', on ? 'ring-primary' : 'ring-transparent')}>
-        <Swatch colors={s.colors} size={48} />
+        <Swatch colors={s.colors} size={36} />
         {on && (
-          <m.span layoutId="seed-check" transition={spring} className="absolute flex size-6 items-center justify-center rounded-full bg-white text-black shadow">
-            <Icon name="check" size={16} weight={700} />
+          <m.span layoutId="seed-check" transition={spring} className="absolute flex size-5 items-center justify-center rounded-full bg-white text-black shadow">
+            <Icon name="check" size={14} weight={700} />
           </m.span>
         )}
       </m.span>
-      <span className="text-xs text-on-surface-variant">{s.label}</span>
     </button>
   );
 }
 
-/** Quantas cores aparecem antes de abrir o avançado. */
-const MAIN_SEEDS = 6;
+/** Amostra de cor que abre o seletor nativo (invisível por cima dela). */
+function ColorWell({ label, value, onChange }: { label: string; value: string; onChange: (hex: string) => void }) {
+  return (
+    <label className="relative flex cursor-pointer flex-col items-center gap-1.5">
+      <span className="block size-11 rounded-full ring-1 ring-outline-variant" style={{ background: value }} />
+      <span className="text-xs text-on-surface-variant">{label}</span>
+      <input type="color" value={value} onChange={(e) => onChange(e.target.value)} aria-label={label} className="absolute inset-0 size-full cursor-pointer opacity-0" />
+    </label>
+  );
+}
 
+const MODE_LABEL: Record<Mode, string> = { dark: 'escuro', light: 'claro', system: 'sistema' };
+const SHAPE_LABEL: Record<Prefs['shape'], string> = { round: 'redondos', soft: 'suaves', sharp: 'retos' };
+const TEXT_LABEL: Record<Prefs['text'], string> = { sm: 'menor', md: 'padrão', lg: 'maior' };
+const SUBJECT_LABEL: Record<Prefs['subjects'], string> = { none: 'Sem cor', soft: 'Suaves', normal: 'Padrão', vivid: 'Vivas' };
+// Classes literais para o Tailwind encontrar no build: cada opção aparece na própria fonte
+const FONT_OPTIONS: { id: Prefs['font']; label: string; cls: string }[] = [
+  { id: 'padrao', label: 'Padrão', cls: '' },
+  { id: 'sistema', label: 'Do aparelho', cls: '[font-family:system-ui,sans-serif]' },
+  { id: 'serifa', label: 'Serifa', cls: '[font-family:Georgia,serif]' },
+  { id: 'mono', label: 'Mono', cls: '[font-family:ui-monospace,monospace]' },
+];
+
+type GroupId = 'cores' | 'forma' | 'clima';
+
+/**
+ * Aparência em três níveis: o modo (claro/escuro), o tema (o dinâmico do Supaco, um pronto ou o da pessoa) e,
+ * recolhidos em grupos, os ajustes finos. Cada ajuste só aparece onde faz efeito.
+ */
 function Appearance() {
   const { mode, seed, dark, prefs } = useThemeState();
   const vibe = useVibe();
-  const [advanced, setAdvanced] = useState(false);
-  const custom = seed.startsWith('#');
+  const [open, setOpen] = useState<GroupId | null>(null);
+  const toggle = (g: GroupId) => setOpen(open === g ? null : g);
+
+  const dynamic = prefs.theme === 'dinamico';
+  const own = prefs.theme === 'custom';
+  const family = FAMILIES.find((f) => f.id === prefs.theme);
+  const mono = dynamic && prefs.style === 'mono';
+  const customSeed = seed.startsWith('#');
+  const pure = dark ? 'Preto' : 'Branco';
+
   const seeds = useMemo(() => SEEDS.map((s) => ({ ...s, colors: swatch(s.id, dark, prefs.style) })), [dark, prefs.style]);
   const styles = useMemo(() => STYLES.map((st) => ({ ...st, colors: swatch(seed, dark, st.id) })), [seed, dark]);
-  const fixedTheme = CLASSICS.some((c) => c.id === prefs.theme);
-  const themes = useMemo(() => {
-    const dyn = swatch(seed, dark, prefs.style);
+  const tiles = useMemo(() => {
+    const pal = (p: Palette) => ({ bg: p.bg, fg: p.fg, dots: [...p.accents] });
+    // O dinâmico aparece como ficaria agora, com a cor, o estilo e o fundo escolhidos
+    const v = buildVars(seedHex(seed), dark, { ...prefs, theme: 'dinamico' });
+    const k = dark ? 'dark' : 'light';
     return [
-      { id: 'dinamico' as const, label: 'Dinâmico', bg: dark ? '#14181a' : '#f6f8f4', fg: dark ? '#e0e8db' : '#2d342c', dots: [dyn.primary, dyn.secondary, dyn.tertiary] },
-      { id: 'preto' as const, label: 'Preto (OLED)', bg: '#000000', fg: '#ffffff', dots: [dyn.primary, dyn.secondary, dyn.tertiary] },
-      ...CLASSICS.map((c) => ({ id: c.id, label: c.label, bg: c.bg, fg: c.fg, dots: [...c.accents] as string[] })),
+      { id: 'dinamico', label: 'Supaco', icon: 'auto_awesome', pal: { bg: v['--md-surface'], fg: v['--md-on-surface'], dots: [v['--md-primary'], v['--md-secondary'], v['--md-tertiary']] } },
+      ...FAMILIES.map((f) => ({ id: f.id, label: f.label, icon: undefined, pal: pal(f[k]) })),
+      { id: 'custom', label: 'Seu tema', icon: 'edit', pal: pal(prefs.custom[k]) },
     ];
-  }, [seed, dark, prefs.style]);
-  const changed = seed !== SEEDS[0].id || (Object.keys(DEFAULT_PREFS) as (keyof Prefs)[]).some((k) => prefs[k] !== DEFAULT_PREFS[k]);
-  // As cores principais, mais a escolhida se ela estiver só no avançado
-  const main = seeds.filter((s, i) => i < MAIN_SEEDS || s.id === seed);
+  }, [seed, dark, prefs]);
+
+  const changed = seed !== SEEDS[0].id || (Object.keys(DEFAULT_PREFS) as (keyof Prefs)[]).some((key) => JSON.stringify(prefs[key]) !== JSON.stringify(DEFAULT_PREFS[key]));
+  const bgLabel = prefs.bg === 'pure' ? pure.toLowerCase() : prefs.bg === 'neutral' && dynamic ? 'neutro' : dynamic ? 'com cor' : 'do tema';
+  const summary = {
+    cores: [dynamic && STYLES.find((s) => s.id === prefs.style)?.label, !own && `fundo ${bgLabel}`, `matérias ${mono ? 'sem cor' : SUBJECT_LABEL[prefs.subjects].toLowerCase()}`].filter(Boolean).join(' · '),
+    forma: `cantos ${SHAPE_LABEL[prefs.shape]} · texto ${TEXT_LABEL[prefs.text]} · fonte ${FONT_OPTIONS.find((f) => f.id === prefs.font)!.label.toLowerCase()}`,
+    clima: vibe.tone === 'zueira' ? `zueira${vibe.memes ? ' · com memes' : ''}` : 'sério',
+  };
 
   return (
     <>
       <SectionHeader title="Aparência" icon="palette" />
       <Card variant="filled" className="rounded-2xl p-5">
-        <p className="mb-3 text-sm font-medium text-on-surface-variant">Tema</p>
-        <div className="grid grid-cols-[repeat(auto-fill,minmax(104px,1fr))] gap-2">
-          {themes.map((t) => {
-            const on = prefs.theme === t.id;
-            return (
-              <button key={t.id} onClick={() => setPref('theme', t.id)} aria-pressed={on}
-                className={cx('state flex flex-col gap-2 rounded-xl border p-2 text-left', on ? 'border-primary ring-1 ring-primary' : 'border-outline-variant')}>
-                <span className="relative flex h-14 items-end gap-1 overflow-hidden rounded-lg p-2" style={{ background: t.bg }}>
-                  {t.dots.map((c, i) => <span key={i} className="size-3.5 rounded-full" style={{ background: c }} />)}
-                  <span className="absolute top-2 right-2 h-1.5 w-8 rounded-full" style={{ background: t.fg, opacity: 0.55 }} />
-                  {on && <span className="absolute top-1.5 left-1.5 flex size-5 items-center justify-center rounded-full bg-primary text-on-primary"><Icon name="check" size={14} weight={700} /></span>}
-                </span>
-                <span className="px-0.5 text-xs leading-4 font-medium">{t.label}</span>
-              </button>
-            );
-          })}
-        </div>
-
-        <p className="mt-5 mb-2 text-sm font-medium text-on-surface-variant">Modo{fixedTheme && ' (o tema escolhido já define)'}</p>
-        <Segmented<Mode> value={mode} onChange={setMode} className={cx('w-full', fixedTheme && 'pointer-events-none opacity-45')}
+        <BlockLabel icon={dark ? 'dark_mode' : 'light_mode'}>Modo</BlockLabel>
+        <Segmented<Mode> value={mode} onChange={setMode} className="w-full"
           options={[{ value: 'dark', label: 'Escuro', icon: 'dark_mode' }, { value: 'light', label: 'Claro', icon: 'light_mode' }, { value: 'system', label: 'Sistema', icon: 'brightness_auto' }]} />
 
-        <p className="mt-5 mb-3 text-sm font-medium text-on-surface-variant">Cor do tema{fixedTheme && ' (disponível nos temas Dinâmico e Preto)'}</p>
-        <div className={cx('grid grid-cols-[repeat(auto-fill,minmax(64px,1fr))] gap-x-2 gap-y-3', fixedTheme && 'pointer-events-none opacity-45')}>
-          {main.map((s) => <SeedButton key={s.id} s={s} on={seed === s.id} />)}
-        </div>
-
-        <p className="mt-5 mb-2 text-sm font-medium text-on-surface-variant">Clima do app</p>
-        <Segmented<'serio' | 'zueira'> value={vibe.tone} onChange={(tone) => setVibe({ tone, asked: true, ...(tone === 'zueira' && !vibe.asked ? { memes: true } : {}) })} className="w-full"
-          options={[{ value: 'serio', label: 'Sério', icon: 'school' }, { value: 'zueira', label: 'Zueira', icon: 'celebration' }]} />
-        <div className={cx('transition-opacity', vibe.tone === 'serio' && 'pointer-events-none opacity-45')}>
-          <Setting label="Memes" hint={vibe.tone === 'serio' ? 'Disponível no modo zueira' : 'A resposta do “posso faltar?” vem com meme'}>
-            <Switch on={vibe.tone === 'zueira' && vibe.memes} onChange={(memes) => setVibe({ memes })} label="Mostrar memes" />
-          </Setting>
-        </div>
-
-        <button onClick={() => setAdvanced(!advanced)} aria-expanded={advanced} className="state mt-2 flex w-full items-center gap-3 rounded-xl px-1 py-3 text-left">
-          <Icon name="tune" className="text-primary" />
-          <span className="min-w-0 flex-1">
-            <span className="block font-medium">Avançado</span>
-            <span className="block text-sm text-on-surface-variant">Mais cores, estilo da paleta, contraste, cantos e texto</span>
-          </span>
-          <m.span animate={{ rotate: advanced ? 180 : 0 }} transition={spring} className="inline-flex"><Icon name="expand_more" /></m.span>
-        </button>
-
-        <AnimatePresence initial={false}>
-          {advanced && (
-            <m.div key="adv" initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.35, ease: EMPHASIZED }} className="overflow-hidden">
-              <div className="pt-3">
-        {/* Prévia: uma amostra do app com o tema atual */}
-        <div className="mb-5 grid grid-cols-[1.3fr_1fr] gap-2 overflow-hidden rounded-2xl bg-surface p-3">
-          <div className="flex flex-col justify-between gap-3 rounded-xl bg-primary-container p-3 text-on-primary-container">
-            <span className="w-fit rounded-full bg-white/50 px-2 py-0.5 text-[11px] font-medium dark:bg-black/25">Aula agora</span>
-            <p className="text-lg leading-6 font-semibold">Assim fica o seu Supaco</p>
-            <div className="flex gap-1.5">
-              <span className="rounded-full bg-primary px-3 py-1 text-xs font-medium text-on-primary">Botão</span>
-              <span className="rounded-full bg-secondary-container px-3 py-1 text-xs font-medium text-on-secondary-container">Filtro</span>
-            </div>
-          </div>
-          <div className="flex flex-col gap-2">
-            <div className="flex flex-1 items-center gap-1.5 rounded-xl bg-surface-container px-3">
-              {(['teal', 'pink', 'yellow', 'lilac', 'orange', 'sky'] as const).map((t) => <span key={t} className="size-3.5 rounded-full" style={{ background: `var(--c-${t})` }} />)}
-            </div>
-            <div className="flex flex-1 items-center gap-2 rounded-xl bg-tertiary-container px-3 text-xs font-medium text-on-tertiary-container"><Icon name="auto_awesome" size={16} fill />Destaque</div>
-            <div className="flex flex-1 items-center gap-2 rounded-xl bg-surface-container-high px-3 text-xs text-on-surface-variant"><span className="size-2 rounded-full bg-success" />presente<span className="size-2 rounded-full bg-error" />falta</div>
+        <div className="mt-6">
+          <BlockLabel icon="brush" aside={`${tiles.find((t) => t.id === prefs.theme)?.label} ${MODE_LABEL[dark ? 'dark' : 'light']}`}>Tema</BlockLabel>
+          <div className="grid grid-cols-[repeat(auto-fill,minmax(92px,1fr))] gap-2">
+            {tiles.map((t) => <ThemeTile key={t.id} label={t.label} icon={t.icon} pal={t.pal} on={prefs.theme === t.id} onClick={() => setPref('theme', t.id)} />)}
           </div>
         </div>
 
-        <p className="mb-3 text-sm font-medium text-on-surface-variant">Todas as cores</p>
-        <div className="grid grid-cols-[repeat(auto-fill,minmax(64px,1fr))] gap-x-2 gap-y-3">
-          {seeds.map((s) => <SeedButton key={s.id} s={s} on={seed === s.id} />)}
-          {/* Qualquer cor: o seletor nativo fica invisível por cima da amostra */}
-          <label className="relative flex cursor-pointer flex-col items-center gap-1.5" title="Escolher outra cor">
-            <span className={cx('relative flex items-center justify-center rounded-full p-1 ring-2', custom ? 'ring-primary' : 'ring-transparent')}>
-              <span className="block size-12 rounded-full" style={{ background: custom ? seed : 'conic-gradient(#e64545, #e6c145, #4bc24b, #45bfe6, #6a5ae6, #e645b6, #e64545)' }} />
-              <span className="absolute flex size-6 items-center justify-center rounded-full bg-white text-black shadow"><Icon name={custom ? 'check' : 'palette'} size={16} weight={700} /></span>
-            </span>
-            <span className="text-xs text-on-surface-variant">Sua cor</span>
-            <input type="color" value={seedHex(seed)} onChange={(e) => setSeed(e.target.value)} aria-label="Escolher outra cor" className="absolute inset-0 size-full cursor-pointer opacity-0" />
-          </label>
-        </div>
-
-        <p className="mt-5 mb-2 text-sm font-medium text-on-surface-variant">Estilo da paleta</p>
-        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-3">
-          {styles.map((st) => {
-            const on = prefs.style === st.id;
-            return (
-              <button key={st.id} onClick={() => setPref('style', st.id)} aria-pressed={on}
-                className={cx('state relative flex items-center gap-3 rounded-xl border px-3 py-2.5 text-left', on ? 'border-transparent text-on-secondary-container' : 'border-outline-variant')}>
-                {on && <m.span layoutId="style-on" transition={spring} className="absolute inset-0 -z-10 rounded-xl bg-secondary-container" />}
-                <Swatch colors={st.colors} size={36} />
-                <span className="min-w-0 flex-1">
-                  <span className="block text-sm font-medium">{st.label}</span>
-                  <span className={cx('block truncate text-xs', on ? 'opacity-80' : 'text-on-surface-variant')}>{st.hint}</span>
-                </span>
-                {on && <Icon name="check" size={18} />}
-              </button>
-            );
-          })}
-        </div>
-
-        <div className="mt-4 divide-y divide-outline-variant/60">
-          <Setting label="Contraste" hint="Mais diferença entre texto e fundo">
-            <Segmented value={String(prefs.contrast) as '0' | '1' | '2'} onChange={(v) => setPref('contrast', Number(v) as Prefs['contrast'])}
-              options={[{ value: '0', label: 'Padrão' }, { value: '1', label: 'Médio' }, { value: '2', label: 'Alto' }]} />
-          </Setting>
-          <Setting label="Cantos" hint="Formato de cartões e blocos">
-            <Segmented<Prefs['shape']> value={prefs.shape} onChange={(v) => setPref('shape', v)}
-              options={[{ value: 'round', label: 'Redondos' }, { value: 'soft', label: 'Suaves' }, { value: 'sharp', label: 'Retos' }]} />
-          </Setting>
-          <Setting label="Tamanho do texto" hint="Aumenta ou diminui tudo junto">
-            <Segmented<Prefs['text']> value={prefs.text} onChange={(v) => setPref('text', v)}
-              options={[{ value: 'sm', label: 'Menor' }, { value: 'md', label: 'Padrão' }, { value: 'lg', label: 'Maior' }]} />
-          </Setting>
-          <Setting label="Cores das matérias" hint="O quanto cada matéria se destaca">
-            <Segmented<Prefs['subjects']> value={prefs.subjects} onChange={(v) => setPref('subjects', v)}
-              options={[{ value: 'soft', label: 'Suaves' }, { value: 'normal', label: 'Padrão' }, { value: 'vivid', label: 'Vivas' }]} />
-          </Setting>
-          <Setting label="Preto puro" hint={dark ? 'Fundo totalmente preto, bom para telas OLED' : 'Vale para o modo escuro'}>
-            <Switch on={prefs.amoled} onChange={(v) => setPref('amoled', v)} label="Preto puro no modo escuro" />
-          </Setting>
-          <Setting label="Reduzir animações" hint="Desliga transições e movimentos">
-            <Switch on={prefs.reduceMotion} onChange={(v) => setPref('reduceMotion', v)} label="Reduzir animações" />
-          </Setting>
-        </div>
-                {changed && <div className="mt-2 flex justify-end"><Button variant="text" size="sm" icon="refresh" onClick={resetTheme}>Restaurar padrão</Button></div>}
+        {/* O que dá para mexer no tema escolhido */}
+        <div className="mt-4 rounded-xl bg-surface-container-high p-3.5">
+          {dynamic && (
+            <>
+              <BlockLabel icon="colorize" aside={customSeed ? seed.toUpperCase() : SEEDS.find((s) => s.id === seed)?.label}>Cor do tema</BlockLabel>
+              <div className={cx('flex flex-wrap gap-1', mono && 'opacity-45')}>
+                {seeds.map((s) => <SeedButton key={s.id} s={s} on={seed === s.id} />)}
+                {/* Qualquer cor: o seletor nativo fica invisível por cima da amostra */}
+                <label className="relative cursor-pointer" title="Escolher outra cor">
+                  <span className={cx('relative flex items-center justify-center rounded-full p-1 ring-2', customSeed ? 'ring-primary' : 'ring-transparent')}>
+                    <span className="block size-9 rounded-full" style={{ background: customSeed ? seed : 'conic-gradient(#e64545, #e6c145, #4bc24b, #45bfe6, #6a5ae6, #e645b6, #e64545)' }} />
+                    <span className="absolute flex size-5 items-center justify-center rounded-full bg-white text-black shadow"><Icon name={customSeed ? 'check' : 'colorize'} size={14} weight={700} /></span>
+                  </span>
+                  <input type="color" value={seedHex(seed)} onChange={(e) => setSeed(e.target.value)} aria-label="Escolher outra cor" className="absolute inset-0 size-full cursor-pointer opacity-0" />
+                </label>
               </div>
-            </m.div>
+              {mono && <p className="mt-2 text-xs text-on-surface-variant">No estilo monocromático a cor não aparece. Troque o estilo em “Cores e fundo”.</p>}
+            </>
           )}
-        </AnimatePresence>
+          {own && (
+            <>
+              <BlockLabel icon="edit" aside={`modo ${MODE_LABEL[dark ? 'dark' : 'light']}`}>Suas cores</BlockLabel>
+              <div className="flex flex-wrap gap-x-4 gap-y-3">
+                <ColorWell label="Fundo" value={prefs.custom[dark ? 'dark' : 'light'].bg} onChange={(hex) => setCustomColor(dark, 'bg', hex)} />
+                <ColorWell label="Texto" value={prefs.custom[dark ? 'dark' : 'light'].fg} onChange={(hex) => setCustomColor(dark, 'fg', hex)} />
+                {(['Destaque', '2ª cor', '3ª cor'] as const).map((label, i) => (
+                  <ColorWell key={label} label={label} value={prefs.custom[dark ? 'dark' : 'light'].accents[i]} onChange={(hex) => setCustomColor(dark, i as 0 | 1 | 2, hex)} />
+                ))}
+                <ColorWell label="Erro" value={prefs.custom[dark ? 'dark' : 'light'].error} onChange={(hex) => setCustomColor(dark, 'error', hex)} />
+              </div>
+              <p className="mt-2.5 text-xs text-on-surface-variant">O claro e o escuro têm cores separadas: troque o modo para ajustar o outro.</p>
+            </>
+          )}
+          {family && (
+            <p className="flex items-center gap-2 text-sm text-on-surface-variant">
+              <Icon name="brush" size={18} className="shrink-0 text-primary" />
+              <span><b className="font-medium text-on-surface">{family.label}</b> tem as cores fixas, na versão {MODE_LABEL[dark ? 'dark' : 'light']}. Para escolher a cor, use o tema Supaco ou monte o seu.</span>
+            </p>
+          )}
+        </div>
+
+        <div className="mt-4">
+          <Group icon="format_color_fill" title="Cores e fundo" summary={summary.cores} open={open === 'cores'} onToggle={() => toggle('cores')}>
+            {dynamic && (
+              <Setting icon="style" label="Estilo da paleta" hint="Como a cor do tema vira as outras cores" stack>
+                <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                  {styles.map((st) => {
+                    const on = prefs.style === st.id;
+                    return (
+                      <button key={st.id} onClick={() => setPref('style', st.id)} aria-pressed={on}
+                        className={cx('state relative flex items-center gap-3 rounded-xl border px-3 py-2.5 text-left', on ? 'border-transparent text-on-secondary-container' : 'border-outline-variant')}>
+                        {on && <m.span layoutId="style-on" transition={spring} className="absolute inset-0 -z-10 rounded-xl bg-secondary-container" />}
+                        <Swatch colors={st.colors} size={36} />
+                        <span className="min-w-0 flex-1">
+                          <span className="block text-sm font-medium">{st.label}</span>
+                          <span className={cx('block truncate text-xs', on ? 'opacity-80' : 'text-on-surface-variant')}>{st.hint}</span>
+                        </span>
+                        {on && <Icon name="check" size={18} />}
+                      </button>
+                    );
+                  })}
+                </div>
+              </Setting>
+            )}
+            {!own && (
+              <Setting icon="invert_colors" label="Fundo" hint={dark ? 'Preto puro poupa bateria em tela OLED' : 'Do tom do tema ao branco puro'}>
+                {dynamic ? (
+                  <Segmented<Prefs['bg']> value={prefs.bg} onChange={(v) => setPref('bg', v)}
+                    options={[{ value: 'tinted', label: 'Com cor' }, { value: 'neutral', label: 'Neutro' }, { value: 'pure', label: pure }]} />
+                ) : (
+                  <Segmented<'tinted' | 'pure'> value={prefs.bg === 'pure' ? 'pure' : 'tinted'} onChange={(v) => setPref('bg', v)}
+                    options={[{ value: 'tinted', label: 'Do tema' }, { value: 'pure', label: pure }]} />
+                )}
+              </Setting>
+            )}
+            {dynamic && (
+              <Setting icon="contrast" label="Contraste" hint="Mais diferença entre texto e fundo">
+                <Segmented value={String(prefs.contrast) as '0' | '1' | '2'} onChange={(v) => setPref('contrast', Number(v) as Prefs['contrast'])}
+                  options={[{ value: '0', label: 'Padrão' }, { value: '1', label: 'Médio' }, { value: '2', label: 'Alto' }]} />
+              </Setting>
+            )}
+            <Setting icon="category" label="Cores das matérias" hint={mono ? 'No estilo monocromático as matérias ficam em cinza' : 'O quanto cada matéria se destaca'} stack>
+              <div className="flex flex-wrap items-center gap-2">
+                <div className={cx('flex flex-wrap gap-2', mono && 'pointer-events-none opacity-45')}>
+                  {(Object.keys(SUBJECT_LABEL) as Prefs['subjects'][]).map((v) => (
+                    <Chip key={v} label={SUBJECT_LABEL[v]} selected={mono ? v === 'none' : prefs.subjects === v} onClick={() => setPref('subjects', v)} />
+                  ))}
+                </div>
+                <span className="ml-auto flex gap-1.5" aria-hidden>
+                  {(['teal', 'pink', 'yellow', 'lilac', 'orange', 'sky'] as const).map((t) => <span key={t} className="size-4 rounded-full" style={{ background: `var(--c-${t})` }} />)}
+                </span>
+              </div>
+            </Setting>
+          </Group>
+
+          <Group icon="format_shapes" title="Forma e texto" summary={summary.forma} open={open === 'forma'} onToggle={() => toggle('forma')}>
+            <Setting icon="rounded_corner" label="Cantos" hint="Formato de cartões e blocos">
+              <Segmented<Prefs['shape']> value={prefs.shape} onChange={(v) => setPref('shape', v)}
+                options={[{ value: 'round', label: 'Redondos' }, { value: 'soft', label: 'Suaves' }, { value: 'sharp', label: 'Retos' }]} />
+            </Setting>
+            <Setting icon="format_size" label="Tamanho do texto" hint="Aumenta ou diminui tudo junto">
+              <Segmented<Prefs['text']> value={prefs.text} onChange={(v) => setPref('text', v)}
+                options={[{ value: 'sm', label: 'Menor' }, { value: 'md', label: 'Padrão' }, { value: 'lg', label: 'Maior' }]} />
+            </Setting>
+            <Setting icon="font_download" label="Fonte" hint="A letra usada no app inteiro" stack>
+              <div className="flex flex-wrap gap-2">
+                {FONT_OPTIONS.map((f) => <Chip key={f.id} label={f.label} className={f.cls} selected={prefs.font === f.id} onClick={() => setPref('font', f.id)} />)}
+              </div>
+            </Setting>
+          </Group>
+
+          <Group icon="celebration" title="Clima do app" summary={summary.clima} open={open === 'clima'} onToggle={() => toggle('clima')}>
+            <Setting icon="school" label="Tom" hint="Sério vai direto ao ponto; zueira brinca com você">
+              <Segmented<'serio' | 'zueira'> value={vibe.tone} onChange={(tone) => setVibe({ tone, asked: true, ...(tone === 'zueira' && !vibe.asked ? { memes: true } : {}) })}
+                options={[{ value: 'serio', label: 'Sério', icon: 'school' }, { value: 'zueira', label: 'Zueira', icon: 'celebration' }]} />
+            </Setting>
+            <Setting icon="image" label="Memes" hint={vibe.tone === 'serio' ? 'Disponível no modo zueira' : 'A resposta do “posso faltar?” vem com meme'} off={vibe.tone === 'serio'}>
+              <Switch on={vibe.tone === 'zueira' && vibe.memes} onChange={(memes) => setVibe({ memes })} label="Mostrar memes" />
+            </Setting>
+          </Group>
+
+          <div className="border-t border-outline-variant/60 px-1">
+            <Setting icon="animation" label="Reduzir animações" hint="Desliga transições e movimentos">
+              <Switch on={prefs.reduceMotion} onChange={(v) => setPref('reduceMotion', v)} label="Reduzir animações" />
+            </Setting>
+          </div>
+        </div>
+
+        {changed && <div className="mt-1 flex justify-end"><Button variant="text" size="sm" icon="refresh" onClick={resetTheme}>Restaurar padrão</Button></div>}
       </Card>
     </>
   );

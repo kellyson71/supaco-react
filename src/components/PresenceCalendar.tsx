@@ -20,7 +20,7 @@ const cssVar = (name: string) => getComputedStyle(document.documentElement).getP
 
 /** Mapa de presença estilo GitHub, com as cores do tema Material 3 atual. */
 export function PresenceCalendar({ days, from, to, aulas }: { days: DayPresence[]; from?: string | null; to?: Date; aulas?: Aula[] }) {
-  const { dark, seed } = useThemeState();
+  const { dark, seed, prefs } = useThemeState();
   const { data: subjects } = useCurrentSubjects();
   const [picked, setPicked] = useState<string | null>(null);
 
@@ -31,7 +31,7 @@ export function PresenceCalendar({ days, from, to, aulas }: { days: DayPresence[
     cssVar('--c-warning'),
     cssVar('--c-warning-container'),
     cssVar('--c-success'),
-  ], [dark, seed]); // eslint-disable-line react-hooks/exhaustive-deps
+  ], [dark, seed, prefs]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const data = useMemo<Activity[]>(() => {
     const byDate = new Map(days.map((d) => [d.date, d]));

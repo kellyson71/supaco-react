@@ -19,18 +19,16 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Google+Sans+Flex:opsz,wght@6..144,300..800&display=swap" />
-    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@20..48,400..700,0..1,0&icon_names=add_link,apartment,arrow_back,arrow_drop_down,arrow_downward,arrow_forward,arrow_outward,arrow_upward,assignment,attach_file,auto_awesome,badge,bar_chart,beach_access,bolt,brightness_auto,calendar_add_on,calendar_month,calendar_view_week,call,cancel,celebration,check,check_circle,chevron_right,close,cloud_off,content_copy,dark_mode,date_range,description,diversity_3,download,edit_note,error,event,event_available,event_busy,event_note,event_repeat,expand_more,fact_check,filter_list,flag,flight_takeoff,folder_open,folder_zip,format_list_numbered,grade,groups,help,history,history_edu,hourglass_empty,how_to_reg,image,inbox,install_mobile,ios_share,key,keyboard_return,keyboard_tab,light_mode,link,local_fire_department,location_on,lock,login,logout,mail,manage_accounts,menu_book,monitoring,more_horiz,open_in_new,palette,payments,person,picture_as_pdf,play_arrow,priority_high,progress_activity,refresh,running_with_errors,schedule,school,science,search,search_off,sentiment_neutral,sentiment_satisfied,sentiment_stressed,sentiment_very_dissatisfied,share,skip_next,slideshow,smart_display,sort,sync,table_chart,tag,target,today,trending_down,troubleshoot,tune,upcoming,verified,visibility,visibility_off,warning,weekend,workspace_premium&display=block" />
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@20..48,400..700,0..1,0&icon_names=add_link,animation,apartment,arrow_back,arrow_drop_down,arrow_downward,arrow_forward,arrow_outward,arrow_upward,assignment,attach_file,auto_awesome,badge,bar_chart,beach_access,bolt,brightness_auto,brush,calendar_add_on,calendar_month,calendar_view_week,call,cancel,category,celebration,check,check_circle,chevron_right,close,cloud_off,colorize,content_copy,contrast,dark_mode,date_range,description,diversity_3,download,edit,edit_note,error,event,event_available,event_busy,event_note,event_repeat,expand_more,fact_check,filter_list,flag,flight_takeoff,folder_open,folder_zip,font_download,format_color_fill,format_list_numbered,format_shapes,format_size,grade,groups,help,history,history_edu,hourglass_empty,how_to_reg,image,inbox,install_mobile,invert_colors,ios_share,key,keyboard_return,keyboard_tab,light_mode,link,local_fire_department,location_on,lock,login,logout,mail,manage_accounts,menu_book,monitoring,more_horiz,open_in_new,palette,payments,person,picture_as_pdf,play_arrow,priority_high,progress_activity,refresh,rounded_corner,running_with_errors,schedule,school,science,search,search_off,sentiment_neutral,sentiment_satisfied,sentiment_stressed,sentiment_very_dissatisfied,share,skip_next,slideshow,smart_display,sort,style,sync,table_chart,tag,target,today,trending_down,troubleshoot,tune,upcoming,verified,visibility,visibility_off,warning,weekend,workspace_premium&display=block" />
     <script>
       // Aplica o último tema salvo antes do primeiro paint (evita piscar)
       try {
         var mode = localStorage.getItem('supaco:mode') || 'dark';
         var saved = JSON.parse(localStorage.getItem('supaco:themevars') || 'null');
         var dark = mode === 'dark' || (mode === 'system' && matchMedia('(prefers-color-scheme: dark)').matches);
-        // Tema fixo (Dracula, Solarized…) decide sozinho se é claro ou escuro
-        if (saved && saved.forced) dark = saved.dark;
         var root = document.documentElement;
         if (dark) root.classList.add('dark');
-        if (saved && (saved.forced || saved.dark === dark)) for (var k in saved.vars) root.style.setProperty(k, saved.vars[k]);
+        if (saved && saved.dark === dark) for (var k in saved.vars) root.style.setProperty(k, saved.vars[k]);
       } catch (e) {}
     </script>
   </head>
