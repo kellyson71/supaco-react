@@ -110,11 +110,11 @@ function Hero({ s, info, email, campusLabel }: { s: Servidor; info: Extract<Tran
   const chip = 'bg-white/50 !text-current dark:bg-black/25';
 
   return (
-    <div className="relative overflow-hidden rounded-3xl bg-secondary-container p-6 text-on-secondary-container md:p-8">
+    <div className="relative overflow-hidden rounded-3xl bg-secondary-container p-5 text-on-secondary-container md:p-8">
       <Shape shape="sunny" size={340} spin className="pointer-events-none absolute -top-28 -right-24 opacity-10" />
       <Shape shape="clover" size={180} className="pointer-events-none absolute -bottom-20 left-1/3 opacity-[0.07] max-md:hidden" />
-      <div className="relative flex flex-col gap-6 md:flex-row md:items-center md:gap-8">
-        <m.div initial={{ scale: 0.9, rotate: -8 }} animate={{ scale: 1, rotate: 0 }} transition={{ type: 'spring', stiffness: 200, damping: 16 }} className="shrink-0 self-start md:self-center">
+      <div className="relative flex flex-col gap-4 md:flex-row md:items-center md:gap-8">
+        <m.div initial={{ scale: 0.9, rotate: -8 }} animate={{ scale: 1, rotate: 0 }} transition={{ type: 'spring', stiffness: 200, damping: 16 }} className="shrink-0 self-start max-md:[&_svg]:!size-24 md:self-center">
           <ShapedPhoto src={fotoGrande(s.foto)} name={s.nome} shape="flower" size={156} still />
         </m.div>
         <div className="min-w-0 flex-1">
@@ -124,7 +124,7 @@ function Hero({ s, info, email, campusLabel }: { s: Servidor; info: Extract<Tran
             {s.setor && <Badge className={cx(chip, 'tabular')}>{s.setor}</Badge>}
             {info?.afastado && <Badge tone="warning">Afastado</Badge>}
           </div>
-          <h1 className="mt-3 text-[34px] leading-[42px] font-semibold tracking-tight md:text-[48px] md:leading-[56px]">{titleCase(s.nome)}</h1>
+          <h1 className="mt-3 text-[28px] leading-9 font-semibold tracking-tight min-[420px]:text-[34px] min-[420px]:leading-[42px] md:text-[48px] md:leading-[56px]">{titleCase(s.nome)}</h1>
           <p className="mt-2 max-w-2xl text-base opacity-90">
             {ocupacao(s)}{role && ` · ${role}`}
           </p>

@@ -230,11 +230,11 @@ export function SkipHero({ subjects, now, holiday }: { subjects: Subject[]; now:
             <AnimatePresence mode="popLayout" initial={false}>
               <m.img key={said.meme + sel + dayI} src={memeSrc(said.meme)} alt={MEMES[said.meme]} decoding="async"
                 initial={{ opacity: 0, scale: 1.1, rotate: 2 }} animate={{ opacity: 1, scale: 1, rotate: 0 }} exit={{ opacity: 0 }} transition={spring}
-                className="max-h-64 w-full object-contain sm:h-full sm:max-h-80" />
+                className="max-h-40 w-full object-contain min-[420px]:max-h-52 sm:h-full sm:max-h-80" />
             </AnimatePresence>
           </button>
         )}
-        <div className="flex min-w-0 flex-1 flex-col gap-3 p-5 md:p-6">
+        <div className="flex min-w-0 flex-1 flex-col gap-2.5 p-4 sm:gap-3 sm:p-5 md:p-6">
           <div className="flex items-center gap-2 text-sm font-medium">
             <span className="rounded-full bg-white/50 px-2.5 py-0.5 dark:bg-black/25">{forced ? 'prévia' : altFactor ? 'outro motivo' : h.tag}</span>
             <span className="min-w-0 truncate opacity-80">
@@ -244,7 +244,7 @@ export function SkipHero({ subjects, now, holiday }: { subjects: Subject[]; now:
 
           <AnimatePresence mode="wait" initial={false}>
             <m.p key={said.line + String(plan) + alt} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} transition={{ duration: 0.2, ease: EMPHASIZED }}
-              className="text-[24px] leading-8 font-semibold tracking-tight md:text-[30px] md:leading-9">
+              className="text-[22px] leading-7 font-semibold tracking-tight sm:text-[24px] sm:leading-8 md:text-[30px] md:leading-9">
               {plan && !view ? reply(plan, verdict, keys[0]) : said.line}
             </m.p>
           </AnimatePresence>
@@ -262,8 +262,9 @@ export function SkipHero({ subjects, now, holiday }: { subjects: Subject[]; now:
             <>
               {/* Os motivos de verdade por trás da resposta */}
               <ul className="flex flex-wrap gap-1.5">
-                {decision.factors.slice(0, 6).map((f) => (
-                  <li key={f.reason} className="flex items-center gap-1 rounded-full bg-white/45 px-2.5 py-1 text-xs font-medium dark:bg-black/25">
+                {decision.factors.slice(0, 6).map((f, i) => (
+                  // No celular só os três motivos que mais pesam
+                  <li key={f.reason} className={cx('flex items-center gap-1 rounded-full bg-white/45 px-2.5 py-1 text-xs font-medium dark:bg-black/25', i >= 3 && 'max-sm:hidden')}>
                     {f.weight !== 0 && <Icon name={f.weight > 0 ? 'check' : 'priority_high'} size={14} weight={600} />}{f.label}
                   </li>
                 ))}

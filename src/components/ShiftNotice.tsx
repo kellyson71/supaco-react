@@ -1,8 +1,9 @@
+import { useState } from 'react';
 import { AnimatePresence, m } from 'motion/react';
 import { useDisciplinas, useShifts, usePeriod } from '../lib/data';
 import { decide, shiftKey, type Applied, type Shift } from '../lib/shifts';
 import { WEEKDAYS } from '../lib/schedule';
-import { Button, Card, cx, EMPHASIZED, Icon } from './ui';
+import { Button, cx, EMPHASIZED, Icon } from './ui';
 
 const day = (d: number) => WEEKDAYS[d].toLowerCase();
 
@@ -22,50 +23,77 @@ export function ShiftNotice({ all }: { all?: boolean }) {
   if (!pending.length && !confirmed.length && !undone.length) return null;
 
   return (
-    <div className="mb-4 flex flex-col gap-2">
+    <div className="mb-3 flex flex-col gap-1.5">
       <AnimatePresence initial={false}>
         {pending.map((a) => (
-          <m.div key={shiftKey(a.code, a.from, a.to)} layout initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, height: 0 }} transition={{ duration: 0.3, ease: EMPHASIZED }}>
-            <Card variant="tertiary" className="rounded-2xl p-4 md:p-5">
-              <div className="flex items-start gap-3">
-                <Icon name="event_repeat" fill className="mt-0.5 shrink-0" />
-                <div className="min-w-0 flex-1">
-                  <p className="font-semibold">{name(a.code)} parece ter mudado de {day(a.from)} para {day(a.to)}</p>
-                  <p className="mt-1 text-sm opacity-85">
-                    O SUAP ainda mostra {day(a.from)}, mas {day(a.from)} passou {a.missed} {a.missed === 1 ? 'vez' : 'vezes'} sem nenhuma aula lançada e já saíram {a.held} aulas na {day(a.to)}.
-                    Usei o mesmo horário de antes ({a.start}–{a.end}); se a aula começa em outra hora, ajuste.
-                  </p>
-                  <div className="mt-3 flex flex-wrap items-center gap-2">
-                    <Button size="sm" icon="check" onClick={() => decide(shiftKey(a.code, a.from, a.to), { status: 'confirmed', start: a.start })}>Está certo</Button>
-                    <TimeField a={a} />
-                    <Button size="sm" variant="text" onClick={() => decide(shiftKey(a.code, a.from, a.to), { status: 'ignored' })} className="!text-current">Não, voltar ao horário do SUAP</Button>
-                  </div>
-                </div>
-              </div>
-            </Card>
+          <m.div key={shiftKey(a.code, a.from, a.to)} layout initial={{ opacity: 0, y: -6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, height: 0 }} transition={{ duration: 0.25, ease: EMPHASIZED }}>
+            <PendingShift a={a} name={name(a.code)} />
           </m.div>
         ))}
       </AnimatePresence>
 
-      {(confirmed.length > 0 || undone.length > 0) && (
-        <Card variant="filled" className="rounded-2xl p-4">
-          <p className="mb-2 flex items-center gap-2 text-sm font-medium text-on-surface-variant"><Icon name="event_repeat" size={18} className="text-primary" />Ajustes de horário</p>
-          <ul className="flex flex-col gap-1.5">
-            {confirmed.map((a) => (
-              <li key={shiftKey(a.code, a.from, a.to)} className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
-                <span className="min-w-0 flex-1"><b className="font-semibold">{name(a.code)}</b> · {day(a.from)} → {day(a.to)}, {a.start}–{a.end}</span>
-                <TimeField a={a} compact />
-                <Button size="sm" variant="text" onClick={() => decide(shiftKey(a.code, a.from, a.to), { status: 'ignored' })}>Desfazer</Button>
-              </li>
-            ))}
-            {undone.map((a) => (
-              <li key={shiftKey(a.code, a.from, a.to)} className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-on-surface-variant">
-                <span className="min-w-0 flex-1"><b className="font-semibold">{name(a.code)}</b> · {day(a.from)} → {day(a.to)} (desfeito)</span>
-                <Button size="sm" variant="text" onClick={() => decide(shiftKey(a.code, a.from, a.to), null)}>Aplicar de novo</Button>
-              </li>
-            ))}
-          </ul>
-        </Card>
+      {(confirmed.length > 0 || undone.length > 0) && <Adjustments confirmed={confirmed} undone={undone} name={name} />}
+    </div>
+  );
+}
+
+/** Uma linha só ("Estrutura de Dados · seg → ter?") com a resposta rápida; a explicação e os ajustes abrem ao tocar. */
+function PendingShift({ a, name }: { a: Applied; name: string }) {
+  const [open, setOpen] = useState(false);
+  const key = shiftKey(a.code, a.from, a.to);
+  return (
+    <div className="rounded-xl bg-surface-container-low text-on-surface-variant">
+      <div className="flex items-center gap-1 pr-1 pl-3">
+        <button onClick={() => setOpen(!open)} aria-expanded={open} className="flex min-h-10 min-w-0 flex-1 items-center gap-2 text-left text-sm">
+          <Icon name="event_repeat" size={18} className="shrink-0 text-tertiary" />
+          <span className="min-w-0 flex-1 truncate"><b className="font-medium text-on-surface">{name}</b> mudou de {day(a.from)} para {day(a.to)}?</span>
+          <Icon name="expand_more" size={18} className={cx('shrink-0 transition-transform duration-300 ease-emphasized', open && 'rotate-180')} />
+        </button>
+        <Button size="sm" variant="text" onClick={() => decide(key, { status: 'confirmed', start: a.start })}>Sim</Button>
+      </div>
+      {open && (
+        <div className="px-3 pb-3 text-sm">
+          <p>
+            O SUAP ainda mostra {day(a.from)}, mas {day(a.from)} passou {a.missed} {a.missed === 1 ? 'vez' : 'vezes'} sem nenhuma aula lançada e já saíram {a.held} aulas na {day(a.to)}.
+            Usei o mesmo horário de antes ({a.start}–{a.end}).
+          </p>
+          <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1">
+            <TimeField a={a} compact />
+            <Button size="sm" variant="text" onClick={() => decide(key, { status: 'ignored' })}>Voltar ao horário do SUAP</Button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** Ajustes já confirmados ou desfeitos (tela de Horário), recolhidos até a pessoa querer mexer. */
+function Adjustments({ confirmed, undone, name }: { confirmed: Applied[]; undone: Shift[]; name: (code: string) => string }) {
+  const [open, setOpen] = useState(false);
+  const n = confirmed.length + undone.length;
+  return (
+    <div className="rounded-xl bg-surface-container-low text-on-surface-variant">
+      <button onClick={() => setOpen(!open)} aria-expanded={open} className="flex min-h-10 w-full items-center gap-2 px-3 text-left text-sm">
+        <Icon name="event_repeat" size={18} className="shrink-0 text-primary" />
+        <span className="flex-1">Ajustes de horário ({n})</span>
+        <Icon name="expand_more" size={18} className={cx('shrink-0 transition-transform duration-300 ease-emphasized', open && 'rotate-180')} />
+      </button>
+      {open && (
+        <ul className="flex flex-col gap-1.5 px-3 pb-3">
+          {confirmed.map((a) => (
+            <li key={shiftKey(a.code, a.from, a.to)} className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
+              <span className="min-w-0 flex-1"><b className="font-medium text-on-surface">{name(a.code)}</b> · {day(a.from)} → {day(a.to)}, {a.start}–{a.end}</span>
+              <TimeField a={a} compact />
+              <Button size="sm" variant="text" onClick={() => decide(shiftKey(a.code, a.from, a.to), { status: 'ignored' })}>Desfazer</Button>
+            </li>
+          ))}
+          {undone.map((a) => (
+            <li key={shiftKey(a.code, a.from, a.to)} className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
+              <span className="min-w-0 flex-1"><b className="font-medium text-on-surface">{name(a.code)}</b> · {day(a.from)} → {day(a.to)} (desfeito)</span>
+              <Button size="sm" variant="text" onClick={() => decide(shiftKey(a.code, a.from, a.to), null)}>Aplicar de novo</Button>
+            </li>
+          ))}
+        </ul>
       )}
     </div>
   );
