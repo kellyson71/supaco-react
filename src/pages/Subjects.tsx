@@ -1,13 +1,14 @@
 import { useMemo, useState } from 'react';
 import { AnimatePresence, m } from 'motion/react';
-import { useAulas, useDisciplinas, useParciais, usePeriod } from '../lib/data';
+import { useAulas, useDisciplinas, useParciais, usePendencias, usePeriod } from '../lib/data';
 import { WEEKDAYS_SHORT } from '../lib/schedule';
 import { absenceLevel, currentAverage, gradeTone, hasPartial, outlook, stageProgress, type GradeOutlook } from '../lib/grades';
-import { aulaMatchesSubject, subjectTone, type Aula, type Parcial, type Subject } from '../lib/suap';
+import { aulaMatchesSubject, subjectTone, type Aula, type Parcial, type Pendencia, type Subject } from '../lib/suap';
 import { parseDay, relativeDay } from '../lib/dates';
 import { TONES } from '../lib/tones';
 import { AbsenceMeter, Card, levelColor, Chip, cx, EMPHASIZED, Empty, ErrorNote, Icon, Item, Ring, Segmented, Skeleton, Stagger, Tap, TopTitle } from '../components/ui';
 import { PeriodSelect } from '../components/PeriodSelect';
+import { Link } from '../components/Link';
 
 type Sort = 'nome' | 'faltas' | 'media';
 type Filter = 'todas' | 'risco' | 'final' | 'ok';
@@ -15,7 +16,8 @@ type Filter = 'todas' | 'risco' | 'final' | 'ok';
 const isRisk = (s: Subject) => { const l = absenceLevel(s); return l === 'critical' || l === 'over' || l === 'caution'; };
 
 export function Subjects() {
-  const { period } = usePeriod();
+  const { period, current } = usePeriod();
+  const pending = usePendencias();
   const { data, error, loading, refresh } = useDisciplinas(period);
   const { data: aulas } = useAulas(period);
   const { data: parciais } = useParciais(period);
@@ -56,6 +58,8 @@ export function Subjects() {
           options={[{ value: 'nome', label: 'A–Z' }, { value: 'faltas', label: 'Faltas' }, { value: 'media', label: 'Média' }]} />
       </div>
 
+      {period?.label === current?.label && pending && pending.length > 0 && <Pending list={pending} />}
+
       {error && !data && <ErrorNote error={error} onRetry={refresh} />}
       {loading && <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">{Array.from({ length: 6 }, (_, i) => <Skeleton key={i} className="h-44" />)}</div>}
       {data && list.length === 0 && <Card className="rounded-2xl"><Empty icon="school" title={data.length ? 'Nenhuma matéria nesse filtro' : 'Nenhuma matéria neste período'} /></Card>}
@@ -66,6 +70,41 @@ export function Subjects() {
         </Stagger>
       )}
     </>
+  );
+}
+
+/** Matérias reprovadas em períodos anteriores que ainda não têm aprovação: o que falta refazer e o que já está sendo refeito. */
+function Pending({ list }: { list: Pendencia[] }) {
+  const owing = list.filter((p) => p.status === 'devendo').length;
+  return (
+    <section className="mb-5 rounded-2xl bg-surface-container p-4">
+      <h2 className="flex items-center gap-2 font-medium">
+        <Icon name="history_edu" size={20} className="text-warning" />
+        {owing > 0 ? `${owing} ${owing === 1 ? 'matéria para refazer' : 'matérias para refazer'}` : 'Reprovações que você já está refazendo'}
+      </h2>
+      <ul className="mt-3 flex flex-col gap-1.5">
+        {list.map((p) => {
+          const body = (
+            <>
+              <span className="min-w-0 flex-1">
+                <span className="block truncate text-sm font-medium">{p.name}</span>
+                <span className="block text-xs text-on-surface-variant">Reprovada em {p.periodo}{/falta/i.test(p.situacao) ? ' · por falta' : p.media !== null && ` · média ${Math.round(p.media)}`}</span>
+              </span>
+              <span className={cx('shrink-0 rounded-full px-2.5 py-0.5 text-xs font-medium', p.status === 'refazendo' ? 'bg-primary-container text-on-primary-container' : 'bg-warning-container text-on-warning-container')}>
+                {p.status === 'refazendo' ? 'refazendo agora' : 'falta refazer'}
+              </span>
+            </>
+          );
+          const cls = 'flex items-center gap-3 rounded-xl bg-surface-container-highest px-3.5 py-2.5';
+          return (
+            <li key={p.code}>
+              {p.atual ? <Link to={`/disciplinas/${p.atual}`} label={p.name} className={cx('state', cls)}>{body}</Link> : <div className={cls}>{body}</div>}
+            </li>
+          );
+        })}
+      </ul>
+      <p className="mt-2 px-1 text-xs text-on-surface-variant">Pelo seu boletim de todos os períodos. Se a matéria mudou de código na matriz, confira no SUAP.</p>
+    </section>
   );
 }
 

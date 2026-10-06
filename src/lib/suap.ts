@@ -63,6 +63,11 @@ export type DadosAluno = {
 
 export type Periodo = { ano: number; periodo: number; label: string };
 
+/** Uma matéria num período já cursado (ou em curso), como saiu no boletim. */
+export type Cursada = { periodo: string; code: string; sigla: string; name: string; situacao: string; media: number | null };
+/** Matéria reprovada que ainda não foi vencida: falta refazer, ou está sendo refeita agora. */
+export type Pendencia = Cursada & { status: 'devendo' | 'refazendo'; atual?: string };
+
 export type Avaliacao = {
   id: number | null;
   tipo: string;
@@ -288,6 +293,30 @@ const servidor = (s: ServidorRaw): Servidor => ({
   lattes: s.curriculo_lattes ?? '',
 });
 
+/**
+ * O que ficou para trás: matérias com reprovação que não têm aprovação depois. A mesma matéria é reconhecida
+ * pela sigla (ou pelo nome); se ela está no período em curso, conta como "refazendo".
+ */
+export function pendencias(historico: Cursada[]): Pendencia[] {
+  const groups = new Map<string, Cursada[]>();
+  historico.forEach((c) => {
+    const key = c.sigla || c.name.toLowerCase();
+    groups.set(key, [...(groups.get(key) ?? []), c]);
+  });
+  const out: Pendencia[] = [];
+  for (const list of groups.values()) {
+    list.sort((a, b) => a.periodo.localeCompare(b.periodo));
+    const failedAt = list.map((c) => /reprovad/i.test(c.situacao)).lastIndexOf(true);
+    if (failedAt === -1) continue;
+    const later = list.slice(failedAt + 1);
+    // Aprovado, aproveitamento ou dispensa depois da reprovação: resolvido
+    if (later.some((c) => /aprovad|aproveit|dispens/i.test(c.situacao) && !/reprovad/i.test(c.situacao))) continue;
+    const retake = later.find((c) => /cursando|matriculad/i.test(c.situacao));
+    out.push({ ...list[failedAt], status: retake ? 'refazendo' : 'devendo', atual: retake?.code });
+  }
+  return out.sort((a, b) => a.periodo.localeCompare(b.periodo));
+}
+
 export const photoUrl = (foto?: string) => (!foto ? '' : foto.startsWith('http') ? foto : `${SUAP}${foto}`);
 
 /** Uma aula do endpoint minhas-aulas pertence à matéria quando a sigla ou o nome batem. */
@@ -316,6 +345,16 @@ export const api = {
       getAll<TurmaVirtualRaw>(`/api/ensino/minhas-turmas-virtuais/${p.ano}/${p.periodo}/`).catch(() => [] as TurmaVirtualRaw[]),
     ]);
     return mergeSubjects(boletim, turmas);
+  },
+
+  /** O boletim de todos os períodos, para saber o que foi reprovado e ainda não foi refeito. */
+  async historico(periodos: Periodo[]): Promise<Cursada[]> {
+    const lists = await Promise.all(periodos.map(async (p) =>
+      (await getAll<BoletimRaw>(`/api/ensino/meu-boletim/${p.ano}/${p.periodo}/`).catch(() => [] as BoletimRaw[])).map((b): Cursada => ({
+        periodo: p.label, code: b.codigo_diario, sigla: siglaOf(b.disciplina), name: cleanName(b.disciplina), situacao: b.situacao ?? '',
+        media: num(b.media_final_disciplina) ?? num(b.media_disciplina),
+      }))));
+    return lists.flat();
   },
 
   /** Aulas registradas no mês (conteúdo e faltas por dia). */

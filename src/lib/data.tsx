@@ -1,7 +1,7 @@
 // Hooks de dados compartilhados pelas telas + período letivo selecionado.
 import { createContext, useContext, useMemo, useState, type ReactNode } from 'react';
 import { useResource } from './store';
-import { api, aulaMatchesSubject, nomeHash, type Calendario, type Parcial, type Periodo, type Pessoa, type Turma, type ViagemCampus } from './suap';
+import { api, aulaMatchesSubject, nomeHash, pendencias, type Calendario, type Parcial, type Periodo, type Pessoa, type Turma, type ViagemCampus } from './suap';
 import { isoDay, parseDay } from './dates';
 import { fetchPendingTasks } from './classroom';
 import type { Holiday } from './insights';
@@ -12,6 +12,12 @@ export const useEu = () => useResource('eu', api.eu, 24 * 60);
 export const useAluno = () => useResource('aluno', api.aluno, 24 * 60);
 export const useRequisitos = () => useResource('requisitos', api.requisitos, 12 * 60);
 export const usePeriodos = () => useResource('periodos', api.periodos, 24 * 60);
+/** Matérias reprovadas que ainda não foram vencidas, a partir do boletim de todos os períodos. */
+export function usePendencias() {
+  const { data: periodos } = usePeriodos();
+  const res = useResource(periodos?.length ? 'historico' : null, () => api.historico(periodos!), 24 * 60);
+  return useMemo(() => (res.data ? pendencias(res.data) : undefined), [res.data]);
+}
 export const useAvaliacoes = () => useResource('avaliacoes', api.avaliacoes, 60);
 export const useMensagens = () => useResource('mensagens', api.mensagens, 30);
 
