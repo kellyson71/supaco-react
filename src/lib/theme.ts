@@ -142,6 +142,13 @@ export function buildVars(seedHexValue: string, dark: boolean, prefs: Prefs = DE
   const vars: Record<string, string> = {};
   for (const [name, role] of Object.entries(ROLES)) vars[`--md-${name}`] = hexFromArgb(role.getArgb(scheme));
 
+  if (dark) {
+    // O M3 faz o contêiner terciário pastel mesmo no escuro; ele destoa dos demais, que são escuros
+    const t = scheme.tertiaryPalette;
+    vars['--md-tertiary-container'] = hexFromArgb(t.tone(prefs.contrast ? 24 : 30));
+    vars['--md-on-tertiary-container'] = hexFromArgb(t.tone(90));
+  }
+
   if (dark && (prefs.amoled || prefs.theme === 'preto')) {
     // Preto puro no fundo; os contêineres sobem em degraus curtos para ainda dar relevo
     const n = scheme.neutralPalette;
