@@ -1,4 +1,5 @@
 import { lazy, Suspense, useEffect, useSyncExternalStore } from 'react';
+import { Analytics, type BeforeSendEvent } from '@vercel/analytics/react';
 import { onSessionChange, session } from './lib/api';
 import { PeriodProvider } from './lib/data';
 import { persistStorage } from './lib/pwa';
@@ -27,6 +28,13 @@ const useLoggedIn = () => useSyncExternalStore(onSessionChange, () => session.is
 // Rotas antigas que podem estar salvas em favoritos / atalhos
 const LEGACY: Record<string, string> = { '/flash': '/', '/callback': '/agenda' };
 
+// Configuração do Analytics: a contagem é por tela, sem dados pessoais (matrícula, código etc.)
+const analyticsBeforeSend = (event: BeforeSendEvent) => {
+  const url = new URL(event.url);
+  url.pathname = url.pathname.replace(/^\/(servidores|disciplinas)\/.+/, '/$1/[id]');
+  return { ...event, url: url.toString() };
+};
+
 export default function App() {
   const loggedIn = useLoggedIn();
   const path = usePath();
@@ -40,7 +48,7 @@ export default function App() {
     if (loggedIn) persistStorage();
   }, [loggedIn]);
 
-  if (!loggedIn) return <><Suspense fallback={null}><Login /></Suspense><UpdatePrompt /></>;
+  if (!loggedIn) return <><Suspense fallback={null}><Login /></Suspense><UpdatePrompt /><Analytics beforeSend={analyticsBeforeSend} /></>;
 
   const detail = path.match(/^\/disciplinas\/([^/]+)/);
   const staff = path.match(/^\/servidores\/([^/]+)/);
@@ -62,6 +70,7 @@ export default function App() {
     <PeriodProvider>
       <Shell><Suspense fallback={<Skeleton className="mt-4 h-96" />}>{page}</Suspense></Shell>
       <UpdatePrompt />
+      <Analytics beforeSend={analyticsBeforeSend} />
     </PeriodProvider>
   );
 }
