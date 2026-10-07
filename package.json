@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@material/material-color-utilities": "^0.4.0",
+    "@vercel/analytics": "^2.0.1",
     "canvas-confetti": "^1.9.4",
     "he": "^1.2.0",
     "html-to-image": "^1.11.13",

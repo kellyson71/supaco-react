@@ -40,6 +40,7 @@ O Classroom usa o fluxo de token do Google Identity Services (sem client secret)
 - **Cuidado com o limite da chave:** o Portal aceita 400 requisições por minuto e, em vez de responder 429, **bloqueia a chave** de quem passa disso (o desbloqueio é por e-mail). Os scripts fazem perto de 85 por minuto e param na primeira recusa.
 - Atualização: `.github/workflows/dados.yml` roda toda semana (e sob demanda), baixa o que falta e faz commit dos arquivos; precisa do segredo `PORTAL_TRANSPARENCIA_KEY` no GitHub. Enquanto os arquivos não existirem, os blocos de remuneração, viagens e orçamento não aparecem. Os arquivos guardam as pessoas pelo hash do nome, não pelo nome.
 - Horários vêm de `minhas-turmas-virtuais` (código `3V1234`), convertidos em `src/lib/schedule.ts`.
+- **Métricas de uso** (`src/lib/metrics.ts`): o Vercel Web Analytics conta visitantes e acessos por tela, sem cookies e só no site publicado. Páginas de detalhe entram como `/servidores/[id]` e `/disciplinas/[id]`, sem a matrícula nem o código. Precisa estar ligado em **Analytics** no painel do projeto no Vercel; desligado, o app só deixa de contar.
 
 ## App instalável (PWA)
 

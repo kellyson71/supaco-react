@@ -73,7 +73,8 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  if (url.origin !== self.location.origin || url.pathname.startsWith('/api/')) return;
+  // A API e o script de métricas do Vercel vão direto para a rede
+  if (url.origin !== self.location.origin || url.pathname.startsWith('/api/') || url.pathname.startsWith('/_vercel/')) return;
 
   // Navegação: o app é uma página só, então toda rota abre o index já guardado (instantâneo, com ou sem rede)
   if (request.mode === 'navigate' && !/\.[a-z0-9]+$/i.test(url.pathname)) {
