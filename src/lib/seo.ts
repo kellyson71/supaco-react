@@ -19,12 +19,10 @@ const HOME: PageMeta = {
   title: 'Supaco: notas, faltas e horários do SUAP IFRN',
   description: 'Veja suas notas, faltas e horários do SUAP IFRN num app rápido e gratuito. Descubra quanto precisa tirar para passar e se pode faltar hoje. Abre até sem internet.',
   faq: [
-    { q: 'O Supaco é o aplicativo oficial do IFRN?', a: 'Não. O Supaco é um projeto independente, feito por estudante, sem vínculo oficial com o IFRN. Ele usa a API do próprio SUAP para mostrar os seus dados de um jeito mais rápido.' },
-    { q: 'É seguro entrar com minha senha do SUAP?', a: 'Sua matrícula e sua senha vão direto do seu navegador para o SUAP (suap.ifrn.edu.br), sem passar por nenhum servidor do Supaco. Com "Manter conectado" ligado, uma cópia cifrada da senha fica só no seu aparelho e some quando você sai da conta.' },
-    { q: 'O Supaco é de graça?', a: 'É. Não tem plano pago, anúncio nem cadastro: você entra com a conta do SUAP que já tem.' },
-    { q: 'Funciona no celular e sem internet?', a: 'Funciona em qualquer navegador e dá para instalar como app no Android, no iPhone e no computador. Depois da primeira vez, ele abre até sem internet, com os últimos dados que baixou.' },
-    { q: 'Como o Supaco sabe se eu posso faltar?', a: 'Ele pega no SUAP a carga horária e as faltas de cada matéria, calcula o limite de 25% e simula faltar o dia inteiro: mostra quantas faltas sobrariam em cada matéria daquele dia.' },
-    { q: 'Funciona para outros Institutos Federais?', a: 'Por enquanto só para o IFRN: o login é feito no SUAP do IFRN e as regras de nota e de falta são as da instituição. As calculadoras de nota e de faltas são abertas e funcionam sem login.' },
+    { q: 'O Supaco é o aplicativo oficial do IFRN?', a: 'Não. É um projeto independente, feito por estudante, que usa a API do próprio SUAP para mostrar os seus dados de um jeito mais rápido.' },
+    { q: 'É de graça?', a: 'É. Não tem plano pago, anúncio nem cadastro: você entra com a conta do SUAP que já tem.' },
+    { q: 'Funciona no celular e sem internet?', a: 'Funciona em qualquer navegador e dá para instalar como app. Depois da primeira vez, abre até sem internet, com os últimos dados que baixou.' },
+    { q: 'Funciona para outros Institutos Federais?', a: 'Por enquanto só para o IFRN: o login é feito no SUAP do IFRN e as regras de nota e de falta são as da instituição.' },
   ],
 };
 
@@ -33,11 +31,11 @@ const CALCULADORA: PageMeta = {
   name: 'Calculadora de notas',
   title: 'Calculadora de notas IFRN: quanto preciso tirar para passar',
   description: 'Calculadora de média do IFRN: informe as notas das etapas e veja quanto precisa tirar para passar, com os pesos 2 e 3 e a regra da prova final. Grátis e sem login.',
+  // As perguntas são os títulos das seções da página (src/pages/Tools.tsx): mudou lá, muda aqui
   faq: [
-    { q: 'Como é calculada a média no IFRN?', a: 'A média da disciplina (MD) é ponderada, com notas de 0 a 100. Em disciplinas de 2 etapas, MD = (2 × N1 + 3 × N2) ÷ 5. Em disciplinas de 4 etapas, MD = (2 × N1 + 2 × N2 + 3 × N3 + 3 × N4) ÷ 10.' },
-    { q: 'Qual é a média para passar no IFRN?', a: 'Média 60, com pelo menos 75% de frequência. Com média de 20 a 59 você vai para a prova final. Abaixo de 20, reprova sem direito à final.' },
-    { q: 'Como funciona a prova final do IFRN?', a: 'A nota da avaliação final (NAF) entra de dois jeitos e vale o melhor para você: a média simples entre a MD e a NAF, ou a média ponderada trocando a nota de uma das etapas pela NAF. Se o resultado for 60 ou mais, você é aprovado.' },
-    { q: 'Tirei 50 na primeira etapa. Quanto preciso na segunda?', a: '67. Com os pesos 2 e 3, (2 × 50 + 3 × 67) ÷ 5 = 60,2, que fecha a média 60.' },
+    { q: 'Como a média do IFRN é calculada?', a: 'As notas vão de 0 a 100 e as últimas etapas pesam mais. Com 2 etapas, MD = (2 × N1 + 3 × N2) ÷ 5. Com 4 etapas, MD = (2 × N1 + 2 × N2 + 3 × N3 + 3 × N4) ÷ 10.' },
+    { q: 'Qual é a média para passar?', a: '60 ou mais: aprovado, com pelo menos 75% de frequência. De 20 a 59: prova final. Abaixo de 20: reprovado, sem prova final.' },
+    { q: 'Como funciona a prova final?', a: 'Vale o melhor resultado para você: a média simples com a prova final, (MD + NAF) ÷ 2, ou a média ponderada trocando a nota de uma etapa pela da final. Com 60 ou mais, você é aprovado.' },
   ],
 };
 
@@ -47,10 +45,9 @@ const FALTAS: PageMeta = {
   title: 'Calculadora de faltas IFRN: quantas aulas posso faltar',
   description: 'Informe a carga horária da disciplina e veja o limite de 25% de faltas do IFRN, quantas ainda restam e quantos dias dá para faltar sem reprovar. Grátis e sem login.',
   faq: [
-    { q: 'Quantas faltas posso ter no IFRN?', a: 'Até 25% da carga horária, porque a frequência mínima para ser aprovado é 75%. Numa disciplina de 80 aulas, são no máximo 20 faltas.' },
-    { q: 'Reprova por falta mesmo com nota boa?', a: 'Sim. Quem passa do limite de faltas é reprovado por frequência, mesmo com média 60 ou mais.' },
-    { q: 'A carga horária é em horas ou em aulas?', a: 'Use a carga horária que aparece no boletim do SUAP, em aulas. Cada falta lançada pelo professor corresponde a uma aula.' },
-    { q: 'O limite vale por disciplina?', a: 'Esta calculadora faz a conta por disciplina, do jeito que o boletim do SUAP mostra. Em alguns cursos a frequência mínima também é cobrada sobre o total do período: confira a Organização Didática do seu curso.' },
+    { q: 'Quantas faltas posso ter no IFRN?', a: 'Até 25% da carga horária da disciplina: a frequência mínima é 75%. Quem passa do limite reprova por falta, mesmo com média boa. A conta é em aulas, não em dias: faltar num dia com duas aulas da matéria custa duas faltas.' },
+    { q: 'Qual é o limite para cada carga horária?', a: '40 aulas: 10 faltas. 60 aulas: 15 faltas. 80 aulas: 20 faltas. 120 aulas: 30 faltas. 160 aulas: 40 faltas.' },
+    { q: 'O limite vale por disciplina?', a: 'Aqui a conta é por disciplina, como no boletim do SUAP. Em alguns cursos a frequência também é cobrada sobre o total do período: confira a Organização Didática do seu curso.' },
   ],
 };
 

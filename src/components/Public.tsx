@@ -1,5 +1,6 @@
 // Peças das páginas abertas a quem não entrou: a inicial e as calculadoras.
 import type { ReactNode } from 'react';
+import { SUAP } from '../lib/api';
 import { useLoggedIn } from '../lib/hooks';
 import type { Faq } from '../lib/seo';
 import { Button, cx, Icon } from './ui';
@@ -38,14 +39,21 @@ export function PublicHeader({ current }: { current: string }) {
   );
 }
 
-/** Título de seção: a linha de cima diz do que a seção trata, em poucas palavras. */
-export function SectionTitle({ eyebrow, title, children, className }: { eyebrow: string; title: string; children?: ReactNode; className?: string }) {
+export function SectionTitle({ title, children, className }: { title: string; children?: ReactNode; className?: string }) {
   return (
     <div className={cx('max-w-2xl', className)}>
-      <p className="text-sm font-semibold tracking-wide text-primary">{eyebrow}</p>
-      <h2 className="mt-2 text-[32px] leading-10 font-semibold tracking-tight lg:text-[40px] lg:leading-[48px]">{title}</h2>
+      <h2 className="text-[32px] leading-10 font-semibold tracking-tight lg:text-[40px] lg:leading-[48px]">{title}</h2>
       {children && <p className="mt-3 text-lg text-on-surface-variant">{children}</p>}
     </div>
+  );
+}
+
+/** Link para o SUAP do IFRN, onde a pessoa confere os dados oficiais. Abre em outra aba. */
+export function SuapLink({ children = 'Abrir o SUAP', className }: { children?: ReactNode; className?: string }) {
+  return (
+    <a href={`${SUAP}/`} target="_blank" rel="noopener noreferrer" className={cx('inline-flex items-center gap-1 rounded-md font-medium text-primary underline-offset-4 hover:underline', className)}>
+      {children}<Icon name="open_in_new" size={16} />
+    </a>
   );
 }
 
@@ -68,7 +76,7 @@ export function FaqList({ items }: { items: Faq[] }) {
 
 export function PublicFooter() {
   return (
-    <footer className="mt-20 border-t border-outline-variant/60 py-10">
+    <footer className="mt-24 border-t border-outline-variant/60 py-10 lg:mt-32">
       <Wrap className="flex flex-col gap-6 md:flex-row md:items-start md:justify-between">
         <div className="max-w-md">
           <div className="flex items-center gap-2"><Logo size={28} /><span className="text-lg font-semibold tracking-tight">Supaco</span></div>
@@ -79,6 +87,7 @@ export function PublicFooter() {
         <nav aria-label="Rodapé" className="flex flex-col gap-2 text-sm font-medium">
           <Link to="/" className="rounded-md text-on-surface-variant hover:text-primary">Entrar no Supaco</Link>
           {LINKS.map((l) => <Link key={l.to} to={l.to} className="rounded-md text-on-surface-variant hover:text-primary">{l.label} do IFRN</Link>)}
+          <SuapLink className="!font-medium !text-on-surface-variant hover:!text-primary">SUAP do IFRN</SuapLink>
         </nav>
       </Wrap>
     </footer>

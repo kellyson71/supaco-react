@@ -1,7 +1,7 @@
 // Calculadoras abertas (sem login): quanto preciso tirar e quantas faltas ainda posso ter, com as regras do IFRN.
 import { useState, type ReactNode } from 'react';
 import { absenceAnswer, gradeAnswer, parseGrade, type CalcTone } from '../lib/calc';
-import { cx, Icon, Segmented } from './ui';
+import { cx, Segmented } from './ui';
 
 const TONE: Record<CalcTone, string> = {
   success: 'bg-success-container text-on-success-container',
@@ -64,17 +64,14 @@ export function GradeCalculator() {
   return (
     <div className="grid gap-5 lg:grid-cols-2 lg:gap-8">
       <div className="flex flex-col">
-        <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-          <Segmented value={stages} options={[...STAGES]} onChange={setStages} />
-          <p className="text-sm text-on-surface-variant">{n === 2 ? 'Disciplina semestral' : 'Disciplina anual'}</p>
-        </div>
+        <Segmented value={stages} options={[...STAGES]} onChange={setStages} className="self-start" />
 
         <div className="mt-5 flex gap-2 sm:gap-3">
           {a.weights.map((w, i) => (
             <NumberBox key={i} label={`N${i + 1} · peso ${w}`} value={raw[i]} max={100} onChange={(v) => setRaw(raw.map((x, j) => (j === i ? v : x)))} />
           ))}
         </div>
-        <p className="mt-3 text-sm text-on-surface-variant">Notas de 0 a 100. Deixe em branco a etapa que ainda não tem nota.</p>
+        <p className="mt-3 text-sm text-on-surface-variant">Deixe em branco a etapa que ainda não tem nota.</p>
 
         {/* A conta com os números de quem está usando, para dar para conferir */}
         <p className="mt-auto pt-5 text-sm text-on-surface-variant tabular">
@@ -90,58 +87,29 @@ export function GradeCalculator() {
   );
 }
 
-const WORKLOADS = [40, 60, 80, 120, 160];
-const PER_DAY = [1, 2, 3, 4];
-
 /** Limite de 25% de faltas de uma disciplina e quanto ainda sobra. */
 export function AbsenceCalculator() {
+  // Começa com um exemplo preenchido, para a resposta já aparecer
   const [workload, setWorkload] = useState('80');
   const [absences, setAbsences] = useState('6');
-  const [perDay, setPerDay] = useState(2);
-  const a = absenceAnswer(Number(workload) || 0, Number(absences) || 0, perDay);
+  const [perDay, setPerDay] = useState('2');
+  const a = absenceAnswer(Number(workload) || 0, Number(absences) || 0, Number(perDay) || 0);
   const pct = a.limit ? Math.min(1, (Number(absences) || 0) / a.limit) : 0;
 
   return (
     <div className="grid gap-5 lg:grid-cols-2 lg:gap-8">
-      <div className="flex flex-col">
-        <div className="flex gap-2 sm:gap-3">
-          <NumberBox label="Carga horária" hint="em aulas" value={workload} max={999} onChange={setWorkload} />
-          <NumberBox label="Faltas até agora" hint="no boletim" value={absences} max={999} placeholder="0" onChange={setAbsences} />
-        </div>
-        <div className="mt-3 flex flex-wrap gap-2" role="group" aria-label="Cargas horárias comuns">
-          {WORKLOADS.map((w) => (
-            <button key={w} type="button" onClick={() => setWorkload(String(w))} aria-pressed={workload === String(w)}
-              className={cx('state h-8 rounded-lg px-3 text-sm font-medium', workload === String(w) ? 'bg-secondary-container text-on-secondary-container' : 'border border-outline-variant text-on-surface-variant')}>
-              {w} aulas
-            </button>
-          ))}
-        </div>
-
-        <p className="mt-6 text-sm font-medium">Quantas aulas dessa matéria você tem por dia?</p>
-        <div className="mt-2 flex flex-wrap gap-2" role="group" aria-label="Aulas por dia">
-          {PER_DAY.map((d) => (
-            <button key={d} type="button" onClick={() => setPerDay(d)} aria-pressed={perDay === d}
-              className={cx('state h-8 min-w-12 rounded-lg px-3 text-sm font-medium', perDay === d ? 'bg-secondary-container text-on-secondary-container' : 'border border-outline-variant text-on-surface-variant')}>
-              {d}
-            </button>
-          ))}
-        </div>
-        <p className="mt-auto pt-5 text-sm text-on-surface-variant tabular">
-          <span className="font-medium text-on-surface">Limite</span>{` = 25% de ${Number(workload) || 0} aulas = `}<b className="font-semibold text-on-surface">{a.limit} faltas</b>
-        </p>
+      <div className="flex gap-2 self-center sm:gap-3 lg:w-full">
+        <NumberBox label="Carga horária" hint="aulas" value={workload} max={999} onChange={setWorkload} />
+        <NumberBox label="Faltas" hint="até agora" value={absences} max={999} placeholder="0" onChange={setAbsences} />
+        <NumberBox label="Aulas por dia" hint="dessa matéria" value={perDay} max={6} onChange={setPerDay} />
       </div>
 
       <Answer tone={a.tone} lead={!a.limit ? 'Limite de faltas' : a.left < 0 ? 'Você passou' : 'Ainda dá para ter'}
         big={!a.limit ? '25%' : String(Math.abs(a.left))} where={!a.limit ? 'da carga horária' : `${Math.abs(a.left) === 1 ? 'falta' : 'faltas'}${a.left < 0 ? ' do limite' : ''}`} text={a.detail}>
         {a.limit > 0 && (
-          <div className="mt-5">
-            <div className="flex h-2 items-center gap-1">
-              {pct > 0 && <span className="h-2 rounded-full bg-current" style={{ width: `${pct * 100}%` }} />}
-              {pct < 1 && <span className="h-2 flex-1 rounded-full bg-current opacity-25" />}
-            </div>
-            <p className="mt-2 flex items-center gap-1.5 text-sm font-medium">
-              <Icon name="monitoring" size={18} />Frequência de {a.attendance.toLocaleString('pt-BR', { maximumFractionDigits: 1 })}% (mínimo de 75%)
-            </p>
+          <div className="mt-5 flex h-2 items-center gap-1" aria-hidden>
+            {pct > 0 && <span className="h-2 rounded-full bg-current" style={{ width: `${pct * 100}%` }} />}
+            {pct < 1 && <span className="h-2 flex-1 rounded-full bg-current opacity-25" />}
           </div>
         )}
       </Answer>
