@@ -1,5 +1,7 @@
 {
   "rewrites": [
+    { "source": "/calculadora", "destination": "/calculadora/index.html" },
+    { "source": "/faltas", "destination": "/faltas/index.html" },
     {
       "source": "/((?!api/|assets/|_vercel/).*)",
       "destination": "/index.html"

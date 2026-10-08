@@ -344,5 +344,5 @@ export function setCustomColor(dark: boolean, key: 'bg' | 'fg' | 'error' | 0 | 1
 media?.addEventListener('change', () => { if (state.mode === 'system') applyTheme(); });
 
 export function useThemeState() {
-  return useSyncExternalStore((cb) => { subs.add(cb); return () => { subs.delete(cb); }; }, () => state);
+  return useSyncExternalStore((cb) => { subs.add(cb); return () => { subs.delete(cb); }; }, () => state, () => state);
 }

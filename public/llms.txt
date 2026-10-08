@@ -1,0 +1,37 @@
+# Supaco
+
+> Cliente web do SUAP para estudantes do IFRN (Instituto Federal do Rio Grande do Norte): notas, faltas, horários e prazos num app rápido, gratuito e que abre sem internet. Projeto independente, sem vínculo oficial com o IFRN.
+
+O estudante entra com a mesma matrícula e senha do SUAP (suap.ifrn.edu.br). A senha vai direto do navegador para o SUAP; não existe servidor do Supaco no meio. Só funciona para o IFRN.
+
+## Páginas abertas (sem login)
+
+- [Página inicial](https://supaco.vercel.app/): o que o app faz e o login.
+- [Calculadora de notas do IFRN](https://supaco.vercel.app/calculadora): quanto falta tirar para passar, com os pesos das etapas e a prova final.
+- [Calculadora de faltas do IFRN](https://supaco.vercel.app/faltas): limite de 25% de faltas, quantas sobram e quantos dias isso dá.
+
+## Regras do IFRN usadas nas contas
+
+- Notas de 0 a 100. Média para passar direto: 60, com pelo menos 75% de frequência.
+- Disciplina de 2 etapas: MD = (2 × N1 + 3 × N2) ÷ 5.
+- Disciplina de 4 etapas: MD = (2 × N1 + 2 × N2 + 3 × N3 + 3 × N4) ÷ 10.
+- Média de 20 a 59: prova final. Abaixo de 20: reprovado, sem direito à final.
+- Prova final (NAF): vale o maior entre (MD + NAF) ÷ 2 e a média ponderada trocando a nota de uma etapa pela NAF. Aprovado com 60 ou mais.
+- Faltas: no máximo 25% da carga horária da disciplina, contada em aulas.
+
+## O que o app mostra para quem entra
+
+- Hoje: aula de agora e a próxima, com sala; "posso faltar hoje?"; matérias em risco; próximos prazos.
+- Matérias: notas por etapa, notas parciais antes de a etapa fechar, média, quanto falta para passar, simulador e faltas restantes.
+- Horário: grade da semana.
+- Agenda: avaliações do SUAP e tarefas do Google Classroom.
+- Servidores: professores e técnicos do IFRN, com dados públicos do Portal da Transparência.
+- Retrospectiva do semestre, mensagens do SUAP e temas.
+
+## Ferramentas para assistentes (WebMCP)
+
+Em navegadores com WebMCP, o site registra ferramentas em `document.modelContext`:
+
+- `calcular_nota_ifrn` e `calcular_faltas_ifrn`: as duas calculadoras, sem login.
+- `abrir_tela`: abre uma tela do app.
+- Com o estudante logado: `minhas_materias`, `posso_faltar`, `aulas_do_dia`, `proximos_prazos` e `buscar_servidor`. Só leem; respondem com os dados da própria pessoa, direto do aparelho dela.

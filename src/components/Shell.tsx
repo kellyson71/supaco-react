@@ -5,12 +5,13 @@ import { refreshAll, useIsRefreshing } from '../lib/store';
 import { forceRecheck, recheckPending } from '../lib/attendance';
 import { useCurrentSubjects, useMensagens } from '../lib/data';
 import { useOnline } from '../lib/hooks';
-import { toggleDark, useThemeState } from '../lib/theme';
+import { live } from '../lib/agent';
 import { cx, EMPHASIZED, Icon, IconButton, spring } from './ui';
 import { Link } from './Link';
 import { Logo } from './Logo';
 import { Avatar } from './Avatar';
 import { GlobalSearch, openSearch, SearchBar, SearchPanel, useIsWide, useSearchOpen } from './Search';
+import { ThemeButton } from './ThemeButton';
 
 export { Link };
 
@@ -26,16 +27,6 @@ const NAV = [
 
 const isActive = (path: string, to: string) =>
   to === '/' ? path === '/' : path.startsWith(to) || (to === '/voce' && ['/mensagens', '/diagnostico', '/campus', '/retrospectiva'].includes(path));
-
-/** Botão de tema com o ícone girando entre sol e lua. */
-export function ThemeButton({ variant = 'standard' }: { variant?: 'standard' | 'tonal' }) {
-  const { dark } = useThemeState();
-  return (
-    <m.span key={dark ? 'd' : 'l'} initial={{ rotate: -90, opacity: 0 }} animate={{ rotate: 0, opacity: 1 }} transition={{ duration: 0.35, ease: EMPHASIZED }} className="inline-flex">
-      <IconButton icon={dark ? 'dark_mode' : 'light_mode'} fill label={dark ? 'Mudar para tema claro' : 'Mudar para tema escuro'} onClick={toggleDark} variant={variant} />
-    </m.span>
-  );
-}
 
 export function SyncButton() {
   const refreshing = useIsRefreshing();
@@ -77,6 +68,12 @@ export function Shell({ children }: { children: ReactNode }) {
     if (!msgs || !navigator.setAppBadge) return;
     (unreadCount ? navigator.setAppBadge(unreadCount) : navigator.clearAppBadge()).catch(() => { /* sem permissão */ });
   }, [msgs, unreadCount]);
+  // As ferramentas do assistente do navegador respondem com as mesmas matérias que a tela mostra
+  const { data: subjects } = useCurrentSubjects();
+  useEffect(() => {
+    live.subjects = subjects;
+    return () => { live.subjects = undefined; };
+  }, [subjects]);
   // No celular a busca toma o lugar da barra superior; em telas maiores ela vive na barra do topo
   const searchOpen = useSearchOpen();
   const isWide = useIsWide();

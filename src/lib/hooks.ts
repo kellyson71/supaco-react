@@ -1,4 +1,11 @@
 import { useEffect, useState, useSyncExternalStore } from 'react';
+import { onSessionChange, session } from './api';
+import { SITE_URL } from './seo';
+
+export { SITE_URL };
+
+/** Tem alguém logado neste aparelho. No HTML gerado no build, ninguém está. */
+export const useLoggedIn = () => useSyncExternalStore(onSessionChange, () => session.isLoggedIn, () => false);
 
 const onlineSub = (cb: () => void) => {
   window.addEventListener('online', cb);
@@ -35,9 +42,9 @@ export const isStandalone = () =>
 const isIOS = () => /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
 
 export function useInstall() {
-  const canInstall = useSyncExternalStore((cb) => { installSubs.add(cb); return () => { installSubs.delete(cb); }; }, () => !!deferred);
+  const canInstall = useSyncExternalStore((cb) => { installSubs.add(cb); return () => { installSubs.delete(cb); }; }, () => !!deferred, () => false);
   // O iOS não tem prompt de instalação: a pessoa precisa usar o menu Compartilhar do Safari
-  const iosHint = !canInstall && isIOS() && !isStandalone();
+  const iosHint = typeof window !== 'undefined' && !canInstall && isIOS() && !isStandalone();
   const install = async () => {
     if (!deferred) return;
     await deferred.prompt();
@@ -47,8 +54,6 @@ export function useInstall() {
   };
   return { canInstall, install, iosHint };
 }
-
-export const SITE_URL = 'https://supaco.vercel.app';
 
 export async function shareSite() {
   const data = { title: 'Supaco', text: 'Notas, faltas e horários do SUAP/IFRN num só lugar', url: SITE_URL };

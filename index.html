@@ -8,11 +8,13 @@
     <meta name="application-name" content="Supaco" />
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-title" content="Supaco" />
-    <title>Supaco · notas, faltas e horários do IFRN</title>
-    <meta name="description" content="Suas notas, faltas, horários e prazos do SUAP/IFRN num app rápido. Descubra se pode faltar hoje e quanto precisa tirar para passar." />
-    <meta property="og:title" content="Supaco · seu SUAP, rápido e sem enrolação" />
-    <meta property="og:description" content="Notas, faltas, horários e prazos do IFRN num só lugar." />
-    <meta property="og:url" content="https://supaco.vercel.app" />
+    <meta name="robots" content="index, follow, max-image-preview:large" />
+    <!-- O build troca este bloco pelo de cada página aberta (título, descrição, prévia de link e dados estruturados): src/lib/seo.ts -->
+    <!--seo-->
+    <title>Supaco: notas, faltas e horários do SUAP IFRN</title>
+    <meta name="description" content="Veja suas notas, faltas e horários do SUAP IFRN num app rápido e gratuito." />
+    <link rel="canonical" href="https://supaco.vercel.app/" />
+    <!--/seo-->
     <link rel="manifest" href="/manifest.webmanifest" />
     <link rel="icon" href="/icon.svg" type="image/svg+xml" />
     <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
@@ -29,8 +31,11 @@
         var root = document.documentElement;
         if (dark) root.classList.add('dark');
         if (saved && saved.dark === dark) for (var k in saved.vars) root.style.setProperty(k, saved.vars[k]);
+        // Com alguém logado, a rota "/" é o app: a página inicial que vem pronta no HTML não chega a aparecer
+        if (localStorage.getItem('supaco:refresh') && localStorage.getItem('supaco:user')) root.classList.add('app');
       } catch (e) {}
     </script>
+    <style>html.app #root[data-prerender="/"] { display: none; }</style>
   </head>
   <body>
     <div id="root"></div>

@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useAulas, useDisciplinas, useParciais, usePeriod } from '../lib/data';
-import { absenceLevel, currentAverage, FINAL_MIN, gradeTone, hasPartial, neededFinal, outlook, PASS, weightsFor, type GradeOutlook } from '../lib/grades';
+import { absenceLevel, currentAverage, FINAL_MIN, gradeTone, hasPartial, neededFinal, outlook, outlookText, PASS, weightsFor } from '../lib/grades';
 import { WEEKDAYS } from '../lib/schedule';
 import { back } from '../lib/router';
 import { aulaMatchesSubject, subjectTone, type Aula, type Subject } from '../lib/suap';
@@ -29,20 +29,6 @@ export function SubjectDetail({ code }: { code: string }) {
   );
 }
 
-function verdict(o: GradeOutlook, s: Subject): string {
-  switch (o.kind) {
-    case 'passed': return `Aprovado com média ${Math.round(o.average)}.`;
-    case 'failed': return o.average !== null && o.average < FINAL_MIN ? 'Média abaixo de 20: sem direito à prova final.' : 'Reprovado nesta matéria.';
-    case 'secured': return 'Média 60 garantida, mesmo tirando zero no que falta.';
-    case 'empty': return `Nenhuma nota lançada ainda. Para passar direto, a média precisa chegar a ${PASS}.`;
-    case 'needs': {
-      const which = o.stagesLeft === 1 ? `na N${s.grades.findIndex((g) => g === null) + 1}` : `em cada uma das ${o.stagesLeft} etapas que faltam`;
-      return o.needed > 100 ? `Nem com 100 ${which} fecha 60: vai para a prova final.` : `Você precisa de ${o.needed} ${which} para passar direto.`;
-    }
-    case 'final': return o.needed !== null ? `Média ${Math.round(o.average)}: prova final, e precisa de ${o.needed} nela.` : `Média ${Math.round(o.average)}: prova final.`;
-  }
-}
-
 function Detail({ s }: { s: Subject }) {
   const t = TONES[subjectTone(s)];
   const o = outlook(s);
@@ -63,7 +49,7 @@ function Detail({ s }: { s: Subject }) {
                 <Badge className="bg-white/50 !text-current dark:bg-black/25">{s.workload} aulas · {s.stages} {s.stages === 1 ? 'etapa' : 'etapas'}</Badge>
               </div>
               <h1 className="mt-3 text-[36px] leading-[44px] font-semibold tracking-tight md:text-[52px] md:leading-[60px]">{s.name}</h1>
-              <p className="mt-2 max-w-xl text-base opacity-90">{verdict(o, s)}</p>
+              <p className="mt-2 max-w-xl text-base opacity-90">{outlookText(o, s)}</p>
             </div>
             <Ring value={(avg ?? 0) / 100} size={132} stroke={12} color="currentColor" track="rgb(0 0 0 / .1)" className="self-start md:self-center">
               <div className="text-center leading-none">

@@ -4,6 +4,9 @@ import type { Subject } from './suap';
 export const PASS = 60;
 export const FINAL_MIN = 20;
 
+/** O mínimo para fazer as contas de nota: serve para uma matéria do boletim e para as calculadoras públicas. */
+export type Graded = Pick<Subject, 'stages' | 'grades' | 'status' | 'average' | 'finalAverage' | 'finalExam'>;
+
 const WEIGHTS: Record<number, number[]> = { 1: [1], 2: [2, 3], 4: [2, 2, 3, 3] };
 export const weightsFor = (stages: number) => WEIGHTS[stages] ?? Array(stages).fill(1);
 
@@ -19,7 +22,7 @@ export type GradeOutlook =
   | { kind: 'empty' };
 
 /** Nota mínima (igual em todas as etapas restantes) para fechar média 60 sem final. */
-export function neededGrade(s: Subject): { needed: number; stagesLeft: number } | null {
+export function neededGrade(s: Pick<Subject, 'stages' | 'grades'>): { needed: number; stagesLeft: number } | null {
   const w = weightsFor(s.stages);
   const left = s.grades.map((g, i) => (g === null ? i : -1)).filter((i) => i >= 0);
   if (!left.length) return null;
@@ -30,7 +33,7 @@ export function neededGrade(s: Subject): { needed: number; stagesLeft: number } 
 }
 
 /** Menor nota na avaliação final que aprova: MFD = maior entre (MD+NAF)/2 e a média trocando uma etapa pela NAF. */
-export function neededFinal(s: Subject): number | null {
+export function neededFinal(s: Pick<Subject, 'stages' | 'grades'>): number | null {
   const grades = s.grades.map((g) => g ?? 0);
   const w = weightsFor(s.stages);
   const md = weighted(grades, w);
@@ -44,7 +47,7 @@ export function neededFinal(s: Subject): number | null {
   return null;
 }
 
-export function outlook(s: Subject): GradeOutlook {
+export function outlook(s: Graded): GradeOutlook {
   const status = s.status.toLowerCase();
   const avg = s.finalAverage ?? s.average;
   if (status.includes('aprovad')) return { kind: 'passed', average: avg ?? 0 };
@@ -63,9 +66,24 @@ export function outlook(s: Subject): GradeOutlook {
   return { kind: 'final', average: md, needed: s.finalExam !== null ? null : neededFinal(s) };
 }
 
+/** A situação da matéria em uma frase, para quem está cursando. */
+export function outlookText(o: GradeOutlook, s: Pick<Subject, 'grades'>): string {
+  switch (o.kind) {
+    case 'passed': return `Aprovado com média ${Math.round(o.average)}.`;
+    case 'failed': return o.average !== null && o.average < FINAL_MIN ? 'Média abaixo de 20: sem direito à prova final.' : 'Reprovado nesta matéria.';
+    case 'secured': return 'Média 60 garantida, mesmo tirando zero no que falta.';
+    case 'empty': return `Nenhuma nota lançada ainda. Para passar direto, a média precisa chegar a ${PASS}.`;
+    case 'needs': {
+      const which = o.stagesLeft === 1 ? `na N${s.grades.findIndex((g) => g === null) + 1}` : `em cada uma das ${o.stagesLeft} etapas que faltam`;
+      return o.needed > 100 ? `Nem com 100 ${which} fecha 60: vai para a prova final.` : `Você precisa de ${o.needed} ${which} para passar direto.`;
+    }
+    case 'final': return o.needed !== null ? `Média ${Math.round(o.average)}: prova final, e precisa de ${o.needed} nela.` : `Média ${Math.round(o.average)}: prova final.`;
+  }
+}
+
 export type AbsenceLevel = 'safe' | 'caution' | 'critical' | 'over';
 
-export function absenceLevel(s: Subject): AbsenceLevel {
+export function absenceLevel(s: Pick<Subject, 'limit' | 'absences'>): AbsenceLevel {
   if (!s.limit) return 'safe';
   const left = s.limit - s.absences;
   if (left < 0) return 'over';
@@ -75,7 +93,7 @@ export function absenceLevel(s: Subject): AbsenceLevel {
 }
 
 /** Média da matéria até agora: a oficial se existir, senão a ponderada só das etapas já lançadas. */
-export function currentAverage(s: Subject): number | null {
+export function currentAverage(s: Graded): number | null {
   const official = s.finalAverage ?? s.average;
   if (official !== null) return official;
   const w = weightsFor(s.stages);

@@ -11,6 +11,11 @@ Cliente web do SUAP (IFRN) focado no que o aluno precisa ver rápido: aula de ag
 - **Servidores** — quem trabalha no IFRN, com página de detalhes de cada professor ou técnico.
 - **Você** — curso, IRA, conclusão do curso, mensagens do SUAP, tema e conexão com o Classroom.
 
+Abertas, sem login:
+
+- **Página inicial** (`/` para quem não entrou) — apresenta o app, deixa testar a conta de nota e tem o login no topo.
+- **Calculadora de notas** (`/calculadora`) e **calculadora de faltas** (`/faltas`) — as mesmas contas do app com números digitados à mão, mais a explicação das regras do IFRN.
+
 ## Desenvolvimento
 
 ```bash
@@ -42,8 +47,16 @@ O Classroom usa o fluxo de token do Google Identity Services (sem client secret)
 - Horários vêm de `minhas-turmas-virtuais` (código `3V1234`), convertidos em `src/lib/schedule.ts`.
 - **Métricas de uso** (`src/lib/metrics.ts`): o Vercel Web Analytics conta visitantes e acessos por tela, sem cookies e só no site publicado. Páginas de detalhe entram como `/servidores/[id]` e `/disciplinas/[id]`, sem a matrícula nem o código. Precisa estar ligado em **Analytics** no painel do projeto no Vercel; desligado, o app só deixa de contar.
 
+## Para ser encontrado (busca, prévias de link e assistentes)
+
+- **Páginas abertas já vêm prontas no HTML.** O plugin `prerender` do `vite.config.ts` monta, no build, a página inicial e as duas calculadoras com os mesmos componentes do app (`src/prerender.tsx`) e grava `dist/index.html`, `dist/calculadora/index.html` e `dist/faltas/index.html`. Quem não roda JavaScript (prévias de link, vários robôs de busca e de IA) lê o conteúdo inteiro; para as pessoas, a página aparece antes de o app carregar. O `main.tsx` espera o código da página e o React assume o lugar sem piscar. Com alguém logado, a inicial pronta fica escondida e o app entra direto.
+- **Título, descrição e dados estruturados** de cada página ficam em `src/lib/seo.ts` (com as perguntas frequentes, que aparecem na página e no `FAQPage`). O build troca o bloco `<!--seo-->` do `index.html` pelo de cada página e gera o `sitemap.xml`. Página pública nova: entra em `PAGES` (`seo.ts`), em `VIEWS` (`prerender.tsx`), em `TOOLS` (`App.tsx`) e nos `rewrites` do `vercel.json`.
+- `public/robots.txt`, `public/llms.txt` (resumo do site para modelos de linguagem) e `public/og.png` (imagem da prévia de link, 1200×630) são arquivos estáticos.
+- As contas das calculadoras estão em `src/lib/calc.ts`, sobre as regras de `src/lib/grades.ts`.
+- **WebMCP** (`src/lib/webmcp.ts`): em navegador com a API (`document.modelContext`), o site registra ferramentas que o assistente do navegador chama direto, sem ler a tela. Abertas: `calcular_nota_ifrn`, `calcular_faltas_ifrn` e `abrir_tela`. Com alguém logado: `minhas_materias`, `posso_faltar`, `aulas_do_dia`, `proximos_prazos` e `buscar_servidor`, que só leem e respondem com os dados da própria pessoa (as mesmas matérias que a tela mostra, via `src/lib/agent.ts`). O código só é baixado onde a API existe.
+
 ## App instalável (PWA)
 
-- `public/sw.js` guarda o app inteiro no aparelho (a lista de arquivos e a versão são preenchidas no build pelo plugin `sw-precache` do `vite.config.ts`), então ele abre na hora e sem internet em qualquer rota.
+- `public/sw.js` guarda o app inteiro no aparelho (a lista de arquivos e a versão são preenchidas no build pelo plugin `sw-precache` do `vite.config.ts`), então ele abre na hora e sem internet em qualquer rota. As calculadoras saem do cache com o HTML delas; as outras rotas, com o da inicial.
 - Deploy novo: o service worker baixa a versão em segundo plano e o app mostra "Tem versão nova do Supaco"; ela também assume sozinha na próxima vez que o app for aberto do zero.
 - Ícones em `public/icons` (gerados a partir de `public/icon.svg`) e capturas da loja em `public/screenshots`, usadas na tela de instalação do Android/desktop.

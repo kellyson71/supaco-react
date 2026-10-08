@@ -1,0 +1,7 @@
+# Supaco: notas, faltas e horários do SUAP IFRN
+User-agent: *
+Allow: /
+Disallow: /api/
+Disallow: /dados/
+
+Sitemap: https://supaco.vercel.app/sitemap.xml

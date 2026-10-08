@@ -4,6 +4,8 @@
 // Preenchidos no build (plugin sw-precache do vite.config.ts) com os arquivos e a versão daquele deploy
 const VERSION = '__SW_VERSION__';
 const PRECACHE = self.__SW_PRECACHE__ || ['/'];
+// Páginas abertas que têm HTML próprio (as calculadoras): rota → arquivo guardado
+const PAGES = self.__SW_PAGES__ || {};
 
 const SHELL = `supaco-shell-${VERSION}`;
 const RUNTIME = 'supaco-runtime';
@@ -76,10 +78,12 @@ self.addEventListener('fetch', (event) => {
   // A API e o script de métricas do Vercel vão direto para a rede
   if (url.origin !== self.location.origin || url.pathname.startsWith('/api/') || url.pathname.startsWith('/_vercel/')) return;
 
-  // Navegação: o app é uma página só, então toda rota abre o index já guardado (instantâneo, com ou sem rede)
+  // Navegação: o app é uma página só, então toda rota abre o index já guardado (instantâneo, com ou sem rede).
+  // As calculadoras abrem o HTML delas, que já vem com a página pronta.
   if (request.mode === 'navigate' && !/\.[a-z0-9]+$/i.test(url.pathname)) {
+    const page = PAGES[url.pathname.replace(/\/+$/, '')] || '/';
     event.respondWith(
-      caches.match('/', { cacheName: SHELL }).then((hit) => hit || fetch(request)),
+      caches.match(page, { cacheName: SHELL }).then((hit) => hit || fetch(request)),
     );
     return;
   }

@@ -1,7 +1,8 @@
 import { StrictMode, type ReactNode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { LazyMotion, MotionConfig } from 'motion/react';
-import App from './App';
+import App, { preloadPublic } from './App';
+import { session } from './lib/api';
 import { applyTheme, useThemeState } from './lib/theme';
 import { registerServiceWorker } from './lib/pwa';
 import { startMetrics } from './lib/metrics';
@@ -46,10 +47,25 @@ function Motion({ children }: { children: ReactNode }) {
   return <MotionConfig reducedMotion={prefs.reduceMotion ? 'always' : 'user'}>{children}</MotionConfig>;
 }
 
-createRoot(document.getElementById('root')!).render(
-  <StrictMode>
-    <LazyMotion features={() => import('./motion-features').then((r) => r.default)} strict>
-      <Motion><App /></Motion>
-    </LazyMotion>
-  </StrictMode>,
-);
+// Ferramentas para o assistente do navegador (WebMCP): só baixa o código onde a API existe
+if ('modelContext' in document || 'modelContext' in navigator) void import('./lib/webmcp').then((m) => m.startWebMCP());
+
+const root = document.getElementById('root')!;
+const mount = () => {
+  root.removeAttribute('data-prerender');
+  createRoot(root).render(
+    <StrictMode>
+      <LazyMotion features={() => import('./motion-features').then((r) => r.default)} strict>
+        <Motion><App /></Motion>
+      </LazyMotion>
+    </StrictMode>,
+  );
+};
+
+// O build grava a página inicial e as calculadoras já prontas no HTML (`data-prerender` diz qual)
+const prerendered = root.dataset.prerender;
+if (!prerendered) mount();
+// Logado, a rota "/" é o app: a página inicial que veio no HTML (escondida pelo CSS do index.html) sai de cena
+else if (prerendered === '/' && session.isLoggedIn) { root.replaceChildren(); mount(); }
+// Senão espera o código da página para o React assumir o lugar sem a tela piscar
+else preloadPublic(window.location.pathname).then(mount, mount);
