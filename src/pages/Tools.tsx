@@ -12,8 +12,8 @@ function ToolPage({ path, title, lede, tool, suap, children, pitch, other }: {
   /** Onde, no SUAP, estão os números que a calculadora pede. */
   suap: string;
   children: ReactNode;
-  /** O que o app faz a mais para quem entra com o SUAP. */
-  pitch: string;
+  /** O que o app faz sozinho para quem entra com o SUAP. */
+  pitch: { title: string; text: string };
   other: { to: string; label: string };
 }) {
   const loggedIn = useLoggedIn();
@@ -30,13 +30,18 @@ function ToolPage({ path, title, lede, tool, suap, children, pitch, other }: {
           <div className="mt-10 rounded-3xl bg-surface-container-low p-4 sm:p-6 lg:p-8">{tool}</div>
           <p className="mt-4 px-1 text-sm text-on-surface-variant">{suap} <SuapLink /></p>
 
-          <article className="mt-20 flex max-w-2xl flex-col gap-14 lg:mt-28">{children}</article>
-
-          <div className="mt-20 flex flex-col gap-6 rounded-3xl bg-primary-container p-8 text-on-primary-container sm:flex-row sm:items-center sm:gap-10 lg:mt-28 lg:p-12">
-            <p className="flex-1 text-[22px] leading-8 font-medium tracking-tight">{pitch}</p>
+          {/* O convite para entrar fica logo depois da conta: é o que poupa a pessoa de digitar tudo isso */}
+          <div className="mt-8 flex flex-col gap-6 rounded-3xl bg-primary-container p-6 text-on-primary-container sm:flex-row sm:items-center sm:gap-10 sm:p-8 lg:p-10">
+            <div className="flex-1">
+              <p className="text-[24px] leading-8 font-semibold tracking-tight lg:text-[28px] lg:leading-9">{pitch.title}</p>
+              <p className="mt-2 text-lg">{pitch.text}</p>
+            </div>
             <Button to="/" size="lg" icon={loggedIn ? 'arrow_forward' : 'login'} className="shrink-0">{loggedIn ? 'Abrir o Supaco' : 'Entrar com o SUAP'}</Button>
           </div>
-          <Link to={other.to} className="mt-6 inline-flex items-center gap-1 rounded-md px-1 font-medium text-primary underline-offset-4 hover:underline">
+
+          <article className="mt-20 flex max-w-2xl flex-col gap-14 lg:mt-28">{children}</article>
+
+          <Link to={other.to} className="mt-14 inline-flex items-center gap-1 rounded-md px-1 font-medium text-primary underline-offset-4 hover:underline">
             {other.label}<Icon name="arrow_forward" size={18} />
           </Link>
         </Wrap>
@@ -69,7 +74,7 @@ export function GradeTool() {
       lede="Coloque as notas que você já tem e veja quanto falta para passar. Calculadora do IF, sem login."
       tool={<GradeCalculator />}
       suap="Não lembra das suas notas? Elas estão no boletim."
-      pitch="Entrando com o SUAP, o Supaco faz essa conta sozinho em todas as suas matérias."
+      pitch={{ title: 'Deixe o Supaco fazer essa conta sozinho.', text: 'Entre com o SUAP e ele calcula quanto falta em todas as suas matérias, sem você digitar nada.' }}
       other={{ to: '/faltas', label: 'Calculadora de faltas' }}>
       <Block title="Como a média do IFRN é calculada?">
         <p>As notas vão de <b>0 a 100</b> e as últimas etapas pesam mais.</p>
@@ -104,7 +109,7 @@ export function AbsenceTool() {
       lede="Veja quantas aulas você ainda pode faltar sem reprovar por frequência. Calculadora do IF, sem login."
       tool={<AbsenceCalculator />}
       suap="Não sabe a carga horária ou as faltas? Elas estão no boletim."
-      pitch="Entrando com o SUAP, o Supaco responde se dá para faltar hoje, matéria por matéria."
+      pitch={{ title: 'Deixe o Supaco contar as faltas sozinho.', text: 'Entre com o SUAP e ele diz se dá para faltar hoje, matéria por matéria.' }}
       other={{ to: '/calculadora', label: 'Calculadora de notas' }}>
       <Block title="Quantas faltas posso ter no IFRN?">
         <p>Até <b>25% da carga horária</b> da disciplina: a frequência mínima é 75%. Quem passa do limite reprova por falta, mesmo com média boa.</p>

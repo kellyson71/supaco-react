@@ -80,8 +80,12 @@ export function PublicFooter() {
       <Wrap className="flex flex-col gap-6 md:flex-row md:items-start md:justify-between">
         <div className="max-w-md">
           <div className="flex items-center gap-2"><Logo size={28} /><span className="text-lg font-semibold tracking-tight">Supaco</span></div>
+          <p className="mt-4 flex items-start gap-2 text-[15px] leading-6 font-medium">
+            <Icon name="lock" size={20} fill className="mt-0.5 shrink-0 text-primary" />
+            <span>É seguro: todas as informações vêm direto do SUAP e ficam só no seu aparelho. Nós não armazenamos nada.</span>
+          </p>
           <p className="mt-3 text-sm text-on-surface-variant">
-            Projeto independente feito por estudante, sem vínculo oficial com o IFRN. Usa a API pública do SUAP.
+            Projeto independente feito por estudante, sem vínculo oficial com o IFRN.
           </p>
         </div>
         <nav aria-label="Rodapé" className="flex flex-col gap-2 text-sm font-medium">
